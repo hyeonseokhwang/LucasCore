@@ -4,7 +4,77 @@ Date scope: 2026-05-31 KST.
 
 This document defines today's reminder behavior for the work ledger. It is an operations/design note only; app source changes are out of scope.
 
+## Branch Manager Daily Page Spec
+
+Goal: provide a separate, always-visible work ledger page for a branch manager to track daily objectives, reminders, progress, and status without competing with the terminal-first developer UI.
+
+Placement:
+
+- Run as a separate page or port from the main terminal control plane.
+- Support standalone URL modes: `?view=ledger` and `#/ledger`.
+- Keep it visible on a second monitor or separate browser window.
+- Do not hide it behind Canvas, terminal grid, or transient modals.
+- Keep future HQ/branch coordination hooks explicit but non-blocking for the first version.
+
+Primary sections:
+
+- `Today`: daily objectives, owner, priority, due time, and current status.
+- `Hourly Reminder`: next reminder time, last fired time, acknowledgement state, snooze, blocked, complete.
+- `Progress Timeline`: append-only chronological events for objective changes, reminders, evidence, reviews, and handoffs.
+- `Status Board`: compact counts for active, due, blocked, waiting, completed, and missed items.
+- `Coordination Later`: reserved area for HQ and branch messages, approvals, and cross-branch sync once the protocol is stable.
+
+Daily objective fields:
+
+- title
+- branch or workstream
+- owner
+- target outcome
+- priority
+- due time or cadence
+- status: `planned`, `active`, `due`, `blocked`, `waiting`, `completed`, or `missed`
+- next action
+- evidence/reference
+
+Interaction rules:
+
+- Every action appends a ledger event; no silent overwrites.
+- Acknowledging a reminder does not mark the objective complete.
+- Completing or blocking an objective requires a note.
+- Evidence is optional for simple reminders but required for completion of deliverables.
+- Hourly reminders continue until the item is completed, blocked, or explicitly snoozed.
+
+First implementation should stay local-first: JSONL ledger storage, browser page polling or WebSocket updates, and no dependency on HQ sync. HQ/branch coordination can consume the same ledger events later.
+
+## Branch Manager Terminal Fullscreen
+
+The branch manager should be able to switch the terminal control plane into fullscreen or near-fullscreen mode for focused developer monitoring.
+
+Fullscreen behavior:
+
+- Use the same session id and existing terminal connection.
+- Do not create a second terminal session for fullscreen.
+- Render fullscreen as an overlay above the current terminal grid.
+- Close fullscreen with `Esc` and return to the same terminal card state.
+- Hide nonessential chrome: topbar, toolbar, sidebars, and secondary panels.
+- Keep recovery controls visible for restoring panels, leaving fullscreen, stopping sessions, and opening logs.
+- Prioritize active developer terminals over the dev-lead terminal because dev-lead coordinates and reviews.
+- Preserve terminal input/output priority over ledger or coordination UI.
+- Do not embed the Work Ledger inside terminal fullscreen.
+
+Standalone ledger coexistence:
+
+- The Work Ledger remains a separate always-visible page or port.
+- Terminal fullscreen is for live execution monitoring; the ledger page is for objectives, reminders, status, and audit timeline.
+- Terminal events may append ledger entries, but fullscreen mode must not replace the ledger page.
+
 ## Reminder Set For Today
+
+Today's objectives:
+
+- Year-end tax hourly reminder.
+- Spring MSA study at 20:00 KST.
+- Heungkuk Android final package tracking.
 
 ### Year-End Tax
 
@@ -17,7 +87,7 @@ This document defines today's reminder behavior for the work ledger. It is an op
 ### Spring MSA
 
 - Cadence: fixed reminder at 20:00 KST today.
-- UI label: `Spring MSA check`.
+- UI label: `Spring MSA study`.
 - UI detail: show `Due today 20:00 KST` until acknowledged.
 - Default next action text: `Check Spring MSA progress and record blocker/next step.`
 
@@ -98,3 +168,9 @@ For today, operators can run the ledger with three manual entries if automation 
 1. Create the year-end tax hourly item and append a `fired` entry each hour until acknowledged, blocked, or completed.
 2. Create the Spring MSA item with due time `2026-05-31 20:00 KST`.
 3. Create the Heungkuk Android final package item as `tracking` and update it whenever package build, SHA256, verification, or delivery status changes.
+
+## Port Operations
+
+- Port `9002` is live and must not be killed during branch work.
+- If cleanup or verification needs a test server, use only ports `9003` or `9004`.
+- Do not stop or replace the live `9002` process unless HQ explicitly authorizes it.

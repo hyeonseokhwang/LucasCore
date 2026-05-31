@@ -1,12 +1,16 @@
 import {
   Activity,
+  AlertTriangle,
   Bot,
   Boxes,
   CalendarCheck,
   CheckCircle2,
+  ClipboardList,
   Clock3,
   FileText,
+  Flag,
   LayoutGrid,
+  Maximize2,
   MessageSquare,
   NotebookText,
   PanelLeftClose,
@@ -14,12 +18,14 @@ import {
   PanelTopClose,
   PanelTopOpen,
   Plus,
+  RefreshCw,
   Send,
   ScrollText,
   Square,
   Terminal,
   Trash2,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -130,7 +136,7 @@ type WorkLedgerState = {
 
 const fallbackLedgerTasks: WorkLedgerTask[] = [
   {
-    id: "year-end-tax",
+    id: "year-end-tax-hourly-reminder",
     title: "Year-end tax hourly reminder",
     status: "doing",
     priority: 1,
@@ -138,7 +144,7 @@ const fallbackLedgerTasks: WorkLedgerTask[] = [
     reminder_minutes: 60
   },
   {
-    id: "spring-msa-study",
+    id: "spring-msa-study-2000",
     title: "Spring MSA study 20:00 KST",
     status: "todo",
     priority: 2,
@@ -146,7 +152,7 @@ const fallbackLedgerTasks: WorkLedgerTask[] = [
     reminder_minutes: 30
   },
   {
-    id: "heungkuk-android-final",
+    id: "heungkuk-android-final-package",
     title: "Heungkuk Android final package",
     status: "todo",
     priority: 1,
@@ -172,7 +178,16 @@ const api = {
   }
 };
 
+function isStandaloneLedgerView() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("view") === "ledger" || window.location.hash === "#/ledger";
+}
+
 function App() {
+  return isStandaloneLedgerView() ? <WorkLedgerPage /> : <ShellApp />;
+}
+
+function ShellApp() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [canvases, setCanvases] = useState<Canvas[]>([]);
   const [selectedCanvasId, setSelectedCanvasId] = useState<string>("");
@@ -433,6 +448,258 @@ function PeerDock() {
   );
 }
 
+function WorkLedgerPage() {
+  const [tasks, setTasks] = useState<WorkLedgerTask[]>(fallbackLedgerTasks);
+  const [events, setEvents] = useState<WorkLedgerEvent[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState(fallbackLedgerTasks[0].id);
+  const [activeTab, setActiveTab] = useState<"overview" | "plans" | "events">("overview");
+  const [note, setNote] = useState("");
+  const [apiReady, setApiReady] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  async function loadLedger() {
+    try {
+      const ledger = await api.get<WorkLedgerState>("/api/work-ledger");
+      const nextTasks = normalizeLedgerTasks(ledger.tasks);
+      setTasks(nextTasks);
+      setEvents(ledger.events ?? []);
+      setSelectedTaskId((current) => (nextTasks.some((task) => task.id === current) ? current : nextTasks[0]?.id ?? fallbackLedgerTasks[0].id));
+      setApiReady(true);
+    } catch {
+      setTasks((current) => (current.length ? current : fallbackLedgerTasks));
+      setEvents([]);
+      setApiReady(false);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    document.body.classList.add("ledger-mode");
+    loadLedger().catch(() => undefined);
+    const timer = window.setInterval(() => loadLedger().catch(() => undefined), 15000);
+    return () => {
+      document.body.classList.remove("ledger-mode");
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  async function updateTaskStatus(taskId: string, status: WorkLedgerStatus) {
+    setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, status } : task)));
+    try {
+      await api.send(`/api/work-ledger/tasks/${encodeURIComponent(taskId)}`, "PUT", { status });
+      await loadLedger();
+    } catch {
+      setApiReady(false);
+    }
+  }
+
+  async function addTaskNote(event: FormEvent) {
+    event.preventDefault();
+    if (!note.trim()) return;
+    const taskId = selectedTaskId || tasks[0]?.id;
+    if (!taskId) return;
+    const nextEvent = { id: `local-${Date.now()}`, task_id: taskId, kind: "note", body: note.trim(), at: new Date().toISOString() };
+    setEvents((current) => [...current, nextEvent]);
+    setNote("");
+    try {
+      await api.send(`/api/work-ledger/tasks/${encodeURIComponent(taskId)}/events`, "POST", { kind: "note", body: nextEvent.body });
+      await loadLedger();
+      setActiveTab("events");
+    } catch {
+      setApiReady(false);
+    }
+  }
+
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0];
+  const doneCount = tasks.filter((task) => normalizeTaskStatus(task.status) === "done").length;
+  const doingCount = tasks.filter((task) => normalizeTaskStatus(task.status) === "doing").length;
+  const blockedCount = tasks.filter((task) => normalizeTaskStatus(task.status) === "blocked").length;
+  const progress = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0;
+  const selectedEvents = events.filter((event) => !selectedTask?.id || !event.task_id || event.task_id === selectedTask.id).slice(-8).reverse();
+  const todayLabel = new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+
+  return (
+    <main className="ledger-page">
+      <header className="ledger-page-header">
+        <div>
+          <span className="ledger-kicker">
+            <ClipboardList size={15} /> Work Ledger
+          </span>
+          <h1>Operations Ledger</h1>
+          <p>{todayLabel} / {tasks.length} tracked objectives / {apiReady ? "synced" : "local fallback"}</p>
+        </div>
+        <div className="ledger-header-metrics">
+          <div>
+            <span>Progress</span>
+            <strong>{progress}%</strong>
+          </div>
+          <div>
+            <span>Doing</span>
+            <strong>{doingCount}</strong>
+          </div>
+          <div>
+            <span>Blocked</span>
+            <strong>{blockedCount}</strong>
+          </div>
+          <button className="icon" onClick={() => loadLedger().catch(console.error)} title="Refresh ledger">
+            <RefreshCw size={15} />
+          </button>
+        </div>
+      </header>
+
+      <section className="ledger-plan-strip" aria-label="Plans">
+        {tasks.slice(0, 3).map((task) => {
+          const status = normalizeTaskStatus(task.status);
+          return (
+            <button
+              key={task.id}
+              className={`ledger-plan-chip ${status} ${selectedTask?.id === task.id ? "selected" : ""}`}
+              onClick={() => setSelectedTaskId(task.id)}
+            >
+              <Flag size={14} />
+              <span>{task.title}</span>
+              <strong>{formatTaskTiming(task)}</strong>
+            </button>
+          );
+        })}
+      </section>
+
+      <section className="ledger-ops-grid">
+        <aside className="ledger-task-list">
+          <div className="ledger-section-title">
+            <span>Today&apos;s Objectives</span>
+            <strong>{loading ? "loading" : `${doneCount}/${tasks.length} done`}</strong>
+          </div>
+          {tasks.map((task) => {
+            const status = normalizeTaskStatus(task.status);
+            return (
+              <article
+                key={task.id}
+                className={`ledger-row ${status} ${selectedTask?.id === task.id ? "selected" : ""}`}
+                onClick={() => setSelectedTaskId(task.id)}
+              >
+                <div className="ledger-row-main">
+                  <span className="ledger-status-mark" />
+                  <div>
+                    <strong>{task.title}</strong>
+                    <p>{formatTaskTiming(task)}</p>
+                  </div>
+                </div>
+                <div className="ledger-status-controls" onClick={(event) => event.stopPropagation()}>
+                  {(["todo", "doing", "blocked", "done"] as WorkLedgerStatus[]).map((statusOption) => (
+                    <button
+                      key={statusOption}
+                      className={status === statusOption ? "active" : ""}
+                      onClick={() => updateTaskStatus(task.id, statusOption).catch(console.error)}
+                      title={`Mark ${statusOption}`}
+                    >
+                      {statusOption}
+                    </button>
+                  ))}
+                </div>
+              </article>
+            );
+          })}
+        </aside>
+
+        <section className="ledger-detail-pane">
+          {selectedTask ? (
+            <>
+              <div className="ledger-detail-head">
+                <div>
+                  <span className={`ledger-status-badge ${normalizeTaskStatus(selectedTask.status)}`}>{normalizeTaskStatus(selectedTask.status)}</span>
+                  <h2>{selectedTask.title}</h2>
+                  <p>{formatTaskTiming(selectedTask)} / priority {selectedTask.priority ?? "n/a"}</p>
+                </div>
+                {normalizeTaskStatus(selectedTask.status) === "blocked" && <AlertTriangle size={18} />}
+              </div>
+
+              <div className="ledger-page-tabs">
+                {(["overview", "plans", "events"] as const).map((tab) => (
+                  <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>
+                    {tab === "overview" ? <LayoutGrid size={15} /> : tab === "plans" ? <NotebookText size={15} /> : <ScrollText size={15} />}
+                    {tab[0].toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              {activeTab === "overview" && (
+                <>
+                  <div className="ledger-notes-box">
+                    <span>Task Notes</span>
+                    <p>{selectedTask.notes?.trim() || "No persistent notes recorded for this task."}</p>
+                  </div>
+                  <div className="ledger-detail-grid">
+                    <div>
+                      <dt>Status</dt>
+                      <dd>{normalizeTaskStatus(selectedTask.status)}</dd>
+                    </div>
+                    <div>
+                      <dt>Due</dt>
+                      <dd>{formatDueAt(selectedTask.due_at)}</dd>
+                    </div>
+                    <div>
+                      <dt>Reminder</dt>
+                      <dd>{selectedTask.reminder_minutes ? `${selectedTask.reminder_minutes}m` : "None"}</dd>
+                    </div>
+                    <div>
+                      <dt>Updated</dt>
+                      <dd>{formatDueAt(selectedTask.updated_at)}</dd>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeTab === "plans" && (
+                <div className="ledger-plan-list">
+                  {tasks.map((task) => (
+                    <div key={task.id}>
+                      <strong>{task.title}</strong>
+                      <span>{formatTaskTiming(task)}</span>
+                      <em>{normalizeTaskStatus(task.status)}</em>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {activeTab === "events" && (
+                <>
+                  <div className="ledger-events-head">
+                    <span>Events</span>
+                    <strong>{selectedEvents.length}</strong>
+                  </div>
+                  <div className="ledger-event-list">
+                    {selectedEvents.length === 0 ? (
+                      <p className="ledger-empty">No events for this task yet.</p>
+                    ) : (
+                      selectedEvents.map((item, index) => (
+                        <article key={item.id ?? `${item.at ?? item.created_at ?? "event"}-${index}`}>
+                          <span>{item.kind ?? "event"} / {formatEventTime(item)}</span>
+                          <p>{item.body ?? item.text ?? ""}</p>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+
+              <form className="ledger-page-note" onSubmit={addTaskNote}>
+                <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add note, decision, or blocker" />
+                <button className="primary" disabled={!note.trim()}>
+                  <Plus size={15} /> Add
+                </button>
+              </form>
+            </>
+          ) : (
+            <p className="ledger-empty">No task selected.</p>
+          )}
+        </section>
+      </section>
+    </main>
+  );
+}
+
 function WorkLedgerDock() {
   const [open, setOpen] = useState(false);
   const [tasks, setTasks] = useState<WorkLedgerTask[]>(fallbackLedgerTasks);
@@ -595,6 +862,10 @@ function formatDueAt(dueAt: string | undefined) {
   return date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function formatEventTime(event: WorkLedgerEvent) {
+  return formatDueAt(event.at ?? event.created_at);
+}
+
 function CreateSession({ sessions, onCreated }: { sessions: Session[]; onCreated: () => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ id: "", name: "", team: "lcc", cwd: ".", cmd: defaultShell(), args: "" });
@@ -690,6 +961,7 @@ function TerminalCard({
   const [prompt, setPrompt] = useState("");
   const [target, setTarget] = useState(session.id);
   const [logOpen, setLogOpen] = useState(false);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [logText, setLogText] = useState("");
 
   async function send() {
@@ -722,6 +994,9 @@ function TerminalCard({
           {session.model && <em>{session.model}</em>}
         </div>
         <div className="card-actions">
+          <button title="Fullscreen terminal" onClick={() => setFullscreenOpen(true)}>
+            <Maximize2 size={13} />
+          </button>
           <button title="Terminal log" onClick={openLog}>
             <ScrollText size={13} />
           </button>
@@ -755,6 +1030,9 @@ function TerminalCard({
         </button>
       </footer>
       <div className="workspace-path">{session.cwd}</div>
+      {fullscreenOpen && (
+        <FullscreenTerminalModal session={session} sessions={sessions} onClose={() => setFullscreenOpen(false)} onChanged={onChanged} />
+      )}
       {logOpen && (
         <div className="log-modal" role="dialog" aria-modal="true">
           <div className="log-panel">
@@ -770,7 +1048,90 @@ function TerminalCard({
   );
 }
 
-function XtermPreview({ sessionId, status }: { sessionId: string; status: SessionStatus }) {
+function FullscreenTerminalModal({
+  session,
+  sessions,
+  onClose,
+  onChanged
+}: {
+  session: Session;
+  sessions: Session[];
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [target, setTarget] = useState(session.id);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    requestAnimationFrame(() => inputRef.current?.focus());
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  async function send() {
+    if (!prompt.trim()) return;
+    const payload = target === session.id ? prompt : `[FROM ${session.id} TO ${target}] ${prompt}`;
+    await api.send(`/api/sessions/${target}/write`, "POST", { input: payload });
+    setPrompt("");
+    await onChanged();
+  }
+
+  return (
+    <div className="terminal-fullscreen-modal" role="dialog" aria-modal="true" onMouseDown={onClose}>
+      <section className={`terminal-fullscreen-panel ${session.status}`} onMouseDown={(event) => event.stopPropagation()}>
+        <header>
+          <div>
+            <span className="status-dot" />
+            <strong>{session.name}</strong>
+            <em>{session.status}</em>
+            <em>{session.team}</em>
+            {session.model && <em>{session.model}</em>}
+          </div>
+          <button className="icon" onClick={onClose} title="Close fullscreen">
+            <X size={16} />
+          </button>
+        </header>
+        <XtermPreview sessionId={session.id} status={session.status} variant="fullscreen" />
+        <footer>
+          <select value={target} onChange={(event) => setTarget(event.target.value)}>
+            {sessions.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+          <input
+            ref={inputRef}
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") send().catch(console.error);
+            }}
+            placeholder="Prompt"
+          />
+          <button className="primary icon" onClick={send} title="Send">
+            <Send size={15} />
+          </button>
+        </footer>
+        <div className="workspace-path">{session.cwd}</div>
+      </section>
+    </div>
+  );
+}
+
+function XtermPreview({
+  sessionId,
+  status,
+  variant = "card"
+}: {
+  sessionId: string;
+  status: SessionStatus;
+  variant?: "card" | "fullscreen";
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -785,7 +1146,7 @@ function XtermPreview({ sessionId, status }: { sessionId: string; status: Sessio
     if (!container) return;
 
     const term = new XTerm({
-      fontSize: 12,
+      fontSize: variant === "fullscreen" ? 13 : 12,
       fontFamily:
         "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace",
       fontWeight: 400,
@@ -913,9 +1274,9 @@ function XtermPreview({ sessionId, status }: { sessionId: string; status: Sessio
       attachedRef.current = false;
       inputQueueRef.current = [];
     };
-  }, [sessionId]);
+  }, [sessionId, variant]);
 
-  return <div className="xterm-preview" ref={containerRef} />;
+  return <div className={`xterm-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} ref={containerRef} />;
 }
 
 function TerminalLogView({ text }: { text: string }) {
