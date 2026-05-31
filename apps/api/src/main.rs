@@ -49,7 +49,8 @@ struct TerminalSession {
 const SESSION_PREVIEW_LIMIT_BYTES: usize = 12_000;
 const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = 256 * 1024;
 const SESSION_LOG_MAX_TAIL_BYTES: u64 = 1024 * 1024;
-const TERMINAL_WS_REPLAY_LIMIT_BYTES: u64 = 256 * 1024;
+const TERMINAL_WS_REPLAY_LIMIT_BYTES: u64 = 32 * 1024;
+const TERMINAL_LOG_ROTATE_BYTES: u64 = 50 * 1024 * 1024;
 
 fn tail_string_by_bytes(value: &str, max_bytes: usize) -> String {
     if max_bytes == 0 {
@@ -117,6 +118,56 @@ fn session_log_info_for_path(path: &PathBuf, tail_bytes: u64) -> SessionLogInfo 
             tail_bytes: 0,
             updated_at: None,
         },
+    }
+}
+
+fn terminal_log_archive_dir() -> PathBuf {
+    PathBuf::from("data").join("terminal-logs").join("archive")
+}
+
+fn terminal_context_ledger_path() -> PathBuf {
+    PathBuf::from("data").join("terminal-context-ledger.jsonl")
+}
+
+fn rotate_terminal_log_if_needed(path: &PathBuf, session_id: &str) -> std::io::Result<Option<PathBuf>> {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return Ok(None);
+    };
+    if metadata.len() <= TERMINAL_LOG_ROTATE_BYTES {
+        return Ok(None);
+    }
+
+    let archive_dir = terminal_log_archive_dir();
+    std::fs::create_dir_all(&archive_dir)?;
+    let timestamp = Utc::now().format("%Y%m%dT%H%M%SZ");
+    let base_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("terminal.ansi.log");
+    let archive_path = archive_dir.join(format!("{base_name}.{timestamp}.rotated"));
+    std::fs::rename(path, &archive_path)?;
+    append_terminal_context_event(session_id, "terminal_log_rotated", &archive_path, metadata.len());
+    Ok(Some(archive_path))
+}
+
+fn append_terminal_context_event(session_id: &str, event: &str, archive_path: &PathBuf, bytes: u64) {
+    let path = terminal_context_ledger_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let entry = json!({
+        "at": Utc::now(),
+        "sessionId": session_id,
+        "event": event,
+        "archivePath": archive_path.display().to_string(),
+        "bytes": bytes,
+        "policy": {
+            "uiReplayBytes": TERMINAL_WS_REPLAY_LIMIT_BYTES,
+            "rotateBytes": TERMINAL_LOG_ROTATE_BYTES
+        }
+    });
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{}", entry);
     }
 }
 
@@ -1098,6 +1149,12 @@ mod tests {
     }
 
     #[test]
+    fn terminal_replay_limit_matches_hq_tail_policy() {
+        assert_eq!(super::TERMINAL_WS_REPLAY_LIMIT_BYTES, 32 * 1024);
+        assert_eq!(super::TERMINAL_LOG_ROTATE_BYTES, 50 * 1024 * 1024);
+    }
+
+    #[test]
     fn tail_string_by_bytes_preserves_utf8_boundaries() {
         let value = format!("{}끝", "가".repeat(8));
         let tail = tail_string_by_bytes(&value, 7);
@@ -1234,11 +1291,13 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
         if let Some(parent) = log_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
+        let _ = rotate_terminal_log_if_needed(&log_path, &id);
         let mut log_file = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(&log_path)
             .ok();
+        let mut log_bytes = std::fs::metadata(&log_path).map(|metadata| metadata.len()).unwrap_or(0);
         if let Some(file) = log_file.as_mut() {
             let _ = writeln!(file, "\r\n===== LCC session {id} started at {} =====\r", Utc::now().to_rfc3339());
         }
@@ -1253,6 +1312,25 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
             if let Some(file) = log_file.as_mut() {
                 let _ = file.write_all(&buf[..n]);
                 let _ = file.flush();
+                log_bytes = log_bytes.saturating_add(n as u64);
+                if log_bytes > TERMINAL_LOG_ROTATE_BYTES {
+                    log_file.take();
+                    if rotate_terminal_log_if_needed(&log_path, &id).is_ok() {
+                        log_file = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open(&log_path)
+                            .ok();
+                        log_bytes = std::fs::metadata(&log_path).map(|metadata| metadata.len()).unwrap_or(0);
+                        if let Some(next_file) = log_file.as_mut() {
+                            let _ = writeln!(
+                                next_file,
+                                "\r\n===== LCC session {id} log rotated at {} =====\r",
+                                Utc::now().to_rfc3339()
+                            );
+                        }
+                    }
+                }
             }
             let data = String::from_utf8_lossy(&buf[..n]).to_string();
             let _ = state.tx.send(ServerEvent::Output {

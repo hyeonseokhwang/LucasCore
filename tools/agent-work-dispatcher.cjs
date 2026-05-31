@@ -106,7 +106,7 @@ function eventBase(type, session, task, classification) {
   };
 }
 
-function compactPromptForTerminal(prompt) {
+function safePromptForTerminal(prompt, meta = {}) {
   const original = String(prompt || "");
   const lines = original.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
   const compact = lines
@@ -115,12 +115,32 @@ function compactPromptForTerminal(prompt) {
     .join(" | ")
     .replace(/\s+/g, " ")
     .trim();
+  const dispatchId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const taskPart = meta.taskId ? `item=${meta.taskId}` : "item=ledger";
+  const pointer = `[원장 지시 ${dispatchId}] ${taskPart}. 상세는 data/agent-ops-events.jsonl dispatchId=${dispatchId} 확인. 10분 내 item/doing/next/blocker/evidence 보고.`;
   return {
-    data: `${compact}\r`,
+    data: `${pointer}\r`,
+    dispatchId,
     originalLineCount: lines.length,
-    compacted: lines.length > 1 || compact !== original.trim(),
-    compactPreview: compact.slice(0, 1200)
+    originalBytes: Buffer.byteLength(original, "utf8"),
+    terminalBytes: Buffer.byteLength(pointer, "utf8"),
+    compacted: true,
+    compactPreview: compact.slice(0, 1200),
+    terminalPreview: pointer
   };
+}
+
+function detectInputAnomalies(preview) {
+  const text = String(preview || "");
+  const lines = text.split("\n");
+  const longestLine = lines.reduce((max, line) => Math.max(max, line.length), 0);
+  const anomalies = [];
+  if (/\[Pasted Content \d+ chars\]/i.test(text)) anomalies.push("pasted-content-queued");
+  if (/tab to queue message/i.test(text)) anomalies.push("codex-queue-prompt");
+  if (/W\s*\n?o\s*\n?r\s*\n?k\s*\n?i\s*\n?n\s*\n?g/i.test(text)) anomalies.push("working-text-fragmented");
+  if (longestLine > 600) anomalies.push("overlong-terminal-line");
+  if (/\[자동\s*원장|\[원장\s*지시/.test(text) && /tab to queue message/i.test(text)) anomalies.push("dispatch-stuck-in-input-box");
+  return { anomalies, longestLine };
 }
 
 function stripAnsi(value) {
@@ -267,6 +287,18 @@ function updateIdleLedger(idleLedger, session, task, classification, dispatched)
 function logStateObservation(dispatchState, session, task, classification) {
   const previous = dispatchState[session.id] || {};
   const nextStateKey = `${classification.state}:${task?.id || "-"}`;
+  const anomaly = detectInputAnomalies(classification.preview);
+  const anomalyKey = anomaly.anomalies.length
+    ? `${anomaly.anomalies.join(",")}:${classification.preview.slice(-240)}`
+    : "";
+  if (anomaly.anomalies.length && previous.lastInputAnomalyKey !== anomalyKey) {
+    appendJsonl(opsEventLogPath, {
+      ...eventBase("terminal_input_anomaly_detected", session, task, classification),
+      anomalies: anomaly.anomalies,
+      longestLine: anomaly.longestLine
+    });
+    previous.lastInputAnomalyKey = anomalyKey;
+  }
   if (previous.lastStateKey !== nextStateKey) {
     appendJsonl(opsEventLogPath, {
       ...eventBase("state_changed", session, task, classification),
@@ -298,15 +330,20 @@ async function getSessions() {
   return Array.isArray(data) ? data : [];
 }
 
-async function writePrompt(sessionId, prompt) {
-  const encoded = compactPromptForTerminal(prompt);
+async function writePrompt(sessionId, prompt, meta = {}) {
+  const encoded = safePromptForTerminal(prompt, meta);
   if (encoded.compacted) {
     appendJsonl(opsEventLogPath, {
       at: new Date(now).toISOString(),
-      type: "prompt_compacted_for_newline_safety",
+      type: "prompt_redirected_to_ledger_for_terminal_safety",
       agentId: sessionId,
+      dispatchId: encoded.dispatchId,
       originalLineCount: encoded.originalLineCount,
-      compactPreview: encoded.compactPreview
+      originalBytes: encoded.originalBytes,
+      terminalBytes: encoded.terminalBytes,
+      terminalPreview: encoded.terminalPreview,
+      compactPreview: encoded.compactPreview,
+      fullPrompt: prompt
     });
   }
   const response = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(sessionId)}/write`, {
@@ -398,7 +435,7 @@ async function maybeAlertManager(sessions, dispatchState, reports) {
     revivedManager: revived,
     agents: idleLike.map((report) => ({ id: report.id, state: report.state, taskId: report.taskId }))
   });
-  await writePrompt(targetId, prompt);
+  await writePrompt(targetId, prompt, { taskId: "manager-alert" });
   appendJsonl(opsEventLogPath, {
     at: new Date(now).toISOString(),
     type: "manager_alert_sent",
@@ -443,7 +480,7 @@ async function main() {
         reason: report.reason,
         promptPreview: prompt.slice(0, 1200)
       });
-      await writePrompt(session.id, prompt);
+      await writePrompt(session.id, prompt, { taskId: task.id });
       dispatchState[session.id] = {
         ...(dispatchState[session.id] || {}),
         lastDispatchAt: now,
