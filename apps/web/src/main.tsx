@@ -1336,7 +1336,7 @@ function XtermPreview({
       fontWeightBold: 700,
       drawBoldTextInBrightColors: false,
       cursorBlink: status === "active",
-      scrollback: variant === "fullscreen" ? 150 : 200,
+      scrollback: 150,
       convertEol: true,
       allowProposedApi: true,
       theme: {
@@ -1404,12 +1404,12 @@ function XtermPreview({
         for (const data of queue) sendSocket({ type: "input", sessionId, data });
       }
       if (message.type === "replay") {
-        const replay = variant === "fullscreen" ? tailTerminalLines(message.data ?? "") : message.data ?? "";
-        term.write(replay);
+        term.reset();
+        term.write(tailTerminalLines(message.data ?? ""));
         scrollToBottomSoon();
       }
       if (message.type === "output") {
-        term.write(message.data ?? "");
+        term.write(tailTerminalLines(message.data ?? ""));
         scrollToBottomSoon();
       }
       if (message.type === "exit") {
