@@ -706,11 +706,7 @@ fn normalize_prompt_body(data: &str) -> String {
 
 fn encode_prompt_submit(data: &str) -> String {
     let normalized = normalize_prompt_body(data);
-    if normalized.contains('\n') {
-        format!("\x1b[200~{normalized}\x1b[201~\r")
-    } else {
-        format!("{normalized}\r\r")
-    }
+    format!("{normalized}\r")
 }
 
 #[cfg(test)]
@@ -719,20 +715,20 @@ mod tests {
 
     #[test]
     fn prompt_submit_adds_enter_when_missing() {
-        assert_eq!(encode_prompt_submit("hello"), "hello\r\r");
+        assert_eq!(encode_prompt_submit("hello"), "hello\r");
     }
 
     #[test]
     fn prompt_submit_collapses_trailing_newlines_to_single_enter() {
-        assert_eq!(encode_prompt_submit("hello\r\n"), "hello\r\r");
-        assert_eq!(encode_prompt_submit("hello\n\n"), "hello\r\r");
-        assert_eq!(encode_prompt_submit("hello\r\r"), "hello\r\r");
+        assert_eq!(encode_prompt_submit("hello\r\n"), "hello\r");
+        assert_eq!(encode_prompt_submit("hello\n\n"), "hello\r");
+        assert_eq!(encode_prompt_submit("hello\r\r"), "hello\r");
     }
 
     #[test]
     fn prompt_submit_preserves_multiline_body_before_submit() {
-        assert_eq!(encode_prompt_submit("line 1\r\nline 2"), "\x1b[200~line 1\nline 2\x1b[201~\r");
-        assert_eq!(encode_prompt_submit("line 1\rline 2\n"), "\x1b[200~line 1\nline 2\x1b[201~\r");
+        assert_eq!(encode_prompt_submit("line 1\r\nline 2"), "line 1\nline 2\r");
+        assert_eq!(encode_prompt_submit("line 1\rline 2\n"), "line 1\nline 2\r");
     }
 }
 

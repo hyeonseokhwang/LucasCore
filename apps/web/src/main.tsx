@@ -242,10 +242,7 @@ function sendTerminalPrompt(sessionId: string, prompt: string) {
 
 function encodePromptForPtySubmit(value: string) {
   const prompt = normalizePromptForSubmit(value).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  if (prompt.includes("\n")) {
-    return `\x1b[200~${prompt}\x1b[201~\r`;
-  }
-  return `${prompt}\r\r`;
+  return `${prompt}\r`;
 }
 
 function normalizeSessionWriteBody(path: string, body: unknown) {
