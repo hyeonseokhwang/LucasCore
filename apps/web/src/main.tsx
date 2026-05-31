@@ -53,16 +53,34 @@ type Session = {
   preview: string;
 };
 
-const SPRING_MSA_TF_FILTER = "spring-msa-tf";
-const SPRING_MSA_TF_MEMBERS = [
-  { id: "branch-director", name: "Branch Director", role: "TF lead", session: false },
-  { id: "joon-msa", name: "Joon MSA", role: "MSA owner", session: true },
-  { id: "chief-min", name: "Chief Min", role: "Assistant researcher", session: true },
-  { id: "han-ops", name: "Han Ops", role: "Assistant researcher", session: true },
-  { id: "seo-security", name: "Seo Security", role: "Assistant researcher", session: true },
-  { id: "mira-ledger", name: "Mira Ledger", role: "Assistant researcher", session: true }
+const SESSION_GROUPS = [
+  {
+    filter: "spring-msa-tf",
+    label: "SpringMSA TF",
+    members: [
+      { id: "chief-min", name: "Chief Min", role: "Context and TF coordination", session: true },
+      { id: "joon-msa", name: "Joon MSA", role: "MSA study owner", session: true },
+      { id: "spring-msa-research-1", name: "Researcher 1", role: "Spring MSA researcher", session: true },
+      { id: "spring-msa-research-2", name: "Researcher 2", role: "Spring MSA researcher", session: true },
+      { id: "spring-msa-research-3", name: "Researcher 3", role: "Spring MSA researcher", session: true },
+      { id: "spring-msa-research-4", name: "Researcher 4", role: "Spring MSA researcher", session: true }
+    ]
+  },
+  {
+    filter: "development-team",
+    label: "Development Team",
+    members: [
+      { id: "chief-min", name: "Chief Min", role: "Context and coordination", session: true },
+      { id: "dev-lead", name: "Dev Lead", role: "Development lead", session: true },
+      { id: "developer-1", name: "Developer 1", role: "Developer", session: true },
+      { id: "developer-2", name: "Developer 2", role: "Developer", session: true },
+      { id: "developer-3", name: "Developer 3", role: "Developer", session: true },
+      { id: "developer-4", name: "Developer 4", role: "Developer", session: true }
+    ]
+  }
 ];
-const SPRING_MSA_TF_SESSION_IDS = new Set(SPRING_MSA_TF_MEMBERS.filter((member) => member.session).map((member) => member.id));
+const SESSION_GROUP_BY_FILTER = new Map(SESSION_GROUPS.map((group) => [group.filter, group]));
+const MAX_ACTIVE_SESSIONS = 6;
 
 type CanvasSection = {
   id: string;
@@ -190,7 +208,7 @@ const api = {
   }
 };
 
-function sendTerminalInput(sessionId: string, data: string) {
+function sendTerminalProtocol(sessionId: string, payload: Record<string, unknown>) {
   return new Promise<void>((resolve, reject) => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const socket = new WebSocket(`${protocol}//${window.location.host}/ws/terminal`);
@@ -200,7 +218,7 @@ function sendTerminalInput(sessionId: string, data: string) {
     }, 5000);
 
     socket.addEventListener("open", () => {
-      socket.send(JSON.stringify({ type: "input", sessionId, data }));
+      socket.send(JSON.stringify({ sessionId, ...payload }));
       window.setTimeout(() => {
         window.clearTimeout(timeout);
         socket.close();
@@ -214,13 +232,12 @@ function sendTerminalInput(sessionId: string, data: string) {
   });
 }
 
-function encodePromptForPtySubmit(value: string) {
-  const prompt = normalizePromptForSubmit(value).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const submit = "\r\r";
-  if (prompt.includes("\n")) {
-    return `\x1b[200~${prompt}\x1b[201~${submit}`;
-  }
-  return `${prompt}${submit}`;
+function sendTerminalInput(sessionId: string, data: string) {
+  return sendTerminalProtocol(sessionId, { type: "input", data });
+}
+
+function sendTerminalPrompt(sessionId: string, prompt: string) {
+  return sendTerminalProtocol(sessionId, { type: "sendPrompt", prompt });
 }
 
 function normalizeSessionWriteBody(path: string, body: unknown) {
@@ -230,7 +247,7 @@ function normalizeSessionWriteBody(path: string, body: unknown) {
   const next = { ...(body as Record<string, unknown>) };
   for (const key of ["input", "data", "prompt"]) {
     if (typeof next[key] === "string") {
-      next[key] = normalizePromptForSubmit(next[key]).concat("\r");
+      next[key] = normalizePromptForSubmit(next[key]);
     }
   }
   return next;
@@ -284,9 +301,10 @@ function ShellApp() {
   }, []);
 
   const visibleSessions = useMemo(() => {
+    const selectedGroup = SESSION_GROUP_BY_FILTER.get(filter);
     const filtered =
-      filter === SPRING_MSA_TF_FILTER
-        ? sessions.filter((session) => SPRING_MSA_TF_SESSION_IDS.has(session.id))
+      selectedGroup
+        ? sessions.filter((session) => selectedGroup.members.some((member) => member.session && member.id === session.id))
         : filter === "all"
           ? sessions
           : sessions.filter((session) => session.team === filter || session.status === filter);
@@ -294,7 +312,6 @@ function ShellApp() {
   }, [filter, sessions]);
 
   const teams = useMemo(() => [...new Set(sessions.map((session) => session.team).filter(Boolean))], [sessions]);
-  const springMsaActiveCount = sessions.filter((session) => SPRING_MSA_TF_SESSION_IDS.has(session.id)).length;
   const sessionIds = useMemo(() => new Set(sessions.map((session) => session.id)), [sessions]);
 
   return (
@@ -344,19 +361,24 @@ function ShellApp() {
           <button className={`filter ${filter === "active" ? "active" : ""}`} onClick={() => setFilter("active")}>
             <span className="dot green" /> Active
           </button>
-          <button
-            className={`filter tf-filter ${filter === SPRING_MSA_TF_FILTER ? "active" : ""}`}
-            onClick={() => setFilter(SPRING_MSA_TF_FILTER)}
-          >
-            <Users size={14} /> SpringMSA TF <strong>{springMsaActiveCount}/5</strong>
-          </button>
-          <div className="tf-members" aria-label="SpringMSA TF members">
-            {SPRING_MSA_TF_MEMBERS.map((member) => (
-              <span key={member.id} className={member.session && sessionIds.has(member.id) ? "online" : "offline"} title={member.role}>
-                {member.name}
-              </span>
-            ))}
-          </div>
+          {SESSION_GROUPS.map((group) => {
+            const liveCount = group.members.filter((member) => member.session && sessionIds.has(member.id)).length;
+            const sessionCount = group.members.filter((member) => member.session).length;
+            return (
+              <div className="session-group" key={group.filter}>
+                <button className={`filter group-filter ${filter === group.filter ? "active" : ""}`} onClick={() => setFilter(group.filter)}>
+                  <Users size={14} /> {group.label} <strong>{liveCount}/{sessionCount}</strong>
+                </button>
+                <div className="group-members" aria-label={`${group.label} members`}>
+                  {group.members.map((member) => (
+                    <span key={member.id} className={member.session && sessionIds.has(member.id) ? "online" : "offline"} title={member.role}>
+                      {member.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
           {teams.map((team) => (
             <button className={`filter ${filter === team ? "active" : ""}`} key={team} onClick={() => setFilter(team)}>
               <span className="dot" /> {team}
@@ -989,7 +1011,9 @@ function CreateSession({ sessions, onCreated }: { sessions: Session[]; onCreated
     const cmd = "codex.cmd";
     const model = "gpt-5.5";
     const existing = new Set(sessions.map((session) => session.id));
-    const agents = standardDevAgents(cmd, model).filter((agent) => !existing.has(agent.id));
+    const activeCount = sessions.filter((session) => session.status === "active").length;
+    const availableSlots = Math.max(0, MAX_ACTIVE_SESSIONS - activeCount);
+    const agents = standardDevAgents(cmd, model).filter((agent) => !existing.has(agent.id)).slice(0, availableSlots);
 
     for (const agent of agents) {
       await api.send("/api/sessions", "POST", agent);
@@ -1006,7 +1030,7 @@ function CreateSession({ sessions, onCreated }: { sessions: Session[]; onCreated
         <button onClick={spawnDevTeam}>
           <Bot size={16} /> Dev Team
         </button>
-        <span>Spawn one dev lead and five GPT-5.5 Codex developers in isolated workspaces.</span>
+        <span>Spawn one dev lead and four GPT-5.5 Codex developers in isolated workspaces.</span>
       </div>
     );
   }
@@ -1084,7 +1108,7 @@ function TerminalCard({
     setIsSending(true);
     const payload = target === session.id ? nextPrompt : `[FROM ${session.id} TO ${target}] ${nextPrompt}`;
     try {
-      await sendTerminalInput(target, encodePromptForPtySubmit(payload));
+      await sendTerminalPrompt(target, payload);
       promptRef.current = "";
       setPrompt("");
       await onChanged();
@@ -1207,7 +1231,7 @@ function FullscreenTerminalModal({
     sendingRef.current = true;
     const payload = target === session.id ? nextPrompt : `[FROM ${session.id} TO ${target}] ${nextPrompt}`;
     try {
-      await sendTerminalInput(target, encodePromptForPtySubmit(payload));
+      await sendTerminalPrompt(target, payload);
       promptRef.current = "";
       setPrompt("");
       await onChanged();
@@ -1606,7 +1630,7 @@ function codexYoloArgs(model: string) {
 function standardDevAgents(cmd: string, model: string) {
   return [
     { id: "dev-lead", name: "Dev Lead", team: "development", cwd: "workspaces/dev-lead/repo", cmd, args: codexYoloArgs(model), model },
-    ...Array.from({ length: 5 }, (_, index) => {
+    ...Array.from({ length: 4 }, (_, index) => {
       const n = index + 1;
       return {
         id: `developer-${n}`,

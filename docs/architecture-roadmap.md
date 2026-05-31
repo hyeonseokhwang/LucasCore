@@ -119,6 +119,20 @@ Future services can split along these lines:
 
 Keep LCC Core able to run as a local monolith by wiring the same ports to local providers.
 
+## MSA Readiness Rule
+
+Do not split LCC Core into MSA only because the future service names are known.
+
+Use this sequence:
+
+1. Keep the product runnable as a local monolith.
+2. Move Work Ledger rules into domain/application modules.
+3. Define module ports such as `WorkLedgerRepository`, `SessionEventSource`, `SyncProvider`, and `EvidenceStore`.
+4. Stabilize event schemas, starting with ledger events.
+5. Split a service only when it needs independent deployment, independent scaling, separate data ownership, or stronger failure isolation.
+
+For v0.1, the recommended architecture is modular monolith, not networked MSA. The first likely future extraction is `ledger-service`, but only after Work Ledger data ownership and event contracts are stable.
+
 ## Next Actions
 
 1. Add a Work Ledger domain module before adding more Canvas-specific persistence.

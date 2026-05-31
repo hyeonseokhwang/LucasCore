@@ -43,7 +43,11 @@ struct TerminalSession {
     _master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     output: VecDeque<String>,
+    output_bytes: usize,
 }
+
+const DEFAULT_MAX_ACTIVE_SESSIONS: usize = 6;
+const SESSION_PREVIEW_LIMIT_BYTES: usize = 12_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SessionMeta {
@@ -272,7 +276,7 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter("lcc_core_api=debug,tower_http=info,axum=info")
         .init();
 
-    let (tx, _) = broadcast::channel(512);
+    let (tx, _) = broadcast::channel(64);
     let storage_path = env::var("LCC_STORAGE_PATH").unwrap_or_else(|_| "data/canvases.json".to_string());
     let canvas_store = CanvasStore::new(PathBuf::from(storage_path)).await?;
     let peer_storage_path = env::var("LCC_PEER_STORAGE_PATH").unwrap_or_else(|_| "data/peer-bridge.jsonl".to_string());
@@ -439,7 +443,7 @@ async fn pty_stats(State(state): State<AppState>) -> Json<Value> {
         .iter()
         .filter(|session| matches!(session.meta.status, SessionStatus::Active))
         .count();
-    Json(json!({ "total": sessions.len(), "active": active, "sessions": sessions }))
+    Json(json!({ "total": sessions.len(), "active": active, "max_active": max_active_sessions(), "sessions": sessions }))
 }
 
 async fn create_session(
@@ -449,6 +453,13 @@ async fn create_session(
     let id = input.id.unwrap_or_else(|| format!("lcc-agent-{}", Utc::now().timestamp_millis()));
     if state.sessions.read().await.contains_key(&id) {
         return Err(ApiError::conflict("session already exists"));
+    }
+    let active = active_session_count(&state).await;
+    let max_active = max_active_sessions();
+    if active >= max_active {
+        return Err(ApiError::service_unavailable(format!(
+            "active session limit reached ({active}/{max_active}); stop a session before creating another"
+        )));
     }
 
     let cmd = input.cmd.unwrap_or_else(default_shell);
@@ -500,6 +511,7 @@ async fn create_session(
         _master: pair.master,
         writer,
         output: VecDeque::new(),
+        output_bytes: 0,
     }));
 
     state.sessions.write().await.insert(id.clone(), session.clone());
@@ -695,7 +707,7 @@ fn normalize_prompt_body(data: &str) -> String {
 fn encode_prompt_submit(data: &str) -> String {
     let normalized = normalize_prompt_body(data);
     if normalized.contains('\n') {
-        format!("{normalized}\r\r")
+        format!("\x1b[200~{normalized}\x1b[201~\r")
     } else {
         format!("{normalized}\r\r")
     }
@@ -719,8 +731,8 @@ mod tests {
 
     #[test]
     fn prompt_submit_preserves_multiline_body_before_submit() {
-        assert_eq!(encode_prompt_submit("line 1\r\nline 2"), "line 1\nline 2\r\r");
-        assert_eq!(encode_prompt_submit("line 1\rline 2\n"), "line 1\nline 2\r\r");
+        assert_eq!(encode_prompt_submit("line 1\r\nline 2"), "\x1b[200~line 1\nline 2\x1b[201~\r");
+        assert_eq!(encode_prompt_submit("line 1\rline 2\n"), "\x1b[200~line 1\nline 2\x1b[201~\r");
     }
 }
 
@@ -820,9 +832,14 @@ where
 
 impl TerminalSession {
     fn push_output(&mut self, data: &str) {
+        self.output_bytes += data.len();
         self.output.push_back(data.to_string());
-        while self.output.iter().map(String::len).sum::<usize>() > 50_000 {
-            self.output.pop_front();
+        while self.output_bytes > SESSION_PREVIEW_LIMIT_BYTES {
+            let Some(front) = self.output.pop_front() else {
+                self.output_bytes = 0;
+                break;
+            };
+            self.output_bytes = self.output_bytes.saturating_sub(front.len());
         }
         self.meta.updated_at = Utc::now();
     }
@@ -833,6 +850,25 @@ impl TerminalSession {
             preview: self.output.iter().cloned().collect::<String>(),
         }
     }
+}
+
+async fn active_session_count(state: &AppState) -> usize {
+    let sessions = state.sessions.read().await;
+    let mut active = 0;
+    for session in sessions.values() {
+        if matches!(session.lock().await.meta.status, SessionStatus::Active) {
+            active += 1;
+        }
+    }
+    active
+}
+
+fn max_active_sessions() -> usize {
+    env::var("LCC_MAX_ACTIVE_SESSIONS")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_MAX_ACTIVE_SESSIONS)
 }
 
 async fn peer_status(State(state): State<AppState>) -> Json<Value> {

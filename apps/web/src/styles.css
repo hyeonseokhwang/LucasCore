@@ -1105,19 +1105,23 @@ textarea {
   white-space: nowrap;
 }
 
-.tf-filter {
+.session-group {
+  margin-bottom: 8px;
+}
+
+.group-filter {
   justify-content: space-between;
   border-color: #2f5f6f;
   background: #102432;
 }
 
-.tf-filter strong {
+.group-filter strong {
   margin-left: auto;
   color: #93e7d2;
   font-size: 12px;
 }
 
-.tf-members {
+.group-members {
   display: grid;
   gap: 5px;
   margin: -1px 0 10px;
@@ -1127,7 +1131,7 @@ textarea {
   background: #0d1725;
 }
 
-.tf-members span {
+.group-members span {
   min-width: 0;
   overflow: hidden;
   color: #9fb0c8;
@@ -1137,7 +1141,7 @@ textarea {
   white-space: nowrap;
 }
 
-.tf-members span::before {
+.group-members span::before {
   content: "";
   display: inline-block;
   width: 7px;
@@ -1147,7 +1151,7 @@ textarea {
   background: #64748b;
 }
 
-.tf-members span.online::before {
+.group-members span.online::before {
   background: #3de0a1;
 }
 
