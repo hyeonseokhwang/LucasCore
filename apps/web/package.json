@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173",
     "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1 --port 5173"
+    "preview": "vite preview --host 127.0.0.1 --port 5173",
+    "test": "node --experimental-strip-types --test src/terminalPrompt.test.ts"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",

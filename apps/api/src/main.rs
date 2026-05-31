@@ -751,6 +751,26 @@ mod tests {
     }
 
     #[test]
+    fn prompt_submit_handles_empty_or_only_newlines_as_submit_only() {
+        assert_eq!(encode_prompt_submit_for_test(""), "\r");
+        assert_eq!(encode_prompt_submit_for_test("\n"), "\r");
+        assert_eq!(encode_prompt_submit_for_test("\r\n\r\n"), "\r");
+    }
+
+    #[test]
+    fn prompt_submit_preserves_internal_blank_lines() {
+        assert_eq!(encode_prompt_submit_for_test("line 1\n\nline 3\n"), "line 1\n\nline 3\r");
+    }
+
+    #[test]
+    fn prompt_submit_normalizes_mixed_cr_and_lf_without_dropping_text() {
+        assert_eq!(
+            encode_prompt_submit_for_test("alpha\rbravo\r\ncharlie\ndelta\r\n"),
+            "alpha\nbravo\ncharlie\ndelta\r"
+        );
+    }
+
+    #[test]
     fn prompt_submit_never_uses_bracketed_paste_or_csi_submit() {
         let encoded = encode_prompt_submit_for_test("line 1\nline 2\n");
         assert!(!encoded.contains("\x1b[200~"));

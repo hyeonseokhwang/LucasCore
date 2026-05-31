@@ -32,6 +32,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { TERMINAL_PROMPT_SUBMIT_KEY, encodePromptForPtySubmit, normalizePromptForSubmit } from "./terminalPrompt";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
@@ -236,8 +237,6 @@ function sendTerminalInput(sessionId: string, data: string) {
   return sendTerminalProtocol(sessionId, { type: "input", data });
 }
 
-const TERMINAL_PROMPT_SUBMIT_KEY = "\r";
-
 function waitForTerminalInputFlush() {
   return new Promise<void>((resolve) => window.setTimeout(resolve, 300));
 }
@@ -249,11 +248,6 @@ async function sendTerminalPrompt(sessionId: string, prompt: string) {
     await waitForTerminalInputFlush();
   }
   return sendTerminalInput(sessionId, TERMINAL_PROMPT_SUBMIT_KEY);
-}
-
-function encodePromptForPtySubmit(value: string) {
-  const prompt = normalizePromptForSubmit(value).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  return `${prompt}${TERMINAL_PROMPT_SUBMIT_KEY}`;
 }
 
 function normalizeSessionWriteBody(path: string, body: unknown) {
@@ -1465,10 +1459,6 @@ function XtermPreview({
   }, [sessionId, variant]);
 
   return <div className={`xterm-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} ref={containerRef} />;
-}
-
-function normalizePromptForSubmit(value: string) {
-  return value.replace(/[\r\n]+$/g, "");
 }
 
 function TerminalLogView({ text }: { text: string }) {
