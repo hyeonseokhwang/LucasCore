@@ -137,7 +137,7 @@ type WorkLedgerState = {
 const fallbackLedgerTasks: WorkLedgerTask[] = [
   {
     id: "year-end-tax-hourly-reminder",
-    title: "Year-end tax hourly reminder",
+    title: "연말정산 1시간마다 확인",
     status: "doing",
     priority: 1,
     due_at: "Today",
@@ -145,7 +145,7 @@ const fallbackLedgerTasks: WorkLedgerTask[] = [
   },
   {
     id: "spring-msa-study-2000",
-    title: "Spring MSA study 20:00 KST",
+    title: "스프링 MSA 스터디 20:00",
     status: "todo",
     priority: 2,
     due_at: "20:00 KST",
@@ -153,7 +153,7 @@ const fallbackLedgerTasks: WorkLedgerTask[] = [
   },
   {
     id: "heungkuk-android-final-package",
-    title: "Heungkuk Android final package",
+    title: "흥국생명 안드로이드 최종본 구성",
     status: "todo",
     priority: 1,
     due_at: "Today",
@@ -437,8 +437,8 @@ function PeerDock() {
                 </option>
               ))}
             </select>
-            <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Message" />
-            <button className="primary icon" disabled={!draft.trim() || sending} title="Send">
+            <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="본부/지사 메시지" />
+            <button className="primary icon" disabled={!draft.trim() || sending} title="전송">
               <Send size={15} />
             </button>
           </form>
@@ -517,38 +517,38 @@ function WorkLedgerPage() {
   const blockedCount = tasks.filter((task) => normalizeTaskStatus(task.status) === "blocked").length;
   const progress = tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0;
   const selectedEvents = events.filter((event) => !selectedTask?.id || !event.task_id || event.task_id === selectedTask.id).slice(-8).reverse();
-  const todayLabel = new Date().toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  const todayLabel = new Date().toLocaleDateString("ko-KR", { weekday: "short", month: "long", day: "numeric" });
 
   return (
     <main className="ledger-page">
       <header className="ledger-page-header">
         <div>
           <span className="ledger-kicker">
-            <ClipboardList size={15} /> Work Ledger
+            <ClipboardList size={15} /> 업무 원장
           </span>
-          <h1>Operations Ledger</h1>
-          <p>{todayLabel} / {tasks.length} tracked objectives / {apiReady ? "synced" : "local fallback"}</p>
+          <h1>오늘 업무 원장</h1>
+          <p>{todayLabel} / 관리 항목 {tasks.length}개 / {apiReady ? "동기화됨" : "로컬 표시"}</p>
         </div>
         <div className="ledger-header-metrics">
           <div>
-            <span>Progress</span>
+            <span>진행률</span>
             <strong>{progress}%</strong>
           </div>
           <div>
-            <span>Doing</span>
+            <span>진행중</span>
             <strong>{doingCount}</strong>
           </div>
           <div>
-            <span>Blocked</span>
+            <span>막힘</span>
             <strong>{blockedCount}</strong>
           </div>
-          <button className="icon" onClick={() => loadLedger().catch(console.error)} title="Refresh ledger">
+          <button className="icon" onClick={() => loadLedger().catch(console.error)} title="원장 새로고침">
             <RefreshCw size={15} />
           </button>
         </div>
       </header>
 
-      <section className="ledger-plan-strip" aria-label="Plans">
+      <section className="ledger-plan-strip" aria-label="오늘 계획">
         {tasks.slice(0, 3).map((task) => {
           const status = normalizeTaskStatus(task.status);
           return (
@@ -568,8 +568,8 @@ function WorkLedgerPage() {
       <section className="ledger-ops-grid">
         <aside className="ledger-task-list">
           <div className="ledger-section-title">
-            <span>Today&apos;s Objectives</span>
-            <strong>{loading ? "loading" : `${doneCount}/${tasks.length} done`}</strong>
+            <span>오늘 해야 할 일</span>
+            <strong>{loading ? "불러오는 중" : `${doneCount}/${tasks.length} 완료`}</strong>
           </div>
           {tasks.map((task) => {
             const status = normalizeTaskStatus(task.status);
@@ -592,9 +592,9 @@ function WorkLedgerPage() {
                       key={statusOption}
                       className={status === statusOption ? "active" : ""}
                       onClick={() => updateTaskStatus(task.id, statusOption).catch(console.error)}
-                      title={`Mark ${statusOption}`}
+                      title={`${formatStatusLabel(statusOption)}로 변경`}
                     >
-                      {statusOption}
+                      {formatStatusLabel(statusOption)}
                     </button>
                   ))}
                 </div>
@@ -608,9 +608,11 @@ function WorkLedgerPage() {
             <>
               <div className="ledger-detail-head">
                 <div>
-                  <span className={`ledger-status-badge ${normalizeTaskStatus(selectedTask.status)}`}>{normalizeTaskStatus(selectedTask.status)}</span>
+                  <span className={`ledger-status-badge ${normalizeTaskStatus(selectedTask.status)}`}>
+                    {formatStatusLabel(normalizeTaskStatus(selectedTask.status))}
+                  </span>
                   <h2>{selectedTask.title}</h2>
-                  <p>{formatTaskTiming(selectedTask)} / priority {selectedTask.priority ?? "n/a"}</p>
+                  <p>{formatTaskTiming(selectedTask)} / 우선순위 {selectedTask.priority ?? "없음"}</p>
                 </div>
                 {normalizeTaskStatus(selectedTask.status) === "blocked" && <AlertTriangle size={18} />}
               </div>
@@ -619,7 +621,7 @@ function WorkLedgerPage() {
                 {(["overview", "plans", "events"] as const).map((tab) => (
                   <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>
                     {tab === "overview" ? <LayoutGrid size={15} /> : tab === "plans" ? <NotebookText size={15} /> : <ScrollText size={15} />}
-                    {tab[0].toUpperCase() + tab.slice(1)}
+                    {formatLedgerTabLabel(tab)}
                   </button>
                 ))}
               </div>
@@ -627,24 +629,24 @@ function WorkLedgerPage() {
               {activeTab === "overview" && (
                 <>
                   <div className="ledger-notes-box">
-                    <span>Task Notes</span>
-                    <p>{selectedTask.notes?.trim() || "No persistent notes recorded for this task."}</p>
+                    <span>업무 메모</span>
+                    <p>{selectedTask.notes?.trim() || "아직 저장된 업무 메모가 없습니다."}</p>
                   </div>
                   <div className="ledger-detail-grid">
                     <div>
-                      <dt>Status</dt>
-                      <dd>{normalizeTaskStatus(selectedTask.status)}</dd>
+                      <dt>상태</dt>
+                      <dd>{formatStatusLabel(normalizeTaskStatus(selectedTask.status))}</dd>
                     </div>
                     <div>
-                      <dt>Due</dt>
+                      <dt>기한</dt>
                       <dd>{formatDueAt(selectedTask.due_at)}</dd>
                     </div>
                     <div>
-                      <dt>Reminder</dt>
-                      <dd>{selectedTask.reminder_minutes ? `${selectedTask.reminder_minutes}m` : "None"}</dd>
+                      <dt>알림</dt>
+                      <dd>{selectedTask.reminder_minutes ? `${selectedTask.reminder_minutes}분마다` : "없음"}</dd>
                     </div>
                     <div>
-                      <dt>Updated</dt>
+                      <dt>갱신</dt>
                       <dd>{formatDueAt(selectedTask.updated_at)}</dd>
                     </div>
                   </div>
@@ -657,7 +659,7 @@ function WorkLedgerPage() {
                     <div key={task.id}>
                       <strong>{task.title}</strong>
                       <span>{formatTaskTiming(task)}</span>
-                      <em>{normalizeTaskStatus(task.status)}</em>
+                      <em>{formatStatusLabel(normalizeTaskStatus(task.status))}</em>
                     </div>
                   ))}
                 </div>
@@ -666,12 +668,12 @@ function WorkLedgerPage() {
               {activeTab === "events" && (
                 <>
                   <div className="ledger-events-head">
-                    <span>Events</span>
+                    <span>진행 기록</span>
                     <strong>{selectedEvents.length}</strong>
                   </div>
                   <div className="ledger-event-list">
                     {selectedEvents.length === 0 ? (
-                      <p className="ledger-empty">No events for this task yet.</p>
+                      <p className="ledger-empty">아직 이 업무의 진행 기록이 없습니다.</p>
                     ) : (
                       selectedEvents.map((item, index) => (
                         <article key={item.id ?? `${item.at ?? item.created_at ?? "event"}-${index}`}>
@@ -685,14 +687,14 @@ function WorkLedgerPage() {
               )}
 
               <form className="ledger-page-note" onSubmit={addTaskNote}>
-                <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add note, decision, or blocker" />
+                <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="진행 내용, 결정사항, 막힌 점을 기록" />
                 <button className="primary" disabled={!note.trim()}>
-                  <Plus size={15} /> Add
+                  <Plus size={15} /> 기록 추가
                 </button>
               </form>
             </>
           ) : (
-            <p className="ledger-empty">No task selected.</p>
+            <p className="ledger-empty">선택된 업무가 없습니다.</p>
           )}
         </section>
       </section>
@@ -759,9 +761,9 @@ function WorkLedgerDock() {
 
   return (
     <div className={`ledger-dock ${open ? "open" : ""}`}>
-      <button className="ledger-tab" onClick={() => setOpen((next) => !next)} title="Work Ledger" aria-expanded={open}>
+      <button className="ledger-tab" onClick={() => setOpen((next) => !next)} title="업무 원장" aria-expanded={open}>
         <CalendarCheck size={15} />
-        <span>Ledger</span>
+        <span>원장</span>
         <strong>
           {doneCount}/{tasks.length}
         </strong>
@@ -770,9 +772,9 @@ function WorkLedgerDock() {
         <section className="ledger-panel">
           <header>
             <span>
-              <NotebookText size={14} /> Today
+              <NotebookText size={14} /> 오늘
             </span>
-            <strong>{apiReady ? "synced" : "local"}</strong>
+            <strong>{apiReady ? "동기화" : "로컬"}</strong>
           </header>
           <div className="ledger-tasks">
             {tasks.slice(0, 3).map((task) => {
@@ -796,7 +798,7 @@ function WorkLedgerDock() {
                         event.stopPropagation();
                         updateTask(task.id, "doing").catch(console.error);
                       }}
-                      title="Mark doing"
+                      title="진행중으로 변경"
                     >
                       <Activity size={12} />
                     </button>
@@ -806,7 +808,7 @@ function WorkLedgerDock() {
                         event.stopPropagation();
                         updateTask(task.id, "done").catch(console.error);
                       }}
-                      title="Mark done"
+                      title="완료로 변경"
                     >
                       <CheckCircle2 size={12} />
                     </button>
@@ -817,14 +819,14 @@ function WorkLedgerDock() {
           </div>
           <div className="ledger-events">
             {events.length === 0 ? (
-              <p>No ledger notes</p>
+              <p>원장 기록이 없습니다</p>
             ) : (
               events.slice(-3).map((event, index) => <p key={event.id ?? `${event.created_at ?? "event"}-${index}`}>{event.body ?? event.text}</p>)
             )}
           </div>
           <form className="ledger-note" onSubmit={addNote}>
-            <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note or blocker" />
-            <button className="primary icon" disabled={!note.trim()} title="Add note">
+            <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="기록 또는 막힌 점" />
+            <button className="primary icon" disabled={!note.trim()} title="기록 추가">
               <Plus size={15} />
             </button>
           </form>
@@ -848,18 +850,43 @@ function normalizeTaskStatus(status: WorkLedgerTask["status"]): WorkLedgerStatus
   return "todo";
 }
 
+function formatStatusLabel(status: WorkLedgerStatus) {
+  switch (status) {
+    case "doing":
+      return "진행";
+    case "blocked":
+      return "막힘";
+    case "done":
+      return "완료";
+    default:
+      return "대기";
+  }
+}
+
+function formatLedgerTabLabel(tab: "overview" | "plans" | "events") {
+  switch (tab) {
+    case "plans":
+      return "계획";
+    case "events":
+      return "기록";
+    default:
+      return "요약";
+  }
+}
+
 function formatTaskTiming(task: WorkLedgerTask) {
   const due = formatDueAt(task.due_at);
-  const reminder = typeof task.reminder_minutes === "number" ? `remind ${task.reminder_minutes}m` : "";
-  return [due, reminder].filter(Boolean).join(" / ") || "No reminder";
+  const reminder = typeof task.reminder_minutes === "number" ? `${task.reminder_minutes}분마다 알림` : "";
+  return [due, reminder].filter(Boolean).join(" / ") || "알림 없음";
 }
 
 function formatDueAt(dueAt: string | undefined) {
-  if (!dueAt) return "No due";
-  if (dueAt === "Today" || dueAt.includes("KST")) return dueAt;
+  if (!dueAt) return "기한 없음";
+  if (dueAt === "Today") return "오늘";
+  if (dueAt.includes("KST")) return dueAt.replace("Today", "오늘");
   const date = new Date(dueAt);
   if (Number.isNaN(date.getTime())) return dueAt;
-  return date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatEventTime(event: WorkLedgerEvent) {
@@ -979,7 +1006,7 @@ function TerminalCard({
   }
 
   async function stop() {
-    if (!confirm(`Stop ${session.name}?`)) return;
+    if (!confirm(`${session.name} 세션을 중지할까요?`)) return;
     await api.send(`/api/sessions/${session.id}`, "DELETE");
     await onChanged();
   }
@@ -994,16 +1021,16 @@ function TerminalCard({
           {session.model && <em>{session.model}</em>}
         </div>
         <div className="card-actions">
-          <button title="Fullscreen terminal" onClick={() => setFullscreenOpen(true)}>
+          <button title="터미널 크게 보기" onClick={() => setFullscreenOpen(true)}>
             <Maximize2 size={13} />
           </button>
-          <button title="Terminal log" onClick={openLog}>
+          <button title="터미널 로그" onClick={openLog}>
             <ScrollText size={13} />
           </button>
-          <button title="Stop" onClick={stop}>
+          <button title="중지" onClick={stop}>
             <Square size={13} />
           </button>
-          <button title="Delete" onClick={stop}>
+          <button title="삭제" onClick={stop}>
             <Trash2 size={13} />
           </button>
         </div>
@@ -1023,9 +1050,9 @@ function TerminalCard({
           onKeyDown={(event) => {
             if (event.key === "Enter") send().catch(console.error);
           }}
-          placeholder="Prompt"
+          placeholder="지시 입력"
         />
-        <button className="primary icon" onClick={send} title="Send">
+        <button className="primary icon" onClick={send} title="전송">
           <Send size={15} />
         </button>
       </footer>
@@ -1037,10 +1064,10 @@ function TerminalCard({
         <div className="log-modal" role="dialog" aria-modal="true">
           <div className="log-panel">
             <header>
-              <strong>{session.name} terminal log</strong>
-              <button onClick={() => setLogOpen(false)}>Close</button>
+              <strong>{session.name} 터미널 로그</strong>
+              <button onClick={() => setLogOpen(false)}>닫기</button>
             </header>
-            <TerminalLogView text={logText || "No log captured for this session yet. Restart the session after logging is enabled.\r\n"} />
+            <TerminalLogView text={logText || "아직 이 세션에 저장된 로그가 없습니다. 로그 기능이 켜진 뒤 세션을 다시 시작해야 합니다.\r\n"} />
           </div>
         </div>
       )}
@@ -1091,7 +1118,7 @@ function FullscreenTerminalModal({
             <em>{session.team}</em>
             {session.model && <em>{session.model}</em>}
           </div>
-          <button className="icon" onClick={onClose} title="Close fullscreen">
+          <button className="icon" onClick={onClose} title="크게 보기 닫기">
             <X size={16} />
           </button>
         </header>
@@ -1111,9 +1138,9 @@ function FullscreenTerminalModal({
             onKeyDown={(event) => {
               if (event.key === "Enter") send().catch(console.error);
             }}
-            placeholder="Prompt"
+            placeholder="지시 입력"
           />
-          <button className="primary icon" onClick={send} title="Send">
+          <button className="primary icon" onClick={send} title="전송">
             <Send size={15} />
           </button>
         </footer>
