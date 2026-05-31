@@ -1542,10 +1542,10 @@ async fn active_session_count(state: &AppState) -> usize {
 }
 
 fn active_session_limit() -> Option<usize> {
-    env::var("LCC_MAX_ACTIVE_SESSIONS")
-        .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-        .filter(|value| *value > 0)
+    match env::var("LCC_MAX_ACTIVE_SESSIONS") {
+        Ok(value) => value.parse::<usize>().ok().filter(|value| *value > 0),
+        Err(_) => Some(20),
+    }
 }
 
 async fn peer_status(State(state): State<AppState>) -> Json<Value> {

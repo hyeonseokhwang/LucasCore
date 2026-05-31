@@ -1,7 +1,7 @@
 param(
   [string]$Port = $env:LCC_API_PORT,
   [string]$OsAgentRegistry = $env:LCC_OS_AGENT_REGISTRY,
-  [string]$MaxActiveSessions = $env:LCC_MAX_ACTIVE_SESSIONS
+  [string]$MaxActiveSessions = $(if ($env:LCC_MAX_ACTIVE_SESSIONS) { $env:LCC_MAX_ACTIVE_SESSIONS } else { "20" })
 )
 
 $ErrorActionPreference = "Stop"

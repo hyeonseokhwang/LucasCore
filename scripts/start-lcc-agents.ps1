@@ -46,12 +46,11 @@ function Get-AgentModel {
 
 $agents = @(
   @{ id = "ceo"; name = "CEO"; team = "executive"; cwd = "workspaces/ceo/repo" },
-  @{ id = "dev-lead"; name = "Dev Lead"; team = "development"; cwd = "workspaces/dev-lead/repo" },
-  @{ id = "developer-1"; name = "Developer 1"; team = "development"; cwd = "workspaces/developer-1/repo" },
-  @{ id = "developer-2"; name = "Developer 2"; team = "development"; cwd = "workspaces/developer-2/repo" },
-  @{ id = "developer-3"; name = "Developer 3"; team = "development"; cwd = "workspaces/developer-3/repo" },
-  @{ id = "developer-4"; name = "Developer 4"; team = "development"; cwd = "workspaces/developer-4/repo" }
+  @{ id = "dev-lead"; name = "Dev Lead"; team = "development"; cwd = "workspaces/dev-lead/repo" }
 )
+foreach ($n in 1..12) {
+  $agents += @{ id = "developer-$n"; name = "Developer $n"; team = "development"; cwd = "workspaces/developer-$n/repo" }
+}
 
 function Get-Sessions {
   @(Invoke-RestMethod -Uri "$ApiUrl/api/sessions" -Method Get -TimeoutSec 10)

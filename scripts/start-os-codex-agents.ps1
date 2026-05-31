@@ -76,16 +76,15 @@ if (-not (Test-Path -LiteralPath $RunnerPath)) {
 $agents = @(
   @{ id = "chief-min"; name = "CHIEF-MIN"; team = "management"; cwd = "workspaces/chief-min/repo" },
   @{ id = "dev-lead"; name = "Dev Lead"; team = "development"; cwd = "workspaces/dev-lead/repo" },
-  @{ id = "developer-1"; name = "Developer 1"; team = "development"; cwd = "workspaces/developer-1/repo" },
-  @{ id = "developer-2"; name = "Developer 2"; team = "development"; cwd = "workspaces/developer-2/repo" },
-  @{ id = "developer-3"; name = "Developer 3"; team = "development"; cwd = "workspaces/developer-3/repo" },
-  @{ id = "developer-4"; name = "Developer 4"; team = "development"; cwd = "workspaces/developer-4/repo" },
   @{ id = "joon-msa"; name = "Joon MSA"; team = "spring-msa"; cwd = "workspaces/joon-msa/repo" },
   @{ id = "spring-msa-research-1"; name = "Spring MSA Researcher 1"; team = "spring-msa"; cwd = "workspaces/spring-msa-research-1/repo" },
   @{ id = "spring-msa-research-2"; name = "Spring MSA Researcher 2"; team = "spring-msa"; cwd = "workspaces/spring-msa-research-2/repo" },
   @{ id = "spring-msa-research-3"; name = "Spring MSA Researcher 3"; team = "spring-msa"; cwd = "workspaces/spring-msa-research-3/repo" },
   @{ id = "spring-msa-research-4"; name = "Spring MSA Researcher 4"; team = "spring-msa"; cwd = "workspaces/spring-msa-research-4/repo" }
 )
+foreach ($n in 1..12) {
+  $agents += @{ id = "developer-$n"; name = "Developer $n"; team = "development"; cwd = "workspaces/developer-$n/repo" }
+}
 
 $LeadAgentIds = @("chief-min", "dev-lead")
 function Get-AgentModel {

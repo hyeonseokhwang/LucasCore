@@ -89,12 +89,20 @@ const SESSION_GROUPS = [
       { id: "developer-1", name: "Developer 1", role: "Developer", session: true },
       { id: "developer-2", name: "Developer 2", role: "Developer", session: true },
       { id: "developer-3", name: "Developer 3", role: "Developer", session: true },
-      { id: "developer-4", name: "Developer 4", role: "Developer", session: true }
+      { id: "developer-4", name: "Developer 4", role: "Developer", session: true },
+      { id: "developer-5", name: "Developer 5", role: "Developer", session: true },
+      { id: "developer-6", name: "Developer 6", role: "Developer", session: true },
+      { id: "developer-7", name: "Developer 7", role: "Developer", session: true },
+      { id: "developer-8", name: "Developer 8", role: "Developer", session: true },
+      { id: "developer-9", name: "Developer 9", role: "Developer", session: true },
+      { id: "developer-10", name: "Developer 10", role: "Developer", session: true },
+      { id: "developer-11", name: "Developer 11", role: "Developer", session: true },
+      { id: "developer-12", name: "Developer 12", role: "Developer", session: true }
     ]
   }
 ];
 const SESSION_GROUP_BY_FILTER = new Map(SESSION_GROUPS.map((group) => [group.filter, group]));
-const MAX_ACTIVE_SESSIONS = 6;
+const MAX_ACTIVE_SESSIONS = 20;
 
 type CanvasSection = {
   id: string;
@@ -958,7 +966,7 @@ function CreateSession({ sessions, onCreated }: { sessions: Session[]; onCreated
         <button onClick={spawnDevTeam}>
           <Bot size={16} /> Dev Team
         </button>
-        <span>Spawn one dev lead and four GPT-5.5 Codex developers in isolated workspaces.</span>
+        <span>Spawn one dev lead and twelve Codex developers, capped at 20 active agents.</span>
       </div>
     );
   }
@@ -1860,7 +1868,7 @@ function standardDevAgents(cmd: string, model: string) {
   return [
     { id: "ceo", name: "CEO", team: "executive", cwd: "workspaces/ceo/repo", cmd, args: codexYoloArgs(model), model },
     { id: "dev-lead", name: "Dev Lead", team: "development", cwd: "workspaces/dev-lead/repo", cmd, args: codexYoloArgs(model), model },
-    ...Array.from({ length: 4 }, (_, index) => {
+    ...Array.from({ length: 12 }, (_, index) => {
       const n = index + 1;
       return {
         id: `developer-${n}`,
