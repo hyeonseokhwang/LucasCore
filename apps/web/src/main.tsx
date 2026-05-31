@@ -2,9 +2,13 @@ import {
   Activity,
   Bot,
   Boxes,
+  CalendarCheck,
+  CheckCircle2,
+  Clock3,
   FileText,
   LayoutGrid,
   MessageSquare,
+  NotebookText,
   PanelLeftClose,
   PanelLeftOpen,
   PanelTopClose,
@@ -95,6 +99,62 @@ type PeerMessage = {
   created_at?: string;
 };
 
+type WorkLedgerStatus = "todo" | "doing" | "blocked" | "done";
+
+type WorkLedgerTask = {
+  id: string;
+  title: string;
+  status?: WorkLedgerStatus | string;
+  priority?: string | number;
+  due_at?: string;
+  reminder_minutes?: number;
+  last_reminded_at?: string;
+  notes?: string;
+  updated_at?: string;
+};
+
+type WorkLedgerEvent = {
+  id?: string;
+  task_id?: string;
+  kind?: string;
+  body?: string;
+  text?: string;
+  at?: string;
+  created_at?: string;
+};
+
+type WorkLedgerState = {
+  tasks?: WorkLedgerTask[];
+  events?: WorkLedgerEvent[];
+};
+
+const fallbackLedgerTasks: WorkLedgerTask[] = [
+  {
+    id: "year-end-tax",
+    title: "Year-end tax hourly reminder",
+    status: "doing",
+    priority: 1,
+    due_at: "Today",
+    reminder_minutes: 60
+  },
+  {
+    id: "spring-msa-study",
+    title: "Spring MSA study 20:00 KST",
+    status: "todo",
+    priority: 2,
+    due_at: "20:00 KST",
+    reminder_minutes: 30
+  },
+  {
+    id: "heungkuk-android-final",
+    title: "Heungkuk Android final package",
+    status: "todo",
+    priority: 1,
+    due_at: "Today",
+    reminder_minutes: 60
+  }
+];
+
 const api = {
   async get<T>(path: string): Promise<T> {
     const response = await fetch(path);
@@ -176,6 +236,7 @@ function App() {
         </button>
       </div>
       <PeerDock />
+      <WorkLedgerDock />
       <aside className="sidebar">
         <div className="brand">
           <Boxes size={26} />
@@ -370,6 +431,169 @@ function PeerDock() {
       )}
     </div>
   );
+}
+
+function WorkLedgerDock() {
+  const [open, setOpen] = useState(false);
+  const [tasks, setTasks] = useState<WorkLedgerTask[]>(fallbackLedgerTasks);
+  const [events, setEvents] = useState<WorkLedgerEvent[]>([]);
+  const [note, setNote] = useState("");
+  const [selectedTaskId, setSelectedTaskId] = useState(fallbackLedgerTasks[0].id);
+  const [apiReady, setApiReady] = useState(false);
+
+  async function loadLedger() {
+    try {
+      const ledger = await api.get<WorkLedgerState>("/api/work-ledger");
+      setApiReady(true);
+      const nextTasks = normalizeLedgerTasks(ledger.tasks);
+      setTasks(nextTasks);
+      setSelectedTaskId((current) => (nextTasks.some((task) => task.id === current) ? current : nextTasks[0].id));
+      setEvents((ledger.events ?? []).slice(-6));
+    } catch {
+      setApiReady(false);
+      setTasks((current) => (current.length ? current : fallbackLedgerTasks));
+      setEvents([]);
+    }
+  }
+
+  useEffect(() => {
+    loadLedger().catch(() => undefined);
+    const timer = window.setInterval(() => loadLedger().catch(() => undefined), 10000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  async function updateTask(taskId: string, status: WorkLedgerStatus) {
+    setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, status } : task)));
+    try {
+      await api.send(`/api/work-ledger/tasks/${taskId}`, "PUT", { status });
+      await loadLedger();
+    } catch {
+      setApiReady(false);
+    }
+  }
+
+  async function addNote(event: FormEvent) {
+    event.preventDefault();
+    if (!note.trim()) return;
+    const taskId = selectedTaskId || tasks[0]?.id;
+    if (!taskId) return;
+    const nextNote = { id: `local-${Date.now()}`, body: note, created_at: new Date().toISOString() };
+    setEvents((current) => [...current, nextNote].slice(-6));
+    setNote("");
+    try {
+      await api.send(`/api/work-ledger/tasks/${taskId}/events`, "POST", { kind: "note", body: nextNote.body });
+      await loadLedger();
+    } catch {
+      setApiReady(false);
+    }
+  }
+
+  const doneCount = tasks.filter((task) => normalizeTaskStatus(task.status) === "done").length;
+
+  return (
+    <div className={`ledger-dock ${open ? "open" : ""}`}>
+      <button className="ledger-tab" onClick={() => setOpen((next) => !next)} title="Work Ledger" aria-expanded={open}>
+        <CalendarCheck size={15} />
+        <span>Ledger</span>
+        <strong>
+          {doneCount}/{tasks.length}
+        </strong>
+      </button>
+      {open && (
+        <section className="ledger-panel">
+          <header>
+            <span>
+              <NotebookText size={14} /> Today
+            </span>
+            <strong>{apiReady ? "synced" : "local"}</strong>
+          </header>
+          <div className="ledger-tasks">
+            {tasks.slice(0, 3).map((task) => {
+              const status = normalizeTaskStatus(task.status);
+              const goal = { due: formatTaskTiming(task), reminder: "" };
+              return (
+                <article
+                  key={task.id}
+                  className={`ledger-task ${status} ${selectedTaskId === task.id ? "selected" : ""}`}
+                  onClick={() => setSelectedTaskId(task.id)}
+                >
+                  <div>
+                    <strong>{task.title}</strong>
+                    <span>
+                      <Clock3 size={12} /> {goal.due ?? "Today"} {goal.reminder ? `· ${goal.reminder}` : ""}
+                    </span>
+                  </div>
+                  <div className="ledger-actions">
+                    <button
+                      className={status === "doing" ? "active" : ""}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        updateTask(task.id, "doing").catch(console.error);
+                      }}
+                      title="Mark doing"
+                    >
+                      <Activity size={12} />
+                    </button>
+                    <button
+                      className={status === "done" ? "active" : ""}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        updateTask(task.id, "done").catch(console.error);
+                      }}
+                      title="Mark done"
+                    >
+                      <CheckCircle2 size={12} />
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+          <div className="ledger-events">
+            {events.length === 0 ? (
+              <p>No ledger notes</p>
+            ) : (
+              events.slice(-3).map((event, index) => <p key={event.id ?? `${event.created_at ?? "event"}-${index}`}>{event.body ?? event.text}</p>)
+            )}
+          </div>
+          <form className="ledger-note" onSubmit={addNote}>
+            <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note or blocker" />
+            <button className="primary icon" disabled={!note.trim()} title="Add note">
+              <Plus size={15} />
+            </button>
+          </form>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function normalizeLedgerTasks(tasks: WorkLedgerTask[] | undefined) {
+  if (!Array.isArray(tasks) || tasks.length === 0) return fallbackLedgerTasks;
+  return tasks.slice(0, 3).map((task, index) => ({
+    ...fallbackLedgerTasks[index],
+    ...task,
+    id: task.id ?? fallbackLedgerTasks[index]?.id ?? `task-${index}`
+  }));
+}
+
+function normalizeTaskStatus(status: WorkLedgerTask["status"]): WorkLedgerStatus {
+  if (status === "doing" || status === "blocked" || status === "done") return status;
+  return "todo";
+}
+
+function formatTaskTiming(task: WorkLedgerTask) {
+  const due = formatDueAt(task.due_at);
+  const reminder = typeof task.reminder_minutes === "number" ? `remind ${task.reminder_minutes}m` : "";
+  return [due, reminder].filter(Boolean).join(" / ") || "No reminder";
+}
+
+function formatDueAt(dueAt: string | undefined) {
+  if (!dueAt) return "No due";
+  if (dueAt === "Today" || dueAt.includes("KST")) return dueAt;
+  const date = new Date(dueAt);
+  if (Number.isNaN(date.getTime())) return dueAt;
+  return date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function CreateSession({ sessions, onCreated }: { sessions: Session[]; onCreated: () => Promise<void> }) {

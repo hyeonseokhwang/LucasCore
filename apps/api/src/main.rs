@@ -5,7 +5,7 @@ use axum::{
     },
     http::{header, StatusCode},
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use chrono::{DateTime, Utc};
@@ -35,6 +35,7 @@ struct AppState {
     tx: broadcast::Sender<ServerEvent>,
     canvas_store: CanvasStore,
     peer_store: PeerStore,
+    work_ledger: WorkLedgerStore,
 }
 
 struct TerminalSession {
@@ -155,6 +156,43 @@ struct PeerMessage {
     body: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct WorkLedger {
+    tasks: Vec<WorkTask>,
+    events: Vec<WorkTaskEvent>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct WorkTask {
+    id: String,
+    title: String,
+    status: WorkTaskStatus,
+    priority: i32,
+    due_at: Option<DateTime<Utc>>,
+    reminder_minutes: Option<u32>,
+    last_reminded_at: Option<DateTime<Utc>>,
+    notes: Option<String>,
+    updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum WorkTaskStatus {
+    Todo,
+    Doing,
+    Done,
+    Blocked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct WorkTaskEvent {
+    id: String,
+    task_id: String,
+    at: DateTime<Utc>,
+    kind: String,
+    body: String,
+}
+
 #[derive(Debug, Deserialize)]
 struct CreateCanvas {
     id: Option<String>,
@@ -191,6 +229,25 @@ struct CreatePeerMessage {
     body: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct UpsertWorkTask {
+    title: Option<String>,
+    status: Option<WorkTaskStatus>,
+    priority: Option<i32>,
+    due_at: Option<DateTime<Utc>>,
+    reminder_minutes: Option<u32>,
+    last_reminded_at: Option<DateTime<Utc>>,
+    notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AddWorkTaskEvent {
+    id: Option<String>,
+    at: Option<DateTime<Utc>>,
+    kind: Option<String>,
+    body: Option<String>,
+}
+
 #[derive(Clone)]
 struct CanvasStore {
     path: Arc<PathBuf>,
@@ -201,6 +258,12 @@ struct CanvasStore {
 struct PeerStore {
     path: Arc<PathBuf>,
     messages: Arc<RwLock<Vec<PeerMessage>>>,
+}
+
+#[derive(Clone)]
+struct WorkLedgerStore {
+    path: Arc<PathBuf>,
+    ledger: Arc<RwLock<WorkLedger>>,
 }
 
 #[tokio::main]
@@ -214,11 +277,14 @@ async fn main() -> anyhow::Result<()> {
     let canvas_store = CanvasStore::new(PathBuf::from(storage_path)).await?;
     let peer_storage_path = env::var("LCC_PEER_STORAGE_PATH").unwrap_or_else(|_| "data/peer-bridge.jsonl".to_string());
     let peer_store = PeerStore::new(PathBuf::from(peer_storage_path)).await?;
+    let work_ledger_path = env::var("LCC_WORK_LEDGER_PATH").unwrap_or_else(|_| "data/work-ledger.json".to_string());
+    let work_ledger = WorkLedgerStore::new(PathBuf::from(work_ledger_path)).await?;
     let state = AppState {
         sessions: Arc::new(RwLock::new(HashMap::new())),
         tx,
         canvas_store,
         peer_store,
+        work_ledger,
     };
 
     let app = Router::new()
@@ -233,6 +299,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/ws/terminal", get(terminal_ws))
         .route("/api/peer/status", get(peer_status))
         .route("/api/peer/messages", get(list_peer_messages).post(add_peer_message))
+        .route("/api/work-ledger", get(get_work_ledger))
+        .route("/api/work-ledger/tasks/:id", put(upsert_work_task))
+        .route("/api/work-ledger/tasks/:id/events", post(add_work_task_event))
         .route("/api/canvases", get(list_canvases).post(create_canvas))
         .route("/api/canvases/:id", get(get_canvas).patch(update_canvas))
         .route("/api/canvases/:id/content", get(get_content).put(put_content).patch(put_content))
@@ -676,6 +745,34 @@ fn require_field(value: Option<String>, field: &str) -> Result<String, ApiError>
     Ok(value)
 }
 
+async fn get_work_ledger(State(state): State<AppState>) -> Json<WorkLedger> {
+    Json(state.work_ledger.ledger.read().await.clone())
+}
+
+async fn upsert_work_task(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(input): Json<UpsertWorkTask>,
+) -> Result<Json<WorkTask>, ApiError> {
+    state.work_ledger.upsert_task(&id, input).await.map(Json)
+}
+
+async fn add_work_task_event(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(input): Json<AddWorkTaskEvent>,
+) -> Result<(StatusCode, Json<WorkTaskEvent>), ApiError> {
+    let event = WorkTaskEvent {
+        id: input.id.unwrap_or_else(|| format!("work-event-{}", Utc::now().timestamp_millis())),
+        task_id: id.clone(),
+        at: input.at.unwrap_or_else(Utc::now),
+        kind: input.kind.unwrap_or_else(|| "note".to_string()),
+        body: require_field(input.body, "body")?,
+    };
+    state.work_ledger.add_event(&id, event.clone()).await?;
+    Ok((StatusCode::CREATED, Json(event)))
+}
+
 async fn list_canvases(State(state): State<AppState>) -> Json<Vec<Canvas>> {
     Json(state.canvas_store.canvases.read().await.clone())
 }
@@ -879,6 +976,89 @@ impl PeerStore {
     }
 }
 
+impl WorkLedgerStore {
+    async fn new(path: PathBuf) -> anyhow::Result<Self> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        let ledger = match fs::read_to_string(&path).await {
+            Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|_| default_work_ledger()),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                let ledger = default_work_ledger();
+                let raw = serde_json::to_string_pretty(&ledger)?;
+                fs::write(&path, raw).await?;
+                ledger
+            }
+            Err(err) => return Err(err.into()),
+        };
+        Ok(Self {
+            path: Arc::new(path),
+            ledger: Arc::new(RwLock::new(ledger)),
+        })
+    }
+
+    async fn persist(&self, ledger: &WorkLedger) -> Result<(), ApiError> {
+        let raw = serde_json::to_string_pretty(ledger).map_err(ApiError::internal)?;
+        fs::write(&*self.path, raw).await.map_err(ApiError::internal)
+    }
+
+    async fn upsert_task(&self, id: &str, input: UpsertWorkTask) -> Result<WorkTask, ApiError> {
+        let mut ledger = self.ledger.write().await;
+        let now = Utc::now();
+        let result = if let Some(task) = ledger.tasks.iter_mut().find(|task| task.id == id) {
+            if let Some(title) = input.title {
+                task.title = title;
+            }
+            if let Some(status) = input.status {
+                task.status = status;
+            }
+            if let Some(priority) = input.priority {
+                task.priority = priority;
+            }
+            if input.due_at.is_some() {
+                task.due_at = input.due_at;
+            }
+            if input.reminder_minutes.is_some() {
+                task.reminder_minutes = input.reminder_minutes;
+            }
+            if input.last_reminded_at.is_some() {
+                task.last_reminded_at = input.last_reminded_at;
+            }
+            if input.notes.is_some() {
+                task.notes = input.notes;
+            }
+            task.updated_at = now;
+            task.clone()
+        } else {
+            let task = WorkTask {
+                id: id.to_string(),
+                title: input.title.unwrap_or_else(|| id.to_string()),
+                status: input.status.unwrap_or(WorkTaskStatus::Todo),
+                priority: input.priority.unwrap_or(100),
+                due_at: input.due_at,
+                reminder_minutes: input.reminder_minutes,
+                last_reminded_at: input.last_reminded_at,
+                notes: input.notes,
+                updated_at: now,
+            };
+            ledger.tasks.push(task.clone());
+            task
+        };
+        self.persist(&ledger).await?;
+        Ok(result)
+    }
+
+    async fn add_event(&self, task_id: &str, event: WorkTaskEvent) -> Result<(), ApiError> {
+        let mut ledger = self.ledger.write().await;
+        let Some(task) = ledger.tasks.iter_mut().find(|task| task.id == task_id) else {
+            return Err(ApiError::not_found("work task not found"));
+        };
+        task.updated_at = Utc::now();
+        ledger.events.push(event);
+        self.persist(&ledger).await
+    }
+}
+
 fn default_sections() -> Vec<CanvasSection> {
     ["Problem", "Decision", "Tasks", "Evidence", "Terminal Agents"]
         .into_iter()
@@ -888,6 +1068,54 @@ fn default_sections() -> Vec<CanvasSection> {
             body: String::new(),
         })
         .collect()
+}
+
+fn default_work_ledger() -> WorkLedger {
+    let now = Utc::now();
+    WorkLedger {
+        tasks: vec![
+            WorkTask {
+                id: "year-end-tax-hourly-reminder".to_string(),
+                title: "Year-end tax hourly reminder".to_string(),
+                status: WorkTaskStatus::Todo,
+                priority: 1,
+                due_at: None,
+                reminder_minutes: Some(60),
+                last_reminded_at: None,
+                notes: Some("Daily objective seed.".to_string()),
+                updated_at: now,
+            },
+            WorkTask {
+                id: "spring-msa-study-2000".to_string(),
+                title: "Spring MSA study 20:00".to_string(),
+                status: WorkTaskStatus::Todo,
+                priority: 2,
+                due_at: Some(today_at_utc(11, 0)),
+                reminder_minutes: None,
+                last_reminded_at: None,
+                notes: Some("20:00 KST stored as 11:00 UTC.".to_string()),
+                updated_at: now,
+            },
+            WorkTask {
+                id: "heungkuk-android-final-package".to_string(),
+                title: "Heungkuk Android final package".to_string(),
+                status: WorkTaskStatus::Todo,
+                priority: 3,
+                due_at: None,
+                reminder_minutes: None,
+                last_reminded_at: None,
+                notes: Some("Daily objective seed.".to_string()),
+                updated_at: now,
+            },
+        ],
+        events: Vec::new(),
+    }
+}
+
+fn today_at_utc(hour: u32, minute: u32) -> DateTime<Utc> {
+    let date = Utc::now().date_naive();
+    let naive = date.and_hms_opt(hour, minute, 0).expect("seed time must be valid");
+    DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc)
 }
 
 #[cfg(windows)]

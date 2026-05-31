@@ -219,6 +219,166 @@ textarea {
   min-width: 0;
 }
 
+.ledger-dock {
+  position: fixed;
+  left: 314px;
+  bottom: 14px;
+  z-index: 45;
+}
+
+.sidebar-collapsed .ledger-dock {
+  left: 14px;
+}
+
+.ledger-tab {
+  min-height: 34px;
+  padding: 0 10px;
+  border-color: #253653;
+  background: rgba(13, 22, 38, 0.92);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.34);
+}
+
+.ledger-tab span {
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-tab strong {
+  min-width: 34px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #23314b;
+  color: #d8e2f1;
+  font-size: 11px;
+}
+
+.ledger-panel {
+  position: absolute;
+  left: 0;
+  bottom: 42px;
+  width: 390px;
+  border: 1px solid #253653;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0d1626;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.42);
+}
+
+.ledger-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 10px;
+  border-bottom: 1px solid #253653;
+  background: #172338;
+}
+
+.ledger-panel header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.ledger-panel header strong {
+  color: #8ea0b8;
+  font-size: 12px;
+}
+
+.ledger-tasks {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.ledger-task {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid #22324a;
+  border-radius: 6px;
+  background: #121f33;
+}
+
+.ledger-task.done {
+  border-color: #2a6b55;
+}
+
+.ledger-task.doing {
+  border-color: #4564ff;
+}
+
+.ledger-task.selected {
+  background: #16243a;
+}
+
+.ledger-task strong,
+.ledger-task span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-task span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  color: #8ea0b8;
+  font-size: 12px;
+}
+
+.ledger-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.ledger-actions button {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+}
+
+.ledger-actions button.active {
+  border-color: #4564ff;
+  background: #20304b;
+}
+
+.ledger-events {
+  display: grid;
+  gap: 7px;
+  max-height: 104px;
+  padding: 0 10px 10px;
+  overflow: auto;
+}
+
+.ledger-events p {
+  margin: 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: #101a2b;
+  color: #a5b4cf;
+  line-height: 1.35;
+}
+
+.ledger-note {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid #253653;
+  background: #101a2b;
+}
+
+.ledger-note input {
+  min-width: 0;
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
