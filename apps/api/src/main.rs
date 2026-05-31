@@ -726,7 +726,9 @@ fn prompt_submit_key() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_prompt_body, prompt_submit_key};
+    use axum::http::StatusCode;
+
+    use super::{normalize_prompt_body, normalize_work_event_kind, prompt_submit_key};
 
     fn encode_prompt_submit_for_test(data: &str) -> String {
         format!("{}{}", normalize_prompt_body(data), prompt_submit_key())
@@ -782,6 +784,24 @@ mod tests {
     #[test]
     fn prompt_submit_key_is_plain_carriage_return_for_delayed_write() {
         assert_eq!(prompt_submit_key(), "\r");
+    }
+
+    #[test]
+    fn work_event_kind_defaults_to_note() {
+        assert_eq!(normalize_work_event_kind(None).unwrap(), "note");
+    }
+
+    #[test]
+    fn work_event_kind_normalizes_known_state_events() {
+        assert_eq!(normalize_work_event_kind(Some(" ACKNOWLEDGED ".to_string())).unwrap(), "acknowledged");
+        assert_eq!(normalize_work_event_kind(Some("HEARTBEAT".to_string())).unwrap(), "heartbeat");
+        assert_eq!(normalize_work_event_kind(Some("qa-pass".to_string())).unwrap(), "qa-pass");
+    }
+
+    #[test]
+    fn work_event_kind_rejects_unknown_values() {
+        let err = normalize_work_event_kind(Some("maybe-later".to_string())).unwrap_err();
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
 }
 
@@ -976,15 +996,55 @@ async fn add_work_task_event(
     Path(id): Path<String>,
     Json(input): Json<AddWorkTaskEvent>,
 ) -> Result<(StatusCode, Json<WorkTaskEvent>), ApiError> {
+    let kind = normalize_work_event_kind(input.kind)?;
     let event = WorkTaskEvent {
         id: input.id.unwrap_or_else(|| format!("work-event-{}", Utc::now().timestamp_millis())),
         task_id: id.clone(),
         at: input.at.unwrap_or_else(Utc::now),
-        kind: input.kind.unwrap_or_else(|| "note".to_string()),
+        kind,
         body: require_field(input.body, "body")?,
     };
     state.work_ledger.add_event(&id, event.clone()).await?;
     Ok((StatusCode::CREATED, Json(event)))
+}
+
+fn normalize_work_event_kind(kind: Option<String>) -> Result<String, ApiError> {
+    let kind = kind.unwrap_or_else(|| "note".to_string()).trim().to_ascii_lowercase();
+    if allowed_work_event_kinds().contains(&kind.as_str()) {
+        return Ok(kind);
+    }
+    Err(ApiError::bad_request(format!(
+        "unsupported work event kind '{kind}'; allowed: {}",
+        allowed_work_event_kinds().join(", ")
+    )))
+}
+
+fn allowed_work_event_kinds() -> &'static [&'static str] {
+    &[
+        "assigned",
+        "acknowledged",
+        "doing",
+        "heartbeat",
+        "reported",
+        "blocked",
+        "stopped",
+        "completed",
+        "qa",
+        "qa-pass",
+        "qa-fail",
+        "evidence",
+        "handoff",
+        "decision",
+        "risk",
+        "note",
+        "ledger-update",
+        "execution-board-update",
+        "communication-policy",
+        "enterprise-p0-order",
+        "organization",
+        "dev-request",
+        "risk-check",
+    ]
 }
 
 async fn list_canvases(State(state): State<AppState>) -> Json<Vec<Canvas>> {

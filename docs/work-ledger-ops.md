@@ -59,6 +59,9 @@ Enterprise communication policy:
 - Every task report must print first in the owner pty before being counted as reported.
 - First line prefix is mandatory: `ACK`, `HEARTBEAT`, or `REPORT`.
 - ACK is due within 30 seconds of assignment, REPORT is due on completion or block, and HEARTBEAT is due every 3 minutes while work is active.
+- Task state progression is fixed as `assigned -> acknowledged -> doing -> heartbeat* -> reported -> completed|blocked|stopped`.
+- Work Ledger event kinds must use the controlled vocabulary in `docs/agent-state-management-policy-20260531.md`; ad hoc event kind strings are invalid.
+- `blocked` and `stopped` reports must include reason, last evidence, and next owner/action.
 - Reports that exist only in terminal logs, files, markdown, or ledger but are not routed to Chief Min/HQ visible report are communication gaps.
 - All reports to Lucas, Branch Director, or HQ leadership must use highest Korean honorifics in the body text.
 - Before approved product-code work begins, leads must separately check and record product-code-change risk.
