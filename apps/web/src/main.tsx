@@ -33,6 +33,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { TERMINAL_PROMPT_SUBMIT_KEY, encodePromptForPtySubmit, normalizePromptForSubmit } from "./terminalPrompt";
+import { tailTerminalLines } from "./terminalReplay";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
@@ -1201,7 +1202,7 @@ function TerminalCard({
               <strong>{session.name} 터미널 로그</strong>
               <button onClick={() => setLogOpen(false)}>닫기</button>
             </header>
-            <TerminalLogView text={logText || "아직 이 세션에 저장된 로그가 없습니다. 로그 기능이 켜진 뒤 세션을 다시 시작해야 합니다.\r\n"} />
+            <TerminalLogView text={tailTerminalLines(logText || "아직 이 세션에 저장된 로그가 없습니다. 로그 기능이 켜진 뒤 세션을 다시 시작해야 합니다.\r\n")} />
           </div>
         </div>
       )}
@@ -1335,7 +1336,7 @@ function XtermPreview({
       fontWeightBold: 700,
       drawBoldTextInBrightColors: false,
       cursorBlink: status === "active",
-      scrollback: variant === "fullscreen" ? 500 : 200,
+      scrollback: variant === "fullscreen" ? 150 : 200,
       convertEol: true,
       allowProposedApi: true,
       theme: {
@@ -1403,7 +1404,8 @@ function XtermPreview({
         for (const data of queue) sendSocket({ type: "input", sessionId, data });
       }
       if (message.type === "replay") {
-        term.write(message.data ?? "");
+        const replay = variant === "fullscreen" ? tailTerminalLines(message.data ?? "") : message.data ?? "";
+        term.write(replay);
         scrollToBottomSoon();
       }
       if (message.type === "output") {
@@ -1471,7 +1473,7 @@ function TerminalLogView({ text }: { text: string }) {
     const term = new XTerm({
       fontSize: 12,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace",
-      scrollback: 1000,
+      scrollback: 150,
       convertEol: true,
       cursorBlink: false,
       theme: {

@@ -101,3 +101,14 @@ Before committing state-management changes:
 - 9002 health must remain `ok=true`.
 - 9002 must remain the only active LCC API process unless Lucas explicitly authorizes another port.
 - Git commit must include policy, implementation, and QA evidence together.
+
+## Terminal Render Retention
+
+Terminal screen rendering is not the audit store.
+
+- Fullscreen terminal replay renders only the latest 150 lines.
+- Log modal rendering also uses a 150-line tail.
+- Card preview keeps a small scrollback for daily monitoring.
+- Full ANSI logs remain append-only under `data/terminal-logs/*.ansi.log`.
+- Postmortem debugging and evidence review must use the file logs or explicit log-tail API, not browser scrollback.
+- Increasing visible lines requires a QA pass for browser memory and fullscreen open latency.
