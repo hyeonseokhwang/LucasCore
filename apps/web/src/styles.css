@@ -1105,6 +1105,52 @@ textarea {
   white-space: nowrap;
 }
 
+.tf-filter {
+  justify-content: space-between;
+  border-color: #2f5f6f;
+  background: #102432;
+}
+
+.tf-filter strong {
+  margin-left: auto;
+  color: #93e7d2;
+  font-size: 12px;
+}
+
+.tf-members {
+  display: grid;
+  gap: 5px;
+  margin: -1px 0 10px;
+  padding: 8px;
+  border: 1px solid #1d3148;
+  border-radius: 6px;
+  background: #0d1725;
+}
+
+.tf-members span {
+  min-width: 0;
+  overflow: hidden;
+  color: #9fb0c8;
+  font-size: 12px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tf-members span::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 999px;
+  background: #64748b;
+}
+
+.tf-members span.online::before {
+  background: #3de0a1;
+}
+
 .dot,
 .status-dot {
   width: 10px;
@@ -1276,6 +1322,7 @@ textarea {
 
 .terminal-card footer {
   border-top: 1px solid #283851;
+  min-width: 0;
 }
 
 .workspace-path {
@@ -1295,11 +1342,19 @@ textarea {
 
 .terminal-card footer select {
   width: 118px;
+  flex: 0 0 118px;
 }
 
-.terminal-card footer input {
+.terminal-card footer textarea {
   min-width: 0;
   flex: 1;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  padding: 7px 10px;
+  resize: none;
+  line-height: 1.35;
+  overflow-y: auto;
 }
 
 .card-actions {
@@ -1423,15 +1478,24 @@ textarea {
 
 .terminal-fullscreen-panel footer {
   border-top: 1px solid #31435f;
+  min-width: 0;
 }
 
 .terminal-fullscreen-panel footer select {
   width: 150px;
+  flex: 0 0 150px;
 }
 
-.terminal-fullscreen-panel footer input {
+.terminal-fullscreen-panel footer textarea {
   min-width: 0;
   flex: 1;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  padding: 7px 10px;
+  resize: none;
+  line-height: 1.35;
+  overflow-y: auto;
 }
 
 .xterm-preview.fullscreen .xterm {

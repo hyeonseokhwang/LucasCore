@@ -130,10 +130,10 @@ Invoke-RestMethod `
 
 ```powershell
 $body = @{
-  meeting_id = "mtg-1775891024242"
+  meeting_id = "mtg-1780195037159"
   virtual_agent_id = "branch-lcc-core"
   content = "[dev-lead -> HQ][branch:lcc-core] LCC Core 지사 통신 테스트입니다."
-  threadId = "msg-1778407512628-ccddfe77"
+  threadId = "msg-1780195057932-f6eb57c2"
   targets = @("lucas", "cto", "dev-2")
 } | ConvertTo-Json -Compress
 
@@ -144,3 +144,121 @@ Invoke-RestMethod `
   -ContentType "application/json; charset=utf-8" `
   -Body $body
 ```
+
+## 9. 본부 핫라인 문서 기준 재테스트
+
+작성 시각: 2026-05-31 12:25 KST
+
+참고 문서: `lcc-hotline-handoff-to-branch-director-20260531.md`
+
+핫라인 문서 기준값:
+
+- API base: `http://hanwool-board.duckdns.org:9082/api/lcc`
+- 본부 대상 미팅: `mtg-1780195037159`
+- 본부 대상 스레드: `msg-1780195057932-f6eb57c2`
+- 본부 가상 에이전트 ID: `branch-lcc-core`
+- 본부 지점 ID: `laptop-lucas-01`
+
+실행 결과:
+
+- `GET /api/lcc/health`: 성공, `200 OK`
+- 응답 요약: `ok=true`, `l1=hanul-editor:9082`, `upstream.status=ok`
+- 현재 환경의 `LCC_BRANCH_TOKEN`: 없음
+- `GET /api/lcc/orders?branch_id=laptop-lucas-01`: `401 Unauthorized`
+- 판정: 본부 L1/API 도달성은 정상이다. 보호 API, `intake`, `speak`, `inbox`, `ack-message`는 SRE 오웬이 전달할 64자 토큰 수령 후 재시도해야 한다.
+
+## 10. 지사 인바운드 전용 통로 구성
+
+본부가 지사로 들어오는 통로는 일반 Terminal Fleet 포트를 열지 않고, 별도 인바운드 전용 모드로 구성한다.
+
+구현된 실행 모드:
+
+- `LCC_INBOUND_ONLY=1`
+- 권장 포트: `9102`
+- 보호 헤더: `X-LCC-Token`
+- 토큰 환경변수: `LCC_BRANCH_INBOUND_TOKEN`
+
+허용 경로:
+
+- `GET /api/branch/health`
+- `GET /api/branch/status`
+- `GET /api/branch/work-ledger`
+- `GET /api/branch/messages`
+- `POST /api/branch/messages`
+
+차단되어야 하는 경로:
+
+- `/api/sessions`
+- `/api/sessions/*`
+- `/ws/terminal`
+
+로컬 스모크 결과:
+
+- `GET /api/branch/health`: 성공
+- `GET /api/branch/status` 토큰 없음: `401`
+- `GET /api/branch/status` 테스트 토큰 사용: 성공
+- `GET /api/sessions` 테스트 토큰 사용: `404`
+- `POST /api/branch/messages` 테스트 토큰 사용: 성공
+- `GET /api/branch/messages` 테스트 토큰 사용: 메시지 1건 확인
+
+운영 문서:
+
+- `docs/branch-inbound-ops.md`
+
+본부 요청사항:
+
+1. 지사용 실제 인바운드 토큰을 안전 채널로 지급한다.
+2. 본부에서 지사 `9102`로 접근할 네트워크 경로를 결정한다.
+3. 본부 출발지 allowlist 또는 VPN/터널 방식을 확정한다.
+4. 토큰 없는 음성 테스트는 `401`, 토큰 있는 테스트는 상태/원장/메시지 확인으로 검증한다.
+
+## 11. LIVE PASS 및 지사 인바운드 인계
+
+작성 시각: 2026-05-31 KST
+
+### LIVE PASS 결과
+
+- 판정: LIVE PASS 성공.
+- 본부 메시지 ID: `msg-1780198222835-f4b511e9`.
+- 의미: 지사-본부 통신 경로는 실제 메시지 수신/처리 기준으로 통과했다.
+- 실제 토큰은 이 보고서에 기록하지 않는다.
+
+### 인코딩 원인 및 수정
+
+- 원인: 일부 한글 문서와 PowerShell 출력이 UTF-8로 일관 처리되지 않아 콘솔/보고서에서 깨져 보였다.
+- 수정 방향:
+  - 문서 저장은 UTF-8로 통일한다.
+  - HTTP 요청/응답은 `Content-Type: application/json; charset=utf-8`을 명시한다.
+  - PowerShell 확인 시 `Get-Content -Encoding UTF8` 또는 UTF-8 터미널 설정을 사용한다.
+  - 메시지 본문은 JSON 직렬화 단계에서 한글이 손상되지 않는지 확인한다.
+
+### 토큰 로테이션 요청
+
+- LIVE PASS에 사용된 토큰은 운영 보안을 위해 로테이션을 요청한다.
+- 새 토큰은 문서, git, 채팅 로그, 스크린샷에 남기지 않는다.
+- 전달 방식은 OS secret store, 안전 DM, 또는 본부 승인 보안 채널만 사용한다.
+- 지사 환경변수명은 `LCC_BRANCH_INBOUND_TOKEN`을 기준으로 한다.
+
+### 인바운드 `9102` 조건
+
+- `9102`는 지사 인바운드 전용 포트로만 사용한다.
+- 필수 환경:
+  - `LCC_INBOUND_ONLY=1`
+  - `LCC_API_HOST=0.0.0.0`
+  - `LCC_API_PORT=9102`
+  - `LCC_BRANCH_INBOUND_TOKEN` 설정
+- 허용 범위:
+  - `GET /api/branch/health`
+  - `GET /api/branch/status`
+  - `GET /api/branch/work-ledger`
+  - `GET /api/branch/messages`
+  - `POST /api/branch/messages`
+- 금지 범위:
+  - `/api/sessions`
+  - `/api/sessions/*`
+  - `/ws/terminal`
+  - 임의 파일 접근, shell 실행, 터미널 입력 전달
+- 본부 조건:
+  - 본부/L1에서 지사 `9102`로 라우팅 경로가 있어야 한다.
+  - 출발지 allowlist, VPN, 터널 중 하나를 확정해야 한다.
+  - 보호 API는 `X-LCC-Token` 없이는 `401`이어야 한다.

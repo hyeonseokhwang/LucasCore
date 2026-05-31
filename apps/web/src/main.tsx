@@ -53,6 +53,17 @@ type Session = {
   preview: string;
 };
 
+const SPRING_MSA_TF_FILTER = "spring-msa-tf";
+const SPRING_MSA_TF_MEMBERS = [
+  { id: "branch-director", name: "Branch Director", role: "TF lead", session: false },
+  { id: "joon-msa", name: "Joon MSA", role: "MSA owner", session: true },
+  { id: "chief-min", name: "Chief Min", role: "Assistant researcher", session: true },
+  { id: "han-ops", name: "Han Ops", role: "Assistant researcher", session: true },
+  { id: "seo-security", name: "Seo Security", role: "Assistant researcher", session: true },
+  { id: "mira-ledger", name: "Mira Ledger", role: "Assistant researcher", session: true }
+];
+const SPRING_MSA_TF_SESSION_IDS = new Set(SPRING_MSA_TF_MEMBERS.filter((member) => member.session).map((member) => member.id));
+
 type CanvasSection = {
   id: string;
   title: string;
@@ -168,15 +179,62 @@ const api = {
     return response.json();
   },
   async send<T>(path: string, method: string, body?: unknown): Promise<T> {
+    const nextBody = normalizeSessionWriteBody(path, body);
     const response = await fetch(path, {
       method,
       headers: { "content-type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body)
+      body: nextBody === undefined ? undefined : JSON.stringify(nextBody)
     });
     if (!response.ok) throw new Error(await response.text());
     return response.json();
   }
 };
+
+function sendTerminalInput(sessionId: string, data: string) {
+  return new Promise<void>((resolve, reject) => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const socket = new WebSocket(`${protocol}//${window.location.host}/ws/terminal`);
+    const timeout = window.setTimeout(() => {
+      socket.close();
+      reject(new Error("terminal input timed out"));
+    }, 5000);
+
+    socket.addEventListener("open", () => {
+      socket.send(JSON.stringify({ type: "input", sessionId, data }));
+      window.setTimeout(() => {
+        window.clearTimeout(timeout);
+        socket.close();
+        resolve();
+      }, 150);
+    });
+    socket.addEventListener("error", () => {
+      window.clearTimeout(timeout);
+      reject(new Error("terminal input socket failed"));
+    });
+  });
+}
+
+function encodePromptForPtySubmit(value: string) {
+  const prompt = normalizePromptForSubmit(value).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const submit = "\r\r";
+  if (prompt.includes("\n")) {
+    return `\x1b[200~${prompt}\x1b[201~${submit}`;
+  }
+  return `${prompt}${submit}`;
+}
+
+function normalizeSessionWriteBody(path: string, body: unknown) {
+  if (!/^\/api\/sessions\/[^/]+\/write$/.test(path) || !body || typeof body !== "object" || Array.isArray(body)) {
+    return body;
+  }
+  const next = { ...(body as Record<string, unknown>) };
+  for (const key of ["input", "data", "prompt"]) {
+    if (typeof next[key] === "string") {
+      next[key] = normalizePromptForSubmit(next[key]).concat("\r");
+    }
+  }
+  return next;
+}
 
 function isStandaloneLedgerView() {
   const params = new URLSearchParams(window.location.search);
@@ -226,11 +284,18 @@ function ShellApp() {
   }, []);
 
   const visibleSessions = useMemo(() => {
-    const filtered = filter === "all" ? sessions : sessions.filter((session) => session.team === filter || session.status === filter);
+    const filtered =
+      filter === SPRING_MSA_TF_FILTER
+        ? sessions.filter((session) => SPRING_MSA_TF_SESSION_IDS.has(session.id))
+        : filter === "all"
+          ? sessions
+          : sessions.filter((session) => session.team === filter || session.status === filter);
     return [...filtered].sort((a, b) => agentRank(a.id) - agentRank(b.id) || a.name.localeCompare(b.name));
   }, [filter, sessions]);
 
   const teams = useMemo(() => [...new Set(sessions.map((session) => session.team).filter(Boolean))], [sessions]);
+  const springMsaActiveCount = sessions.filter((session) => SPRING_MSA_TF_SESSION_IDS.has(session.id)).length;
+  const sessionIds = useMemo(() => new Set(sessions.map((session) => session.id)), [sessions]);
 
   return (
     <main className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${topbarCollapsed ? "topbar-collapsed" : ""}`}>
@@ -273,14 +338,27 @@ function ShellApp() {
             <span>Sessions</span>
             <strong>{sessions.length}</strong>
           </header>
-          <button className="filter active" onClick={() => setFilter("all")}>
+          <button className={`filter ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>
             <Activity size={14} /> All
           </button>
-          <button className="filter" onClick={() => setFilter("active")}>
+          <button className={`filter ${filter === "active" ? "active" : ""}`} onClick={() => setFilter("active")}>
             <span className="dot green" /> Active
           </button>
+          <button
+            className={`filter tf-filter ${filter === SPRING_MSA_TF_FILTER ? "active" : ""}`}
+            onClick={() => setFilter(SPRING_MSA_TF_FILTER)}
+          >
+            <Users size={14} /> SpringMSA TF <strong>{springMsaActiveCount}/5</strong>
+          </button>
+          <div className="tf-members" aria-label="SpringMSA TF members">
+            {SPRING_MSA_TF_MEMBERS.map((member) => (
+              <span key={member.id} className={member.session && sessionIds.has(member.id) ? "online" : "offline"} title={member.role}>
+                {member.name}
+              </span>
+            ))}
+          </div>
           {teams.map((team) => (
-            <button className="filter" key={team} onClick={() => setFilter(team)}>
+            <button className={`filter ${filter === team ? "active" : ""}`} key={team} onClick={() => setFilter(team)}>
               <span className="dot" /> {team}
             </button>
           ))}
@@ -990,13 +1068,30 @@ function TerminalCard({
   const [logOpen, setLogOpen] = useState(false);
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [logText, setLogText] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const promptRef = useRef("");
+  const sendingRef = useRef(false);
+
+  function handlePromptChange(value: string) {
+    promptRef.current = value;
+    setPrompt(value);
+  }
 
   async function send() {
-    if (!prompt.trim()) return;
-    const payload = target === session.id ? prompt : `[FROM ${session.id} TO ${target}] ${prompt}`;
-    await api.send(`/api/sessions/${target}/write`, "POST", { input: payload });
-    setPrompt("");
-    await onChanged();
+    const nextPrompt = normalizePromptForSubmit(promptRef.current);
+    if (!nextPrompt.trim() || sendingRef.current) return;
+    sendingRef.current = true;
+    setIsSending(true);
+    const payload = target === session.id ? nextPrompt : `[FROM ${session.id} TO ${target}] ${nextPrompt}`;
+    try {
+      await sendTerminalInput(target, encodePromptForPtySubmit(payload));
+      promptRef.current = "";
+      setPrompt("");
+      await onChanged();
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
   }
 
   async function openLog() {
@@ -1036,7 +1131,7 @@ function TerminalCard({
         </div>
       </header>
       <XtermPreview sessionId={session.id} status={session.status} />
-      <footer>
+      <footer aria-busy={isSending}>
         <select value={target} onChange={(event) => setTarget(event.target.value)}>
           {sessions.map((item) => (
             <option key={item.id} value={item.id}>
@@ -1044,11 +1139,16 @@ function TerminalCard({
             </option>
           ))}
         </select>
-        <input
+        <textarea
+          rows={1}
           value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
+          onChange={(event) => handlePromptChange(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter") send().catch(console.error);
+            event.stopPropagation();
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              send().catch(console.error);
+            }
           }}
           placeholder="지시 입력"
         />
@@ -1088,23 +1188,42 @@ function FullscreenTerminalModal({
 }) {
   const [prompt, setPrompt] = useState("");
   const [target, setTarget] = useState(session.id);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const promptRef = useRef("");
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
-    requestAnimationFrame(() => inputRef.current?.focus());
+    requestAnimationFrame(() => textareaRef.current?.focus());
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
   async function send() {
-    if (!prompt.trim()) return;
-    const payload = target === session.id ? prompt : `[FROM ${session.id} TO ${target}] ${prompt}`;
-    await api.send(`/api/sessions/${target}/write`, "POST", { input: payload });
-    setPrompt("");
-    await onChanged();
+    const nextPrompt = normalizePromptForSubmit(promptRef.current);
+    if (!nextPrompt.trim() || sendingRef.current) return;
+    sendingRef.current = true;
+    const payload = target === session.id ? nextPrompt : `[FROM ${session.id} TO ${target}] ${nextPrompt}`;
+    try {
+      await sendTerminalInput(target, encodePromptForPtySubmit(payload));
+      promptRef.current = "";
+      setPrompt("");
+      await onChanged();
+    } finally {
+      sendingRef.current = false;
+    }
+  }
+
+  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    event.stopPropagation();
+    if (event.key !== "Enter") return;
+    if (event.nativeEvent.isComposing) return;
+    if (event.shiftKey) return;
+
+    event.preventDefault();
+    send().catch(console.error);
   }
 
   return (
@@ -1131,13 +1250,15 @@ function FullscreenTerminalModal({
               </option>
             ))}
           </select>
-          <input
-            ref={inputRef}
+          <textarea
+            ref={textareaRef}
+            rows={1}
             value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") send().catch(console.error);
+            onChange={(event) => {
+              promptRef.current = event.target.value;
+              setPrompt(event.target.value);
             }}
+            onKeyDown={handleComposerKeyDown}
             placeholder="지시 입력"
           />
           <button className="primary icon" onClick={send} title="전송">
@@ -1304,6 +1425,10 @@ function XtermPreview({
   }, [sessionId, variant]);
 
   return <div className={`xterm-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} ref={containerRef} />;
+}
+
+function normalizePromptForSubmit(value: string) {
+  return value.replace(/[\r\n]+$/g, "");
 }
 
 function TerminalLogView({ text }: { text: string }) {

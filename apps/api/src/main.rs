@@ -3,7 +3,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         Path, State,
     },
-    http::{header, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{delete, get, post, put},
     Json, Router,
@@ -287,30 +287,47 @@ async fn main() -> anyhow::Result<()> {
         work_ledger,
     };
 
-    let app = Router::new()
-        .route("/api/health", get(health))
-        .route("/api/sessions", get(list_sessions).post(create_session))
-        .route("/api/sessions/active", get(list_sessions))
-        .route("/api/sessions/pty-stats", get(pty_stats))
-        .route("/api/sessions/:id", delete(delete_session))
-        .route("/api/sessions/:id/log", get(get_session_log))
-        .route("/api/sessions/:id/write", post(write_session))
-        .route("/api/sessions/:id/resize", post(resize_session))
-        .route("/ws/terminal", get(terminal_ws))
-        .route("/api/peer/status", get(peer_status))
-        .route("/api/peer/messages", get(list_peer_messages).post(add_peer_message))
-        .route("/api/work-ledger", get(get_work_ledger))
-        .route("/api/work-ledger/tasks/:id", put(upsert_work_task))
-        .route("/api/work-ledger/tasks/:id/events", post(add_work_task_event))
-        .route("/api/canvases", get(list_canvases).post(create_canvas))
-        .route("/api/canvases/:id", get(get_canvas).patch(update_canvas))
-        .route("/api/canvases/:id/content", get(get_content).put(put_content).patch(put_content))
-        .route("/api/canvases/:id/messages", get(get_messages).post(add_message))
-        .route("/api/canvases/:id/invite", post(invite_member))
-        .nest_service("/", ServeDir::new("apps/web/dist").fallback(ServeDir::new("apps/web")))
-        .layer(CorsLayer::permissive())
-        .layer(TraceLayer::new_for_http())
-        .with_state(state);
+    let inbound_only = env::var("LCC_INBOUND_ONLY")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    let route = if inbound_only {
+        Router::new()
+            .route("/api/branch/health", get(branch_health))
+            .route("/api/branch/status", get(branch_status))
+            .route("/api/branch/work-ledger", get(branch_work_ledger))
+            .route("/api/branch/messages", get(branch_list_messages).post(branch_add_message))
+    } else {
+        Router::new()
+            .route("/api/health", get(health))
+            .route("/api/sessions", get(list_sessions).post(create_session))
+            .route("/api/sessions/active", get(list_sessions))
+            .route("/api/sessions/pty-stats", get(pty_stats))
+            .route("/api/sessions/:id", delete(delete_session))
+            .route("/api/sessions/:id/log", get(get_session_log))
+            .route("/api/sessions/:id/write", post(write_session))
+            .route("/api/sessions/:id/resize", post(resize_session))
+            .route("/ws/terminal", get(terminal_ws))
+            .route("/api/peer/status", get(peer_status))
+            .route("/api/peer/messages", get(list_peer_messages).post(add_peer_message))
+            .route("/api/work-ledger", get(get_work_ledger))
+            .route("/api/work-ledger/tasks/:id", put(upsert_work_task))
+            .route("/api/work-ledger/tasks/:id/events", post(add_work_task_event))
+            .route("/api/canvases", get(list_canvases).post(create_canvas))
+            .route("/api/canvases/:id", get(get_canvas).patch(update_canvas))
+            .route("/api/canvases/:id/content", get(get_content).put(put_content).patch(put_content))
+            .route("/api/canvases/:id/messages", get(get_messages).post(add_message))
+            .route("/api/canvases/:id/invite", post(invite_member))
+            .nest_service("/", ServeDir::new("apps/web/dist").fallback(ServeDir::new("apps/web")))
+    };
+
+    let app = if inbound_only {
+        route.layer(TraceLayer::new_for_http()).with_state(state)
+    } else {
+        route.layer(CorsLayer::permissive())
+            .layer(TraceLayer::new_for_http())
+            .with_state(state)
+    };
 
     let host = env::var("LCC_API_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = env::var("LCC_API_PORT")
@@ -333,6 +350,78 @@ async fn health(State(state): State<AppState>) -> Json<Value> {
         "time": Utc::now(),
         "sessions": state.sessions.read().await.len()
     }))
+}
+
+async fn branch_health() -> Json<Value> {
+    Json(json!({
+        "ok": true,
+        "service": "lcc-core-branch-inbound",
+        "time": Utc::now()
+    }))
+}
+
+async fn branch_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
+    require_branch_token(&headers)?;
+    Ok(Json(json!({
+        "ok": true,
+        "service": "lcc-core-branch-inbound",
+        "time": Utc::now(),
+        "work_ledger_tasks": state.work_ledger.ledger.read().await.tasks.len(),
+        "peer_messages": state.peer_store.messages.read().await.len()
+    })))
+}
+
+async fn branch_work_ledger(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<WorkLedger>, ApiError> {
+    require_branch_token(&headers)?;
+    Ok(Json(state.work_ledger.ledger.read().await.clone()))
+}
+
+async fn branch_list_messages(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<PeerMessage>>, ApiError> {
+    require_branch_token(&headers)?;
+    Ok(Json(state.peer_store.messages.read().await.clone()))
+}
+
+async fn branch_add_message(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(input): Json<CreatePeerMessage>,
+) -> Result<(StatusCode, Json<PeerMessage>), ApiError> {
+    require_branch_token(&headers)?;
+    let message = PeerMessage {
+        id: input.id.unwrap_or_else(|| format!("peer-msg-{}", Utc::now().timestamp_millis())),
+        at: input.at.unwrap_or_else(Utc::now),
+        from_peer: require_field(input.from_peer, "from")?,
+        to: input.to.unwrap_or_else(|| "branch".to_string()),
+        kind: input.kind.unwrap_or_else(|| "hq-inbound".to_string()),
+        body: require_field(input.body, "body")?,
+    };
+    state.peer_store.insert(message.clone()).await?;
+    Ok((StatusCode::CREATED, Json(message)))
+}
+
+fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
+    let expected = env::var("LCC_BRANCH_INBOUND_TOKEN")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| ApiError::service_unavailable("branch inbound token is not configured"))?;
+    let provided = headers
+        .get("X-LCC-Token")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    if provided == expected {
+        Ok(())
+    } else {
+        Err(ApiError::unauthorized("invalid branch inbound token"))
+    }
 }
 
 async fn list_sessions(State(state): State<AppState>) -> Json<Vec<SessionView>> {
@@ -591,8 +680,48 @@ async fn resize_to_session(state: &AppState, id: &str, cols: u16, rows: u16) -> 
 }
 
 async fn write_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
-    let line = if data.ends_with('\n') || data.ends_with('\r') { data } else { format!("{data}\r\n") };
+    let line = encode_prompt_submit(&data);
     write_session_bytes(state, id, line, true).await
+}
+
+fn normalize_prompt_body(data: &str) -> String {
+    let mut normalized = data.replace("\r\n", "\n").replace('\r', "\n");
+    while normalized.ends_with('\n') {
+        normalized.pop();
+    }
+    normalized
+}
+
+fn encode_prompt_submit(data: &str) -> String {
+    let normalized = normalize_prompt_body(data);
+    if normalized.contains('\n') {
+        format!("{normalized}\r\r")
+    } else {
+        format!("{normalized}\r\r")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::encode_prompt_submit;
+
+    #[test]
+    fn prompt_submit_adds_enter_when_missing() {
+        assert_eq!(encode_prompt_submit("hello"), "hello\r\r");
+    }
+
+    #[test]
+    fn prompt_submit_collapses_trailing_newlines_to_single_enter() {
+        assert_eq!(encode_prompt_submit("hello\r\n"), "hello\r\r");
+        assert_eq!(encode_prompt_submit("hello\n\n"), "hello\r\r");
+        assert_eq!(encode_prompt_submit("hello\r\r"), "hello\r\r");
+    }
+
+    #[test]
+    fn prompt_submit_preserves_multiline_body_before_submit() {
+        assert_eq!(encode_prompt_submit("line 1\r\nline 2"), "line 1\nline 2\r\r");
+        assert_eq!(encode_prompt_submit("line 1\rline 2\n"), "line 1\nline 2\r\r");
+    }
 }
 
 async fn write_raw_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
@@ -1145,6 +1274,14 @@ impl ApiError {
 
     fn bad_request(message: impl Into<String>) -> Self {
         Self { status: StatusCode::BAD_REQUEST, message: message.into() }
+    }
+
+    fn unauthorized(message: impl Into<String>) -> Self {
+        Self { status: StatusCode::UNAUTHORIZED, message: message.into() }
+    }
+
+    fn service_unavailable(message: impl Into<String>) -> Self {
+        Self { status: StatusCode::SERVICE_UNAVAILABLE, message: message.into() }
     }
 
     fn internal(error: impl std::fmt::Display) -> Self {
