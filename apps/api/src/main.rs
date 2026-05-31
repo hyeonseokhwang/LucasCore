@@ -49,7 +49,7 @@ struct TerminalSession {
 const SESSION_PREVIEW_LIMIT_BYTES: usize = 12_000;
 const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = 256 * 1024;
 const SESSION_LOG_MAX_TAIL_BYTES: u64 = 1024 * 1024;
-const TERMINAL_WS_REPLAY_LIMIT_BYTES: u64 = 32 * 1024;
+const TERMINAL_WS_REPLAY_LIMIT_BYTES: u64 = 256 * 1024;
 
 fn tail_string_by_bytes(value: &str, max_bytes: usize) -> String {
     if max_bytes == 0 {

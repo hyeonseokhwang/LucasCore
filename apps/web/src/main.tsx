@@ -443,15 +443,17 @@ function ShellApp() {
           </button>
           {SESSION_GROUPS.map((group) => {
             const liveCount = group.members.filter((member) => member.session && sessionIds.has(member.id)).length;
-            const sessionCount = group.members.filter((member) => member.session).length;
+            const visibleMembers = group.members.filter((member) => member.session && sessionIds.has(member.id));
+            const sessionCount = visibleMembers.length;
+            if (liveCount === 0) return null;
             return (
               <div className="session-group" key={group.filter}>
                 <button className={`filter group-filter ${filter === group.filter ? "active" : ""}`} onClick={() => setFilter(group.filter)}>
                   <Users size={14} /> {group.label} <strong>{liveCount}/{sessionCount}</strong>
                 </button>
                 <div className="group-members" aria-label={`${group.label} members`}>
-                  {group.members.map((member) => (
-                    <span key={member.id} className={member.session && sessionIds.has(member.id) ? "online" : "offline"} title={member.role}>
+                  {visibleMembers.map((member) => (
+                    <span key={member.id} className="online" title={member.role}>
                       {member.name}
                     </span>
                   ))}
@@ -1333,7 +1335,7 @@ function TerminalGridTile({
           </button>
         </div>
       </header>
-      {selected && supportsLiveTerminalAttach(session) ? (
+      {supportsLiveTerminalAttach(session) ? (
         <XtermPreview sessionId={session.id} status={session.status} />
       ) : (
         <SessionLogTailSurface sessionId={session.id} fallbackText={sessionPreviewText(session)} />
