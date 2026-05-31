@@ -18,6 +18,10 @@ This file is the restart-safe context for branch agents.
 ## Development Team Policy
 
 - Dev Lead name is Max.
+- Caesar is the overall supervisor, not the default hands-on implementer.
+- Caesar should avoid direct product coding unless Lucas explicitly requests emergency hands-on recovery.
+- Caesar's normal duties are supervision, task decomposition, delegation to Max, review, QA evidence enforcement, commit gatekeeping, and concise status reporting.
+- Max and assigned developers are responsible for implementation work.
 - Max is the development lead, not the sole implementer.
 - Max must decompose work, assign owners, collect reports, review, integrate, verify, and commit.
 - Developer agents must receive explicit task assignments; do not leave developers idle while Max works alone.
@@ -43,6 +47,10 @@ This file is the restart-safe context for branch agents.
 
 - The 9100 command ledger is the shared backlog and operating board.
 - No development agent should wait idly for manual prompting when ledger work exists.
+- If the ledger has any active development-team item and any developer is idle, Max must immediately acknowledge the idle capacity, assign the developer to a ledger item, and report the assignment.
+- Max must not wait for Lucas or Caesar to notice idle developers; idle detection and redistribution are Max's standing responsibility.
+- A developer who becomes idle must report to Max with `idle / available / suggested ledger item / reason`, then begin the assigned or self-proposed work.
+- Development-team ledger items include meeting-first, terminal-scrollback, responsive-layout, ledger-management, agent-status-on-9100, hq-benchmark-policy, qa-cdp-policy, and any active UI/API/workflow item.
 - If an agent finishes or is blocked for more than 10 minutes, the agent must scan the 9100 ledger for unassigned, blocked, stale, or low-progress work that matches its role.
 - Idle agents must report the proposed next task to Max, then proceed unless Max redirects.
 - Max must actively detect idle agents, rebalance work, and keep every available developer assigned to a current ledger item.
