@@ -4,8 +4,11 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const ledgerPath = path.join(root, "data", "ceo-command-ledger.json");
 const statePath = path.join(root, "data", "agent-work-dispatch-state.json");
+const idleLedgerPath = path.join(root, "data", "agent-idle-ledger.json");
+const opsEventLogPath = path.join(root, "data", "agent-ops-events.jsonl");
 const apiBase = process.env.LCC_API_BASE || "http://127.0.0.1:9001";
 const minDispatchMinutes = Number(process.env.DISPATCH_MIN_MINUTES || 10);
+const staleLogMinutes = Number(process.env.STALE_LOG_MINUTES || 5);
 const now = Date.now();
 
 const rolePlan = {
@@ -60,6 +63,38 @@ function writeJson(file, value) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2), "utf8");
 }
 
+function appendJsonl(file, value) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.appendFileSync(file, `${JSON.stringify(value)}\n`, "utf8");
+}
+
+function eventBase(type, session, task, classification) {
+  return {
+    at: new Date(now).toISOString(),
+    type,
+    agentId: session.id,
+    agentName: session.name || session.id,
+    status: session.status,
+    state: classification.state,
+    taskId: task?.id || null,
+    taskTitle: task?.title || null,
+    logAgeMinutes: Number.isFinite(classification.minutesSinceLogUpdate)
+      ? Number(classification.minutesSinceLogUpdate.toFixed(1))
+      : null,
+    dispatchAgeMinutes: Number.isFinite(classification.minutesSinceDispatch)
+      ? Number(classification.minutesSinceDispatch.toFixed(1))
+      : null,
+    signals: {
+      busy: classification.looksBusy,
+      waiting: classification.looksWaiting,
+      blocked: classification.looksBlocked,
+      logStale: classification.logStale,
+      staleDispatch: classification.staleDispatch
+    },
+    previewTail: classification.preview.slice(-1200)
+  };
+}
+
 function stripAnsi(value) {
   return String(value || "")
     .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
@@ -97,10 +132,121 @@ function classifyAgent(session, dispatchState) {
   const minutesSinceDispatch = (now - lastDispatchAt) / 60000;
   const staleDispatch = minutesSinceDispatch >= minDispatchMinutes;
   const active = session.status === "active";
-  const looksBusy = /working|running|작업|진행|검증|비교|구현|빌드|cdp|benchmark|보고|수정|테스트/i.test(preview);
-  const looksWaiting = /waiting|idle|대기|지시|blocked|막힘|next action|what should|무엇/i.test(preview);
-  const shouldDispatch = active && staleDispatch && (!looksBusy || looksWaiting);
-  return { preview, active, looksBusy, looksWaiting, staleDispatch, shouldDispatch, minutesSinceDispatch };
+  const logUpdatedAt = session.log?.updated_at ? Date.parse(session.log.updated_at) : 0;
+  const minutesSinceLogUpdate = logUpdatedAt ? (now - logUpdatedAt) / 60000 : Number.POSITIVE_INFINITY;
+  const logStale = minutesSinceLogUpdate >= staleLogMinutes;
+  const looksBlocked = /blocked|blocker|막힘|에러|error|failed|실패|cannot|can't|denied|refusing/i.test(preview);
+  const looksWaiting = /waiting|idle|대기|지시|next action|what should|무엇|할 일|available/i.test(preview);
+  const looksBusy = /working|running|작업|진행|검증|비교|구현|빌드|build|test|테스트|cdp|benchmark|보고|수정|분석|checking|implement/i.test(preview);
+  let state = "idle";
+  if (!active) state = "inactive";
+  else if (looksBlocked) state = "blocked";
+  else if (looksWaiting) state = "waiting";
+  else if (logStale && !looksBusy) state = "stale";
+  else if (looksBusy) state = "working";
+  const shouldDispatch = active && staleDispatch && ["idle", "waiting", "blocked", "stale"].includes(state);
+  return {
+    preview,
+    active,
+    looksBusy,
+    looksWaiting,
+    looksBlocked,
+    logStale,
+    staleDispatch,
+    shouldDispatch,
+    state,
+    minutesSinceDispatch,
+    minutesSinceLogUpdate
+  };
+}
+
+function updateIdleLedger(idleLedger, session, task, classification, dispatched) {
+  const agents = idleLedger.agents || {};
+  const previous = agents[session.id] || {
+    totalIdleMs: 0,
+    totalWaitingMs: 0,
+    totalBlockedMs: 0,
+    dispatchCount: 0,
+    events: []
+  };
+  const previousSeenAt = previous.lastSeenAt ? Date.parse(previous.lastSeenAt) : 0;
+  const elapsedMs = previousSeenAt > 0 ? Math.max(0, Math.min(now - previousSeenAt, 15 * 60 * 1000)) : 0;
+  if (["idle", "stale"].includes(previous.currentState)) previous.totalIdleMs += elapsedMs;
+  if (previous.currentState === "waiting") previous.totalWaitingMs += elapsedMs;
+  if (previous.currentState === "blocked") previous.totalBlockedMs += elapsedMs;
+  if (dispatched) previous.dispatchCount += 1;
+
+  const currentEventKey = `${classification.state}:${task?.id || "-"}:${dispatched ? "dispatch" : "observe"}`;
+  if (previous.lastEventKey !== currentEventKey) {
+    previous.events = [
+      {
+        at: new Date(now).toISOString(),
+        state: classification.state,
+        taskId: task?.id || null,
+        action: dispatched ? "auto-dispatched" : "observed",
+        reason: classification.looksBlocked
+          ? "blocked-signal"
+          : classification.looksWaiting
+            ? "waiting-signal"
+            : classification.logStale
+              ? "stale-log"
+              : classification.looksBusy
+                ? "busy-signal"
+                : "unclear"
+      },
+      ...(previous.events || [])
+    ].slice(0, 50);
+    previous.lastEventKey = currentEventKey;
+  }
+
+  previous.currentState = classification.state;
+  previous.currentTaskId = task?.id || null;
+  previous.lastSeenAt = new Date(now).toISOString();
+  previous.lastLogAgeMinutes = Number.isFinite(classification.minutesSinceLogUpdate)
+    ? Number(classification.minutesSinceLogUpdate.toFixed(1))
+    : null;
+  previous.lastDispatchAgeMinutes = Number.isFinite(classification.minutesSinceDispatch)
+    ? Number(classification.minutesSinceDispatch.toFixed(1))
+    : null;
+  previous.lastPreview = classification.preview.slice(-1000);
+  agents[session.id] = previous;
+
+  idleLedger.updatedAt = new Date(now).toISOString();
+  idleLedger.policy = {
+    checkIntervalSeconds: Number(process.env.DISPATCH_LOOP_SECONDS || 60),
+    dispatchCooldownMinutes: minDispatchMinutes,
+    staleLogMinutes,
+    states: ["working", "idle", "waiting", "blocked", "stale", "inactive"]
+  };
+  idleLedger.agents = agents;
+  return previous;
+}
+
+function logStateObservation(dispatchState, session, task, classification) {
+  const previous = dispatchState[session.id] || {};
+  const nextStateKey = `${classification.state}:${task?.id || "-"}`;
+  if (previous.lastStateKey !== nextStateKey) {
+    appendJsonl(opsEventLogPath, {
+      ...eventBase("state_changed", session, task, classification),
+      previousStateKey: previous.lastStateKey || null,
+      nextStateKey
+    });
+    previous.lastStateKey = nextStateKey;
+  }
+
+  const lastDispatchAt = previous.lastDispatchAt || 0;
+  const logUpdatedAt = session.log?.updated_at ? Date.parse(session.log.updated_at) : 0;
+  if (lastDispatchAt > 0 && logUpdatedAt > lastDispatchAt && previous.lastReceiptLoggedForDispatchAt !== lastDispatchAt) {
+    appendJsonl(opsEventLogPath, {
+      ...eventBase("agent_response_observed", session, task, classification),
+      dispatchAt: new Date(lastDispatchAt).toISOString(),
+      logUpdatedAt: new Date(logUpdatedAt).toISOString(),
+      lastTaskId: previous.lastTaskId || null
+    });
+    previous.lastReceiptLoggedForDispatchAt = lastDispatchAt;
+  }
+
+  dispatchState[session.id] = previous;
 }
 
 async function getSessions() {
@@ -141,6 +287,7 @@ function buildPrompt(agentId, plan, task, classification) {
 async function main() {
   const ledger = readJson(ledgerPath, { directives: [] });
   const dispatchState = readJson(statePath, {});
+  const idleLedger = readJson(idleLedgerPath, { agents: {} });
   const sessions = await getSessions();
   const targets = sessions.filter((session) => rolePlan[session.id]);
   const reports = [];
@@ -152,28 +299,47 @@ async function main() {
     const report = {
       id: session.id,
       status: session.status,
+      state: classification.state,
       taskId: task?.id || null,
+      logAgeMinutes: Number.isFinite(classification.minutesSinceLogUpdate) ? Number(classification.minutesSinceLogUpdate.toFixed(1)) : null,
       shouldDispatch: classification.shouldDispatch,
       reason: classification.looksWaiting ? "waiting-signal" : classification.staleDispatch ? "stale-or-unclear" : "recently-dispatched-or-busy"
     };
 
     if (classification.shouldDispatch && task) {
-      await writePrompt(session.id, buildPrompt(session.id, plan, task, classification));
+      const prompt = buildPrompt(session.id, plan, task, classification);
+      appendJsonl(opsEventLogPath, {
+        ...eventBase("dispatch_attempt", session, task, classification),
+        reason: report.reason,
+        promptPreview: prompt.slice(0, 1200)
+      });
+      await writePrompt(session.id, prompt);
       dispatchState[session.id] = {
+        ...(dispatchState[session.id] || {}),
         lastDispatchAt: now,
         lastTaskId: task.id,
         lastReason: report.reason
       };
+      appendJsonl(opsEventLogPath, {
+        ...eventBase("dispatch_sent", session, task, classification),
+        reason: report.reason
+      });
       report.dispatched = true;
     } else {
       report.dispatched = false;
     }
+    logStateObservation(dispatchState, session, task, classification);
+    const idleRecord = updateIdleLedger(idleLedger, session, task, classification, report.dispatched);
+    report.totalIdleMinutes = Number((idleRecord.totalIdleMs / 60000).toFixed(1));
+    report.totalWaitingMinutes = Number((idleRecord.totalWaitingMs / 60000).toFixed(1));
+    report.totalBlockedMinutes = Number((idleRecord.totalBlockedMs / 60000).toFixed(1));
     reports.push(report);
   }
 
   dispatchState.updatedAt = new Date(now).toISOString();
   writeJson(statePath, dispatchState);
-  console.log(JSON.stringify({ ok: true, apiBase, minDispatchMinutes, reports }, null, 2));
+  writeJson(idleLedgerPath, idleLedger);
+  console.log(JSON.stringify({ ok: true, apiBase, minDispatchMinutes, staleLogMinutes, reports }, null, 2));
 }
 
 main().catch((error) => {
