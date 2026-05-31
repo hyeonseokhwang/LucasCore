@@ -9,6 +9,7 @@ const opsEventLogPath = path.join(root, "data", "agent-ops-events.jsonl");
 const apiBase = process.env.LCC_API_BASE || "http://127.0.0.1:9001";
 const minDispatchMinutes = Number(process.env.DISPATCH_MIN_MINUTES || 10);
 const staleLogMinutes = Number(process.env.STALE_LOG_MINUTES || 5);
+const alertCooldownMinutes = Number(process.env.ALERT_COOLDOWN_MINUTES || 2);
 const now = Date.now();
 
 const rolePlan = {
@@ -48,6 +49,16 @@ const rolePlan = {
     taskIds: ["agent-status-on-9100", "responsive-layout"],
     role: "운영 모니터링/유휴 감지/화면 배치"
   }
+};
+
+const managerSession = {
+  id: "dev-lead",
+  name: "Dev Lead",
+  team: "development",
+  cwd: "workspaces/dev-lead/repo",
+  cmd: "codex.cmd",
+  args: ["--model", "gpt-5.5", "--cd", ".", "--no-alt-screen", "--dangerously-bypass-approvals-and-sandbox"],
+  model: "gpt-5.5"
 };
 
 function readJson(file, fallback) {
@@ -95,6 +106,23 @@ function eventBase(type, session, task, classification) {
   };
 }
 
+function compactPromptForTerminal(prompt) {
+  const original = String(prompt || "");
+  const lines = original.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const compact = lines
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" | ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return {
+    data: `${compact}\r`,
+    originalLineCount: lines.length,
+    compacted: lines.length > 1 || compact !== original.trim(),
+    compactPreview: compact.slice(0, 1200)
+  };
+}
+
 function stripAnsi(value) {
   return String(value || "")
     .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
@@ -109,6 +137,17 @@ function cleanPreview(session) {
     .filter(Boolean)
     .slice(-12)
     .join("\n");
+}
+
+function removeCodexIdleChrome(preview) {
+  return preview
+    .split("\n")
+    .filter((line) => !/^\s*›\s*(Write tests for @filename|Summarize recent commits|Improve documentation in @filename|Explain this codebase|Implement \{feature\})\s*$/i.test(line))
+    .filter((line) => !/^\s*gpt-5\.[0-9].*·/.test(line))
+    .filter((line) => !/^\s*[─━-]{8,}/.test(line))
+    .filter((line) => !/^\s*Worked for\s+/i.test(line))
+    .join("\n")
+    .trim();
 }
 
 function isDone(item) {
@@ -128,6 +167,7 @@ function pickTask(ledger, plan) {
 
 function classifyAgent(session, dispatchState) {
   const preview = cleanPreview(session);
+  const signalText = removeCodexIdleChrome(preview);
   const lastDispatchAt = dispatchState[session.id]?.lastDispatchAt || 0;
   const minutesSinceDispatch = (now - lastDispatchAt) / 60000;
   const staleDispatch = minutesSinceDispatch >= minDispatchMinutes;
@@ -135,13 +175,15 @@ function classifyAgent(session, dispatchState) {
   const logUpdatedAt = session.log?.updated_at ? Date.parse(session.log.updated_at) : 0;
   const minutesSinceLogUpdate = logUpdatedAt ? (now - logUpdatedAt) / 60000 : Number.POSITIVE_INFINITY;
   const logStale = minutesSinceLogUpdate >= staleLogMinutes;
-  const looksBlocked = /blocked|blocker|막힘|에러|error|failed|실패|cannot|can't|denied|refusing/i.test(preview);
-  const looksWaiting = /waiting|idle|대기|지시|next action|what should|무엇|할 일|available/i.test(preview);
-  const looksBusy = /working|running|작업|진행|검증|비교|구현|빌드|build|test|테스트|cdp|benchmark|보고|수정|분석|checking|implement/i.test(preview);
+  const tailLooksPromptOnly = /›\s*(Write tests for @filename|Summarize recent commits|Improve documentation in @filename|Explain this codebase|Implement \{feature\})/i.test(preview);
+  const looksBlocked = /blocked|blocker|막힘|에러|error|failed|실패|cannot|can't|denied|refusing/i.test(signalText);
+  const looksWaiting = /waiting|idle|대기|지시|next action|what should|무엇|할 일|available/i.test(signalText);
+  const looksBusy = /working|running|작업|진행|검증|비교|구현|빌드|build|test|테스트|cdp|benchmark|보고|수정|분석|checking|implement/i.test(signalText);
   let state = "idle";
   if (!active) state = "inactive";
   else if (looksBlocked) state = "blocked";
   else if (looksWaiting) state = "waiting";
+  else if (tailLooksPromptOnly) state = "idle";
   else if (logStale && !looksBusy) state = "stale";
   else if (looksBusy) state = "working";
   const shouldDispatch = active && staleDispatch && ["idle", "waiting", "blocked", "stale"].includes(state);
@@ -257,12 +299,49 @@ async function getSessions() {
 }
 
 async function writePrompt(sessionId, prompt) {
+  const encoded = compactPromptForTerminal(prompt);
+  if (encoded.compacted) {
+    appendJsonl(opsEventLogPath, {
+      at: new Date(now).toISOString(),
+      type: "prompt_compacted_for_newline_safety",
+      agentId: sessionId,
+      originalLineCount: encoded.originalLineCount,
+      compactPreview: encoded.compactPreview
+    });
+  }
   const response = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(sessionId)}/write`, {
     method: "POST",
     headers: { "content-type": "application/json; charset=utf-8" },
-    body: JSON.stringify({ prompt })
+    body: JSON.stringify({ data: encoded.data })
   });
   if (!response.ok) throw new Error(`${sessionId} write failed: ${response.status} ${await response.text()}`);
+}
+
+async function createSession(input) {
+  const response = await fetch(`${apiBase}/api/sessions`, {
+    method: "POST",
+    headers: { "content-type": "application/json; charset=utf-8" },
+    body: JSON.stringify(input)
+  });
+  if (!response.ok) throw new Error(`${input.id || "session"} create failed: ${response.status} ${await response.text()}`);
+  return response.json();
+}
+
+async function ensureManagerSession(sessions) {
+  const manager = sessions.find((session) => session.id === managerSession.id);
+  if (manager?.status === "active") return { session: manager, revived: false };
+  if (!manager) {
+    const created = await createSession(managerSession);
+    appendJsonl(opsEventLogPath, {
+      at: new Date(now).toISOString(),
+      type: "manager_revived",
+      agentId: managerSession.id,
+      reason: "manager-missing",
+      model: managerSession.model
+    });
+    return { session: created, revived: true };
+  }
+  return { session: manager, revived: false };
 }
 
 function buildPrompt(agentId, plan, task, classification) {
@@ -282,6 +361,57 @@ function buildPrompt(agentId, plan, task, classification) {
 5. 막히면 구체적 blocker를 쓰고, 바로 다른 원장 항목 후보를 제안한다.
 
 주의: 9001 singleton backend를 깨지 말고, UI 변경은 CDP/스크린샷 증거 없으면 완료 처리하지 않는다.`;
+}
+
+function buildManagerAlert(reports) {
+  const idleLike = reports.filter((report) => ["idle", "waiting", "blocked", "stale"].includes(report.state));
+  return `[운영 Alert / 유휴 인력 감지]
+원장에 활성 작업이 있는데 개발팀 유휴/대기/막힘 상태가 감지됐습니다.
+
+대상:
+${idleLike.map((report) => `- ${report.id}: state=${report.state}, item=${report.taskId || "-"}, idle=${report.totalIdleMinutes ?? 0}m, waiting=${report.totalWaitingMinutes ?? 0}m, blocked=${report.totalBlockedMinutes ?? 0}m`).join("\n")}
+
+맥스 지시:
+1. 즉시 원장 기준으로 재분배표를 작성한다.
+2. 각 담당자에게 구체 작업을 재지시한다.
+3. 10분 내 보고 형식: agent / item / doing now / next / blocker / evidence.
+4. 루카스나 시저가 다시 지적하기 전에 유휴 상태를 해소한다.
+
+근거 로그: data/agent-idle-ledger.json, data/agent-ops-events.jsonl`;
+}
+
+async function maybeAlertManager(sessions, dispatchState, reports) {
+  const idleLike = reports.filter((report) => ["idle", "waiting", "blocked", "stale"].includes(report.state));
+  if (idleLike.length < 2) return { sent: false, reason: "below-threshold" };
+  const lastAlertAt = dispatchState.__managerAlert?.lastAlertAt || 0;
+  const minutesSinceAlert = (now - lastAlertAt) / 60000;
+  if (minutesSinceAlert < alertCooldownMinutes) return { sent: false, reason: "cooldown" };
+
+  const { session: manager, revived } = await ensureManagerSession(sessions);
+  const targetId = manager?.status === "active" || revived ? managerSession.id : "ceo";
+  const prompt = buildManagerAlert(reports);
+  appendJsonl(opsEventLogPath, {
+    at: new Date(now).toISOString(),
+    type: "manager_alert_attempt",
+    targetId,
+    idleLikeCount: idleLike.length,
+    revivedManager: revived,
+    agents: idleLike.map((report) => ({ id: report.id, state: report.state, taskId: report.taskId }))
+  });
+  await writePrompt(targetId, prompt);
+  appendJsonl(opsEventLogPath, {
+    at: new Date(now).toISOString(),
+    type: "manager_alert_sent",
+    targetId,
+    idleLikeCount: idleLike.length,
+    revivedManager: revived
+  });
+  dispatchState.__managerAlert = {
+    lastAlertAt: now,
+    targetId,
+    idleLikeCount: idleLike.length
+  };
+  return { sent: true, targetId, idleLikeCount: idleLike.length, revivedManager: revived };
 }
 
 async function main() {
@@ -336,10 +466,12 @@ async function main() {
     reports.push(report);
   }
 
+  const alert = await maybeAlertManager(sessions, dispatchState, reports);
+
   dispatchState.updatedAt = new Date(now).toISOString();
   writeJson(statePath, dispatchState);
   writeJson(idleLedgerPath, idleLedger);
-  console.log(JSON.stringify({ ok: true, apiBase, minDispatchMinutes, staleLogMinutes, reports }, null, 2));
+  console.log(JSON.stringify({ ok: true, apiBase, minDispatchMinutes, staleLogMinutes, alert, reports }, null, 2));
 }
 
 main().catch((error) => {
