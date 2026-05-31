@@ -28,7 +28,7 @@ This file is the restart-safe context for branch agents.
 - Do not commit unverified work, unrelated dirty changes, generated noise, or wrong-source restoration.
 - UI commits require screenshot/CDP console evidence where feasible.
 - Preserve the 9001 singleton terminal backend behavior and API/WS origin correction.
-- Terminal scrollback is required: web terminal cards must support about 300 lines of upward review with usable scrollbar/wheel behavior.
+- Terminal scrollback is required: web terminal cards must support about 100 lines of upward review with usable scrollbar/wheel behavior.
 
 ## QA And CDP Policy
 

@@ -1533,7 +1533,7 @@ function XtermPreview({
       fontWeightBold: 700,
       drawBoldTextInBrightColors: false,
       cursorBlink: status === "active",
-      scrollback: 300,
+      scrollback: 100,
       convertEol: true,
       allowProposedApi: true,
       theme: {
@@ -1687,7 +1687,7 @@ function TerminalLogView({ text }: { text: string }) {
     const term = new XTerm({
       fontSize: 12,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace",
-      scrollback: 300,
+      scrollback: 100,
       convertEol: true,
       cursorBlink: false,
       theme: {
