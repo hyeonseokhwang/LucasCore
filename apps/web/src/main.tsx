@@ -447,7 +447,7 @@ function WorkLedgerDock() {
       setApiReady(true);
       const nextTasks = normalizeLedgerTasks(ledger.tasks);
       setTasks(nextTasks);
-      setSelectedTaskId((current) => (nextTasks.some((task) => task.id === current) ? current : nextTasks[0].id));
+      setSelectedTaskId((current) => (nextTasks.some((task) => task.id === current) ? current : nextTasks[0]?.id ?? fallbackLedgerTasks[0].id));
       setEvents((ledger.events ?? []).slice(-6));
     } catch {
       setApiReady(false);
@@ -465,7 +465,7 @@ function WorkLedgerDock() {
   async function updateTask(taskId: string, status: WorkLedgerStatus) {
     setTasks((current) => current.map((task) => (task.id === taskId ? { ...task, status } : task)));
     try {
-      await api.send(`/api/work-ledger/tasks/${taskId}`, "PUT", { status });
+      await api.send(`/api/work-ledger/tasks/${encodeURIComponent(taskId)}`, "PUT", { status });
       await loadLedger();
     } catch {
       setApiReady(false);
@@ -477,11 +477,11 @@ function WorkLedgerDock() {
     if (!note.trim()) return;
     const taskId = selectedTaskId || tasks[0]?.id;
     if (!taskId) return;
-    const nextNote = { id: `local-${Date.now()}`, body: note, created_at: new Date().toISOString() };
+    const nextNote = { id: `local-${Date.now()}`, task_id: taskId, kind: "note", body: note, at: new Date().toISOString() };
     setEvents((current) => [...current, nextNote].slice(-6));
     setNote("");
     try {
-      await api.send(`/api/work-ledger/tasks/${taskId}/events`, "POST", { kind: "note", body: nextNote.body });
+      await api.send(`/api/work-ledger/tasks/${encodeURIComponent(taskId)}/events`, "POST", { kind: "note", body: nextNote.body });
       await loadLedger();
     } catch {
       setApiReady(false);
@@ -510,7 +510,6 @@ function WorkLedgerDock() {
           <div className="ledger-tasks">
             {tasks.slice(0, 3).map((task) => {
               const status = normalizeTaskStatus(task.status);
-              const goal = { due: formatTaskTiming(task), reminder: "" };
               return (
                 <article
                   key={task.id}
@@ -520,7 +519,7 @@ function WorkLedgerDock() {
                   <div>
                     <strong>{task.title}</strong>
                     <span>
-                      <Clock3 size={12} /> {goal.due ?? "Today"} {goal.reminder ? `· ${goal.reminder}` : ""}
+                      <Clock3 size={12} /> {formatTaskTiming(task)}
                     </span>
                   </div>
                   <div className="ledger-actions">
@@ -578,7 +577,7 @@ function normalizeLedgerTasks(tasks: WorkLedgerTask[] | undefined) {
 }
 
 function normalizeTaskStatus(status: WorkLedgerTask["status"]): WorkLedgerStatus {
-  if (status === "doing" || status === "blocked" || status === "done") return status;
+  if (status === "todo" || status === "doing" || status === "blocked" || status === "done") return status;
   return "todo";
 }
 
