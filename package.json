@@ -1,0 +1,15 @@
+{
+  "name": "lucas-lcc-core",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "bun --cwd apps/web dev",
+    "build": "bun --cwd apps/web build",
+    "api": "cargo run --manifest-path apps/api/Cargo.toml",
+    "check": "cargo check --manifest-path apps/api/Cargo.toml"
+  },
+  "type": "module",
+  "workspaces": [
+    "apps/web"
+  ]
+}

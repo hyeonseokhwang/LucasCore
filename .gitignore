@@ -1,0 +1,12 @@
+node_modules/
+target/
+target-*/
+workspaces/
+apps/web/dist/
+remote-lucas-lcc-core/
+inspect-Lucas-Initiative/
+data/*.json
+data/*.jsonl
+data/*.tmp
+*.log
+*.png
