@@ -236,13 +236,24 @@ function sendTerminalInput(sessionId: string, data: string) {
   return sendTerminalProtocol(sessionId, { type: "input", data });
 }
 
-function sendTerminalPrompt(sessionId: string, prompt: string) {
-  return sendTerminalInput(sessionId, encodePromptForPtySubmit(prompt));
+const TERMINAL_PROMPT_SUBMIT_KEY = "\r";
+
+function waitForTerminalInputFlush() {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, 300));
+}
+
+async function sendTerminalPrompt(sessionId: string, prompt: string) {
+  const body = normalizePromptForSubmit(prompt).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (body) {
+    await sendTerminalInput(sessionId, body);
+    await waitForTerminalInputFlush();
+  }
+  return sendTerminalInput(sessionId, TERMINAL_PROMPT_SUBMIT_KEY);
 }
 
 function encodePromptForPtySubmit(value: string) {
   const prompt = normalizePromptForSubmit(value).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  return `${prompt}\r`;
+  return `${prompt}${TERMINAL_PROMPT_SUBMIT_KEY}`;
 }
 
 function normalizeSessionWriteBody(path: string, body: unknown) {
@@ -1330,7 +1341,7 @@ function XtermPreview({
       fontWeightBold: 700,
       drawBoldTextInBrightColors: false,
       cursorBlink: status === "active",
-      scrollback: 500,
+      scrollback: variant === "fullscreen" ? 500 : 200,
       convertEol: true,
       allowProposedApi: true,
       theme: {
@@ -1470,7 +1481,7 @@ function TerminalLogView({ text }: { text: string }) {
     const term = new XTerm({
       fontSize: 12,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace",
-      scrollback: 10000,
+      scrollback: 1000,
       convertEol: true,
       cursorBlink: false,
       theme: {

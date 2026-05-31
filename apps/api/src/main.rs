@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     env,
-    io::{Read, Write},
+    io::{Read, SeekFrom, Write},
     net::SocketAddr,
     path::PathBuf,
     sync::Arc,
@@ -23,9 +23,10 @@ use std::{
 };
 use tokio::{
     fs,
-    io::AsyncWriteExt,
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
     runtime::Handle,
     sync::{broadcast, Mutex, RwLock},
+    time::{sleep, Duration},
 };
 use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
 
@@ -48,6 +49,7 @@ struct TerminalSession {
 
 const DEFAULT_MAX_ACTIVE_SESSIONS: usize = 6;
 const SESSION_PREVIEW_LIMIT_BYTES: usize = 12_000;
+const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = 256 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SessionMeta {
@@ -548,12 +550,22 @@ async fn write_session(
 
 async fn get_session_log(Path(id): Path<String>) -> Result<impl IntoResponse, ApiError> {
     let path = terminal_log_path(&id);
-    let text = match fs::read_to_string(path).await {
+    let text = match read_tail_lossy(path, SESSION_LOG_VIEW_LIMIT_BYTES).await {
         Ok(text) => text,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(err) => return Err(ApiError::internal(err)),
     };
     Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text))
+}
+
+async fn read_tail_lossy(path: PathBuf, max_bytes: u64) -> std::io::Result<String> {
+    let mut file = fs::File::open(path).await?;
+    let len = file.metadata().await?.len();
+    let start = len.saturating_sub(max_bytes);
+    file.seek(SeekFrom::Start(start)).await?;
+    let mut bytes = Vec::with_capacity((len - start).min(max_bytes) as usize);
+    file.read_to_end(&mut bytes).await?;
+    Ok(String::from_utf8_lossy(&bytes).to_string())
 }
 
 async fn resize_session(
@@ -692,8 +704,12 @@ async fn resize_to_session(state: &AppState, id: &str, cols: u16, rows: u16) -> 
 }
 
 async fn write_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
-    let line = encode_prompt_submit(&data);
-    write_session_bytes(state, id, line, true).await
+    let body = normalize_prompt_body(&data);
+    if !body.is_empty() {
+        write_session_bytes(state, id, body, true).await?;
+        sleep(Duration::from_millis(300)).await;
+    }
+    write_session_bytes(state, id, prompt_submit_key().to_string(), true).await
 }
 
 fn normalize_prompt_body(data: &str) -> String {
@@ -704,31 +720,48 @@ fn normalize_prompt_body(data: &str) -> String {
     normalized
 }
 
-fn encode_prompt_submit(data: &str) -> String {
-    let normalized = normalize_prompt_body(data);
-    format!("{normalized}\r")
+fn prompt_submit_key() -> &'static str {
+    "\r"
 }
 
 #[cfg(test)]
 mod tests {
-    use super::encode_prompt_submit;
+    use super::{normalize_prompt_body, prompt_submit_key};
+
+    fn encode_prompt_submit_for_test(data: &str) -> String {
+        format!("{}{}", normalize_prompt_body(data), prompt_submit_key())
+    }
 
     #[test]
     fn prompt_submit_adds_enter_when_missing() {
-        assert_eq!(encode_prompt_submit("hello"), "hello\r");
+        assert_eq!(encode_prompt_submit_for_test("hello"), "hello\r");
     }
 
     #[test]
     fn prompt_submit_collapses_trailing_newlines_to_single_enter() {
-        assert_eq!(encode_prompt_submit("hello\r\n"), "hello\r");
-        assert_eq!(encode_prompt_submit("hello\n\n"), "hello\r");
-        assert_eq!(encode_prompt_submit("hello\r\r"), "hello\r");
+        assert_eq!(encode_prompt_submit_for_test("hello\r\n"), "hello\r");
+        assert_eq!(encode_prompt_submit_for_test("hello\n\n"), "hello\r");
+        assert_eq!(encode_prompt_submit_for_test("hello\r\r"), "hello\r");
     }
 
     #[test]
     fn prompt_submit_preserves_multiline_body_before_submit() {
-        assert_eq!(encode_prompt_submit("line 1\r\nline 2"), "line 1\nline 2\r");
-        assert_eq!(encode_prompt_submit("line 1\rline 2\n"), "line 1\nline 2\r");
+        assert_eq!(encode_prompt_submit_for_test("line 1\r\nline 2"), "line 1\nline 2\r");
+        assert_eq!(encode_prompt_submit_for_test("line 1\rline 2\n"), "line 1\nline 2\r");
+    }
+
+    #[test]
+    fn prompt_submit_never_uses_bracketed_paste_or_csi_submit() {
+        let encoded = encode_prompt_submit_for_test("line 1\nline 2\n");
+        assert!(!encoded.contains("\x1b[200~"));
+        assert!(!encoded.contains("\x1b[201~"));
+        assert!(!encoded.contains("\x1b[13;1u"));
+        assert!(encoded.ends_with('\r'));
+    }
+
+    #[test]
+    fn prompt_submit_key_is_plain_carriage_return_for_delayed_write() {
+        assert_eq!(prompt_submit_key(), "\r");
     }
 }
 
