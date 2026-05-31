@@ -33,7 +33,8 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { TERMINAL_PROMPT_SUBMIT_KEY, encodePromptForPtySubmit, normalizePromptForSubmit } from "./terminalPrompt";
-import { tailTerminalLines } from "./terminalReplay";
+import { sanitizeTerminalPreviewForSummary, tailTerminalLines } from "./terminalReplay";
+import { shouldAttachLiveTerminal, TERMINAL_SUMMARY_LINE_LIMIT } from "./terminalSurface";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
@@ -55,6 +56,17 @@ type Session = {
   preview: string;
 };
 
+const ORG_TEAMS = [
+  { id: "executive", label: "Executives" },
+  { id: "development", label: "Development" },
+  { id: "design", label: "Design" },
+  { id: "research", label: "Research / TF" },
+  { id: "operations", label: "Operations" }
+] as const;
+
+type OrgTeamId = (typeof ORG_TEAMS)[number]["id"];
+type TerminalRosterLayout = "team" | "even";
+
 const SESSION_GROUPS = [
   {
     filter: "spring-msa-tf",
@@ -70,9 +82,9 @@ const SESSION_GROUPS = [
   },
   {
     filter: "development-team",
-    label: "Development Team",
+    label: "Company Ops",
     members: [
-      { id: "chief-min", name: "Chief Min", role: "Context and coordination", session: true },
+      { id: "ceo", name: "CEO", role: "Company operator", session: true },
       { id: "dev-lead", name: "Dev Lead", role: "Development lead", session: true },
       { id: "developer-1", name: "Developer 1", role: "Developer", session: true },
       { id: "developer-2", name: "Developer 2", role: "Developer", session: true },
@@ -168,7 +180,7 @@ type WorkLedgerState = {
 const fallbackLedgerTasks: WorkLedgerTask[] = [
   {
     id: "year-end-tax-hourly-reminder",
-    title: "연말정산 1시간마다 확인",
+    title: "?곕쭚?뺤궛 1?쒓컙留덈떎 ?뺤씤",
     status: "doing",
     priority: 1,
     due_at: "Today",
@@ -176,7 +188,7 @@ const fallbackLedgerTasks: WorkLedgerTask[] = [
   },
   {
     id: "spring-msa-study-2000",
-    title: "스프링 MSA 스터디 20:00",
+    title: "?ㅽ봽留?MSA ?ㅽ꽣??20:00",
     status: "todo",
     priority: 2,
     due_at: "20:00 KST",
@@ -184,7 +196,7 @@ const fallbackLedgerTasks: WorkLedgerTask[] = [
   },
   {
     id: "heungkuk-android-final-package",
-    title: "흥국생명 안드로이드 최종본 구성",
+    title: "?κ뎅?앸챸 ?덈뱶濡쒖씠??理쒖쥌蹂?援ъ꽦",
     status: "todo",
     priority: 1,
     due_at: "Today",
@@ -277,8 +289,10 @@ function ShellApp() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [canvases, setCanvases] = useState<Canvas[]>([]);
   const [selectedCanvasId, setSelectedCanvasId] = useState<string>("");
+  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [view, setView] = useState<"terminals" | "canvas">("terminals");
   const [filter, setFilter] = useState("all");
+  const [terminalRosterLayout, setTerminalRosterLayout] = useState<TerminalRosterLayout>("even");
   const [error, setError] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [topbarCollapsed, setTopbarCollapsed] = useState(false);
@@ -324,6 +338,21 @@ function ShellApp() {
 
   const teams = useMemo(() => [...new Set(sessions.map((session) => session.team).filter(Boolean))], [sessions]);
   const sessionIds = useMemo(() => new Set(sessions.map((session) => session.id)), [sessions]);
+  const selectedSession =
+    visibleSessions.find((session) => session.id === selectedSessionId) ??
+    sessions.find((session) => session.id === selectedSessionId) ??
+    visibleSessions[0];
+
+  useEffect(() => {
+    if (view !== "terminals") return;
+    if (selectedSessionId && visibleSessions.some((session) => session.id === selectedSessionId)) return;
+    const fallback = visibleSessions.find((session) => session.status === "active") ?? visibleSessions[0];
+    if (fallback && fallback.id !== selectedSessionId) setSelectedSessionId(fallback.id);
+  }, [selectedSessionId, view, visibleSessions]);
+
+  useEffect(() => {
+    if (view === "terminals") setTerminalRosterLayout("even");
+  }, [view]);
 
   return (
     <main className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${topbarCollapsed ? "topbar-collapsed" : ""}`}>
@@ -421,7 +450,7 @@ function ShellApp() {
           <div>
             <h1>{view === "terminals" ? "Terminal Fleet" : "Canvas Workspace"}</h1>
             <p>
-              {sessions.filter((session) => session.status === "active").length} active sessions · {canvases.length} canvases ·
+              {sessions.filter((session) => session.status === "active").length} active sessions 쨌 {canvases.length} canvases 쨌
               local control plane
             </p>
           </div>
@@ -440,7 +469,18 @@ function ShellApp() {
         {view === "terminals" ? (
           <>
             <CreateSession sessions={sessions} onCreated={refresh} />
-            <TerminalGrid sessions={visibleSessions} allSessions={sessions} onChanged={refresh} />
+            <div className={`terminal-workspace ${terminalRosterLayout === "even" ? "even-grid" : ""}`}>
+              <TerminalGrid
+                sessions={visibleSessions}
+                allSessions={sessions}
+                onChanged={refresh}
+                selectedSessionId={selectedSession?.id}
+                onSelectSession={setSelectedSessionId}
+                layout={terminalRosterLayout}
+                onLayoutChange={setTerminalRosterLayout}
+              />
+              {terminalRosterLayout !== "even" && <ActiveTerminalPane session={selectedSession} sessions={sessions} onChanged={refresh} />}
+            </div>
           </>
         ) : (
           <CanvasWorkspace
@@ -548,8 +588,8 @@ function PeerDock() {
                 </option>
               ))}
             </select>
-            <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="본부/지사 메시지" />
-            <button className="primary icon" disabled={!draft.trim() || sending} title="전송">
+            <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="蹂몃?/吏??硫붿떆吏" />
+            <button className="primary icon" disabled={!draft.trim() || sending} title="?꾩넚">
               <Send size={15} />
             </button>
           </form>
@@ -562,37 +602,31 @@ function PeerDock() {
 function WorkLedgerPage() {
   const [tasks, setTasks] = useState<WorkLedgerTask[]>(fallbackLedgerTasks);
   const [events, setEvents] = useState<WorkLedgerEvent[]>([]);
-  const [selectedTaskId, setSelectedTaskId] = useState(fallbackLedgerTasks[0].id);
   const [activeTab, setActiveTab] = useState<"overview" | "plans" | "events">("overview");
+  const [selectedTaskId, setSelectedTaskId] = useState(fallbackLedgerTasks[0].id);
   const [note, setNote] = useState("");
   const [apiReady, setApiReady] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   async function loadLedger() {
+    setLoading(true);
     try {
       const ledger = await api.get<WorkLedgerState>("/api/work-ledger");
       const nextTasks = normalizeLedgerTasks(ledger.tasks);
       setTasks(nextTasks);
-      setEvents(ledger.events ?? []);
       setSelectedTaskId((current) => (nextTasks.some((task) => task.id === current) ? current : nextTasks[0]?.id ?? fallbackLedgerTasks[0].id));
+      setEvents(ledger.events ?? []);
       setApiReady(true);
     } catch {
-      setTasks((current) => (current.length ? current : fallbackLedgerTasks));
-      setEvents([]);
       setApiReady(false);
+      setTasks((current) => (current.length ? current : fallbackLedgerTasks));
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    document.body.classList.add("ledger-mode");
     loadLedger().catch(() => undefined);
-    const timer = window.setInterval(() => loadLedger().catch(() => undefined), 15000);
-    return () => {
-      document.body.classList.remove("ledger-mode");
-      window.clearInterval(timer);
-    };
   }, []);
 
   async function updateTaskStatus(taskId: string, status: WorkLedgerStatus) {
@@ -610,11 +644,11 @@ function WorkLedgerPage() {
     if (!note.trim()) return;
     const taskId = selectedTaskId || tasks[0]?.id;
     if (!taskId) return;
-    const nextEvent = { id: `local-${Date.now()}`, task_id: taskId, kind: "note", body: note.trim(), at: new Date().toISOString() };
-    setEvents((current) => [...current, nextEvent]);
+    const nextNote = { id: `local-${Date.now()}`, task_id: taskId, kind: "note", body: note, at: new Date().toISOString() };
+    setEvents((current) => [...current, nextNote]);
     setNote("");
     try {
-      await api.send(`/api/work-ledger/tasks/${encodeURIComponent(taskId)}/events`, "POST", { kind: "note", body: nextEvent.body });
+      await api.send(`/api/work-ledger/tasks/${encodeURIComponent(taskId)}/events`, "POST", { kind: "note", body: nextNote.body });
       await loadLedger();
       setActiveTab("events");
     } catch {
@@ -634,40 +668,23 @@ function WorkLedgerPage() {
     <main className="ledger-page">
       <header className="ledger-page-header">
         <div>
-          <span className="ledger-kicker">
-            <ClipboardList size={15} /> 업무 원장
-          </span>
-          <h1>오늘 업무 원장</h1>
-          <p>{todayLabel} / 관리 항목 {tasks.length}개 / {apiReady ? "동기화됨" : "로컬 표시"}</p>
+          <span className="ledger-kicker"><ClipboardList size={15} /> Work Ledger</span>
+          <h1>Today Work Ledger</h1>
+          <p>{todayLabel} / {tasks.length} tasks / {apiReady ? "synced" : "local"}</p>
         </div>
         <div className="ledger-header-metrics">
-          <div>
-            <span>진행률</span>
-            <strong>{progress}%</strong>
-          </div>
-          <div>
-            <span>진행중</span>
-            <strong>{doingCount}</strong>
-          </div>
-          <div>
-            <span>막힘</span>
-            <strong>{blockedCount}</strong>
-          </div>
-          <button className="icon" onClick={() => loadLedger().catch(console.error)} title="원장 새로고침">
-            <RefreshCw size={15} />
-          </button>
+          <div><span>Progress</span><strong>{progress}%</strong></div>
+          <div><span>Doing</span><strong>{doingCount}</strong></div>
+          <div><span>Blocked</span><strong>{blockedCount}</strong></div>
+          <button className="icon" onClick={() => loadLedger().catch(console.error)} title="Refresh ledger"><RefreshCw size={15} /></button>
         </div>
       </header>
 
-      <section className="ledger-plan-strip" aria-label="오늘 계획">
+      <section className="ledger-plan-strip" aria-label="Today plans">
         {tasks.slice(0, 3).map((task) => {
           const status = normalizeTaskStatus(task.status);
           return (
-            <button
-              key={task.id}
-              className={`ledger-plan-chip ${status} ${selectedTask?.id === task.id ? "selected" : ""}`}
-              onClick={() => setSelectedTaskId(task.id)}
-            >
+            <button key={task.id} className={`ledger-plan-chip ${status} ${selectedTask?.id === task.id ? "selected" : ""}`} onClick={() => setSelectedTaskId(task.id)}>
               <Flag size={14} />
               <span>{task.title}</span>
               <strong>{formatTaskTiming(task)}</strong>
@@ -678,33 +695,18 @@ function WorkLedgerPage() {
 
       <section className="ledger-ops-grid">
         <aside className="ledger-task-list">
-          <div className="ledger-section-title">
-            <span>오늘 해야 할 일</span>
-            <strong>{loading ? "불러오는 중" : `${doneCount}/${tasks.length} 완료`}</strong>
-          </div>
+          <div className="ledger-section-title"><span>Tasks</span><strong>{loading ? "loading" : `${doneCount}/${tasks.length} done`}</strong></div>
           {tasks.map((task) => {
             const status = normalizeTaskStatus(task.status);
             return (
-              <article
-                key={task.id}
-                className={`ledger-row ${status} ${selectedTask?.id === task.id ? "selected" : ""}`}
-                onClick={() => setSelectedTaskId(task.id)}
-              >
+              <article key={task.id} className={`ledger-row ${status} ${selectedTask?.id === task.id ? "selected" : ""}`} onClick={() => setSelectedTaskId(task.id)}>
                 <div className="ledger-row-main">
                   <span className="ledger-status-mark" />
-                  <div>
-                    <strong>{task.title}</strong>
-                    <p>{formatTaskTiming(task)}</p>
-                  </div>
+                  <div><strong>{task.title}</strong><p>{formatTaskTiming(task)}</p></div>
                 </div>
                 <div className="ledger-status-controls" onClick={(event) => event.stopPropagation()}>
                   {(["todo", "doing", "blocked", "done"] as WorkLedgerStatus[]).map((statusOption) => (
-                    <button
-                      key={statusOption}
-                      className={status === statusOption ? "active" : ""}
-                      onClick={() => updateTaskStatus(task.id, statusOption).catch(console.error)}
-                      title={`${formatStatusLabel(statusOption)}로 변경`}
-                    >
+                    <button key={statusOption} className={status === statusOption ? "active" : ""} onClick={() => updateTaskStatus(task.id, statusOption).catch(console.error)} title={`Set ${formatStatusLabel(statusOption)}`}>
                       {formatStatusLabel(statusOption)}
                     </button>
                   ))}
@@ -719,15 +721,12 @@ function WorkLedgerPage() {
             <>
               <div className="ledger-detail-head">
                 <div>
-                  <span className={`ledger-status-badge ${normalizeTaskStatus(selectedTask.status)}`}>
-                    {formatStatusLabel(normalizeTaskStatus(selectedTask.status))}
-                  </span>
+                  <span className={`ledger-status-badge ${normalizeTaskStatus(selectedTask.status)}`}>{formatStatusLabel(normalizeTaskStatus(selectedTask.status))}</span>
                   <h2>{selectedTask.title}</h2>
-                  <p>{formatTaskTiming(selectedTask)} / 우선순위 {selectedTask.priority ?? "없음"}</p>
+                  <p>{formatTaskTiming(selectedTask)} / priority {selectedTask.priority ?? "none"}</p>
                 </div>
                 {normalizeTaskStatus(selectedTask.status) === "blocked" && <AlertTriangle size={18} />}
               </div>
-
               <div className="ledger-page-tabs">
                 {(["overview", "plans", "events"] as const).map((tab) => (
                   <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>
@@ -736,77 +735,36 @@ function WorkLedgerPage() {
                   </button>
                 ))}
               </div>
-
               {activeTab === "overview" && (
                 <>
-                  <div className="ledger-notes-box">
-                    <span>업무 메모</span>
-                    <p>{selectedTask.notes?.trim() || "아직 저장된 업무 메모가 없습니다."}</p>
-                  </div>
+                  <div className="ledger-notes-box"><span>Notes</span><p>{selectedTask.notes?.trim() || "No saved notes yet."}</p></div>
                   <div className="ledger-detail-grid">
-                    <div>
-                      <dt>상태</dt>
-                      <dd>{formatStatusLabel(normalizeTaskStatus(selectedTask.status))}</dd>
-                    </div>
-                    <div>
-                      <dt>기한</dt>
-                      <dd>{formatDueAt(selectedTask.due_at)}</dd>
-                    </div>
-                    <div>
-                      <dt>알림</dt>
-                      <dd>{selectedTask.reminder_minutes ? `${selectedTask.reminder_minutes}분마다` : "없음"}</dd>
-                    </div>
-                    <div>
-                      <dt>갱신</dt>
-                      <dd>{formatDueAt(selectedTask.updated_at)}</dd>
-                    </div>
+                    <div><dt>Status</dt><dd>{formatStatusLabel(normalizeTaskStatus(selectedTask.status))}</dd></div>
+                    <div><dt>Due</dt><dd>{formatDueAt(selectedTask.due_at)}</dd></div>
+                    <div><dt>Reminder</dt><dd>{selectedTask.reminder_minutes ? `${selectedTask.reminder_minutes} min` : "none"}</dd></div>
+                    <div><dt>Updated</dt><dd>{formatDueAt(selectedTask.updated_at)}</dd></div>
                   </div>
                 </>
               )}
-
               {activeTab === "plans" && (
                 <div className="ledger-plan-list">
-                  {tasks.map((task) => (
-                    <div key={task.id}>
-                      <strong>{task.title}</strong>
-                      <span>{formatTaskTiming(task)}</span>
-                      <em>{formatStatusLabel(normalizeTaskStatus(task.status))}</em>
-                    </div>
-                  ))}
+                  {tasks.map((task) => <div key={task.id}><strong>{task.title}</strong><span>{formatTaskTiming(task)}</span><em>{formatStatusLabel(normalizeTaskStatus(task.status))}</em></div>)}
                 </div>
               )}
-
               {activeTab === "events" && (
                 <>
-                  <div className="ledger-events-head">
-                    <span>진행 기록</span>
-                    <strong>{selectedEvents.length}</strong>
-                  </div>
+                  <div className="ledger-events-head"><span>Events</span><strong>{selectedEvents.length}</strong></div>
                   <div className="ledger-event-list">
-                    {selectedEvents.length === 0 ? (
-                      <p className="ledger-empty">아직 이 업무의 진행 기록이 없습니다.</p>
-                    ) : (
-                      selectedEvents.map((item, index) => (
-                        <article key={item.id ?? `${item.at ?? item.created_at ?? "event"}-${index}`}>
-                          <span>{item.kind ?? "event"} / {formatEventTime(item)}</span>
-                          <p>{item.body ?? item.text ?? ""}</p>
-                        </article>
-                      ))
-                    )}
+                    {selectedEvents.length === 0 ? <p className="ledger-empty">No events yet.</p> : selectedEvents.map((item, index) => <article key={item.id ?? `${item.at ?? item.created_at ?? "event"}-${index}`}><span>{item.kind ?? "event"} / {formatEventTime(item)}</span><p>{item.body ?? item.text ?? ""}</p></article>)}
                   </div>
                 </>
               )}
-
               <form className="ledger-page-note" onSubmit={addTaskNote}>
-                <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="진행 내용, 결정사항, 막힌 점을 기록" />
-                <button className="primary" disabled={!note.trim()}>
-                  <Plus size={15} /> 기록 추가
-                </button>
+                <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Record progress, decision, or blocker" />
+                <button className="primary" disabled={!note.trim()}><Plus size={15} /> Add note</button>
               </form>
             </>
-          ) : (
-            <p className="ledger-empty">선택된 업무가 없습니다.</p>
-          )}
+          ) : <p className="ledger-empty">No selected task.</p>}
         </section>
       </section>
     </main>
@@ -872,81 +830,40 @@ function WorkLedgerDock() {
 
   return (
     <div className={`ledger-dock ${open ? "open" : ""}`}>
-      <button className="ledger-tab" onClick={() => setOpen((next) => !next)} title="업무 원장" aria-expanded={open}>
+      <button className="ledger-tab" onClick={() => setOpen((next) => !next)} title="Work ledger" aria-expanded={open}>
         <CalendarCheck size={15} />
-        <span>원장</span>
-        <strong>
-          {doneCount}/{tasks.length}
-        </strong>
+        <span>Ledger</span>
+        <strong>{doneCount}/{tasks.length}</strong>
       </button>
       {open && (
         <section className="ledger-panel">
-          <header>
-            <span>
-              <NotebookText size={14} /> 오늘
-            </span>
-            <strong>{apiReady ? "동기화" : "로컬"}</strong>
-          </header>
+          <header><span><NotebookText size={14} /> Today</span><strong>{apiReady ? "synced" : "local"}</strong></header>
           <div className="ledger-tasks">
             {tasks.slice(0, 3).map((task) => {
               const status = normalizeTaskStatus(task.status);
               return (
-                <article
-                  key={task.id}
-                  className={`ledger-task ${status} ${selectedTaskId === task.id ? "selected" : ""}`}
-                  onClick={() => setSelectedTaskId(task.id)}
-                >
-                  <div>
-                    <strong>{task.title}</strong>
-                    <span>
-                      <Clock3 size={12} /> {formatTaskTiming(task)}
-                    </span>
-                  </div>
+                <article key={task.id} className={`ledger-task ${status} ${selectedTaskId === task.id ? "selected" : ""}`} onClick={() => setSelectedTaskId(task.id)}>
+                  <div><strong>{task.title}</strong><span><Clock3 size={12} /> {formatTaskTiming(task)}</span></div>
                   <div className="ledger-actions">
-                    <button
-                      className={status === "doing" ? "active" : ""}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        updateTask(task.id, "doing").catch(console.error);
-                      }}
-                      title="진행중으로 변경"
-                    >
-                      <Activity size={12} />
-                    </button>
-                    <button
-                      className={status === "done" ? "active" : ""}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        updateTask(task.id, "done").catch(console.error);
-                      }}
-                      title="완료로 변경"
-                    >
-                      <CheckCircle2 size={12} />
-                    </button>
+                    <button className={status === "doing" ? "active" : ""} onClick={(event) => { event.stopPropagation(); updateTask(task.id, "doing").catch(console.error); }} title="Set doing"><Activity size={12} /></button>
+                    <button className={status === "done" ? "active" : ""} onClick={(event) => { event.stopPropagation(); updateTask(task.id, "done").catch(console.error); }} title="Set done"><CheckCircle2 size={12} /></button>
                   </div>
                 </article>
               );
             })}
           </div>
           <div className="ledger-events">
-            {events.length === 0 ? (
-              <p>원장 기록이 없습니다</p>
-            ) : (
-              events.slice(-3).map((event, index) => <p key={event.id ?? `${event.created_at ?? "event"}-${index}`}>{event.body ?? event.text}</p>)
-            )}
+            {events.length === 0 ? <p>No ledger events.</p> : events.slice(-3).map((event, index) => <p key={event.id ?? `${event.created_at ?? "event"}-${index}`}>{event.body ?? event.text}</p>)}
           </div>
           <form className="ledger-note" onSubmit={addNote}>
-            <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="기록 또는 막힌 점" />
-            <button className="primary icon" disabled={!note.trim()} title="기록 추가">
-              <Plus size={15} />
-            </button>
+            <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Note or blocker" />
+            <button className="primary icon" disabled={!note.trim()} title="Add note"><Plus size={15} /></button>
           </form>
         </section>
       )}
     </div>
   );
 }
-
 function normalizeLedgerTasks(tasks: WorkLedgerTask[] | undefined) {
   if (!Array.isArray(tasks) || tasks.length === 0) return fallbackLedgerTasks;
   return tasks.slice(0, 3).map((task, index) => ({
@@ -964,37 +881,37 @@ function normalizeTaskStatus(status: WorkLedgerTask["status"]): WorkLedgerStatus
 function formatStatusLabel(status: WorkLedgerStatus) {
   switch (status) {
     case "doing":
-      return "진행";
+      return "吏꾪뻾";
     case "blocked":
-      return "막힘";
+      return "留됲옒";
     case "done":
-      return "완료";
+      return "?꾨즺";
     default:
-      return "대기";
+      return "todo";
   }
 }
 
 function formatLedgerTabLabel(tab: "overview" | "plans" | "events") {
   switch (tab) {
     case "plans":
-      return "계획";
+      return "怨꾪쉷";
     case "events":
-      return "기록";
+      return "湲곕줉";
     default:
-      return "요약";
+      return "?붿빟";
   }
 }
 
 function formatTaskTiming(task: WorkLedgerTask) {
   const due = formatDueAt(task.due_at);
-  const reminder = typeof task.reminder_minutes === "number" ? `${task.reminder_minutes}분마다 알림` : "";
-  return [due, reminder].filter(Boolean).join(" / ") || "알림 없음";
+  const reminder = typeof task.reminder_minutes === "number" ? `${task.reminder_minutes}遺꾨쭏???뚮┝` : "";
+  return [due, reminder].filter(Boolean).join(" / ") || "?뚮┝ ?놁쓬";
 }
 
 function formatDueAt(dueAt: string | undefined) {
-  if (!dueAt) return "기한 없음";
-  if (dueAt === "Today") return "오늘";
-  if (dueAt.includes("KST")) return dueAt.replace("Today", "오늘");
+  if (!dueAt) return "湲고븳 ?놁쓬";
+  if (dueAt === "Today") return "?ㅻ뒛";
+  if (dueAt.includes("KST")) return dueAt.replace("Today", "?ㅻ뒛");
   const date = new Date(dueAt);
   if (Number.isNaN(date.getTime())) return dueAt;
   return date.toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -1067,49 +984,332 @@ function CreateSession({ sessions, onCreated }: { sessions: Session[]; onCreated
 function TerminalGrid({
   sessions,
   allSessions,
-  onChanged
+  onChanged,
+  selectedSessionId,
+  onSelectSession,
+  layout,
+  onLayoutChange
 }: {
   sessions: Session[];
   allSessions: Session[];
   onChanged: () => Promise<void>;
+  selectedSessionId?: string;
+  onSelectSession: (sessionId: string) => void;
+  layout: TerminalRosterLayout;
+  onLayoutChange: (layout: TerminalRosterLayout) => void;
 }) {
-  const columns = sessions.length <= 1 ? 1 : sessions.length <= 4 ? 2 : 3;
-  const rows = Math.max(1, Math.ceil(sessions.length / columns));
-  const gridStyle = {
-    "--grid-cols": columns,
-    "--grid-rows": rows
-  } as React.CSSProperties;
+  const teamGroups = groupSessionsByOrgTeam(sessions);
+  const activeCount = sessions.filter((session) => session.status === "active").length;
 
   return (
-    <div className="terminal-grid" style={gridStyle}>
-      {sessions.map((session) => (
-        <TerminalCard key={session.id} session={session} sessions={allSessions} onChanged={onChanged} />
-      ))}
+    <div className={`terminal-grid terminal-roster ${layout}`}>
+      <header className="terminal-roster-toolbar">
+        <div>
+          <strong>Organization</strong>
+          <span>{activeCount}/{sessions.length} active · team grouped</span>
+        </div>
+        <div>
+          <button className={layout === "team" ? "active" : ""} onClick={() => onLayoutChange("team")} title="Team sections">
+            <Users size={14} /> Teams
+          </button>
+          <button className={layout === "even" ? "active" : ""} onClick={() => onLayoutChange("even")} title="Even distribution grid">
+            <LayoutGrid size={14} /> Grid
+          </button>
+        </div>
+      </header>
+      {layout === "even" ? (
+        <div className="terminal-equal-grid">
+          {sessions.map((session) => (
+            <TerminalGridTile
+              key={session.id}
+              session={session}
+              sessions={allSessions}
+              onChanged={onChanged}
+              selected={shouldAttachLiveTerminal(session.id, selectedSessionId ?? "")}
+              onActivate={() => onSelectSession(session.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="terminal-roster-sections">
+          {teamGroups.map((team) => (
+          <section className={`terminal-roster-section team-${team.id}`} key={team.id}>
+            <header>
+              <strong>{team.label}</strong>
+              <span>{team.activeCount}/{team.sessions.length}</span>
+            </header>
+            <div>
+              {team.sessions.map((session) => (
+                <TerminalRosterItem
+                  key={session.id}
+                  session={session}
+                  sessions={allSessions}
+                  onChanged={onChanged}
+                  selected={shouldAttachLiveTerminal(session.id, selectedSessionId ?? "")}
+                  onActivate={() => onSelectSession(session.id)}
+                />
+              ))}
+            </div>
+          </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function TerminalCard({
+function groupSessionsByOrgTeam(sessions: Session[]) {
+  const buckets = new Map<OrgTeamId, Session[]>();
+  for (const team of ORG_TEAMS) buckets.set(team.id, []);
+  for (const session of sessions) {
+    buckets.get(orgTeamForSession(session))?.push(session);
+  }
+  return ORG_TEAMS.map((team) => {
+    const teamSessions = buckets.get(team.id) ?? [];
+    return {
+      ...team,
+      sessions: teamSessions,
+      activeCount: teamSessions.filter((session) => session.status === "active").length
+    };
+  }).filter((team) => team.sessions.length > 0);
+}
+
+function orgTeamForSession(session: Session): OrgTeamId {
+  const id = session.id.toLowerCase();
+  const team = session.team.toLowerCase();
+  if (team.includes("executive") || id === "ceo" || id.includes("chief")) return "executive";
+  if (team.includes("design") || id.includes("design")) return "design";
+  if (id.includes("research") || id.includes("spring") || id.includes("msa") || id.includes("joon")) return "research";
+  if (team.includes("development") || id.includes("dev") || id.includes("developer")) return "development";
+  return "operations";
+}
+
+function TerminalRosterItem({
   session,
   sessions,
-  onChanged
+  onChanged,
+  selected,
+  onActivate
 }: {
   session: Session;
   sessions: Session[];
   onChanged: () => Promise<void>;
+  selected: boolean;
+  onActivate: () => void;
 }) {
-  const [prompt, setPrompt] = useState("");
-  const [target, setTarget] = useState(session.id);
   const [logOpen, setLogOpen] = useState(false);
-  const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [logText, setLogText] = useState("");
+
+  async function openLog() {
+    const response = await fetch(`/api/sessions/${session.id}/log`);
+    setLogText(await response.text());
+    setLogOpen(true);
+  }
+
+  async function stop() {
+    if (!confirm(`Stop session ${session.name}?`)) return;
+    await api.send(`/api/sessions/${session.id}`, "DELETE");
+    await onChanged();
+  }
+
+  return (
+    <article className={`terminal-roster-item ${selected ? "selected" : ""} ${session.status}`} onMouseDown={onActivate}>
+      <button className="terminal-roster-main" onClick={onActivate} title="Open live terminal">
+        <span className="status-dot" />
+        <div>
+          <strong>{session.name}</strong>
+          <span>{session.team}{session.model ? ` / ${session.model}` : ""}</span>
+        </div>
+        <em>{selected ? "live" : session.status}</em>
+      </button>
+      <div className="terminal-roster-actions">
+        <button title="Open active terminal" onClick={onActivate}>
+          <Maximize2 size={13} />
+        </button>
+        <button title="Open log tail" onClick={openLog}>
+          <ScrollText size={13} />
+        </button>
+        <button title="Stop session" onClick={stop}>
+          <Square size={13} />
+        </button>
+        <button title="Delete session" onClick={stop}>
+          <Trash2 size={13} />
+        </button>
+      </div>
+      {logOpen && (
+        <div className="log-modal" role="dialog" aria-modal="true">
+          <div className="log-panel">
+            <header>
+              <strong>{session.name} log tail</strong>
+              <button onClick={() => setLogOpen(false)}>Close</button>
+            </header>
+            <TerminalLogView text={tailTerminalLines(logText || "No log available yet. Restart the session after enabling logging.\r\n")} />
+          </div>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function TerminalGridTile({
+  session,
+  sessions,
+  onChanged,
+  selected,
+  onActivate
+}: {
+  session: Session;
+  sessions: Session[];
+  onChanged: () => Promise<void>;
+  selected: boolean;
+  onActivate: () => void;
+}) {
+  const [logOpen, setLogOpen] = useState(false);
+  const [logText, setLogText] = useState("");
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [prompt, setPrompt] = useState("");
   const [isSending, setIsSending] = useState(false);
   const promptRef = useRef("");
   const sendingRef = useRef(false);
 
-  function handlePromptChange(value: string) {
-    promptRef.current = value;
-    setPrompt(value);
+  async function openLog(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    const response = await fetch(`/api/sessions/${session.id}/log`);
+    setLogText(await response.text());
+    setLogOpen(true);
+  }
+
+  async function stop(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    if (!confirm(`Stop session ${session.name}?`)) return;
+    await api.send(`/api/sessions/${session.id}`, "DELETE");
+    await onChanged();
+  }
+
+  async function send() {
+    const nextPrompt = normalizePromptForSubmit(promptRef.current);
+    if (!nextPrompt.trim() || sendingRef.current) return;
+    sendingRef.current = true;
+    setIsSending(true);
+    try {
+      await sendTerminalPrompt(session.id, nextPrompt);
+      promptRef.current = "";
+      setPrompt("");
+      await onChanged();
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }
+
+  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    event.stopPropagation();
+    if (event.key !== "Enter") return;
+    if (event.nativeEvent.isComposing) return;
+    if (event.shiftKey) return;
+
+    event.preventDefault();
+    send().catch(console.error);
+  }
+
+  return (
+    <article className={`terminal-grid-tile ${selected ? "selected" : ""} ${session.status}`} onMouseDown={onActivate}>
+      <header>
+        <div>
+          <span className="status-dot" />
+          <strong>{session.name}</strong>
+          <em>{session.team}</em>
+          {session.model && <em>{session.model}</em>}
+        </div>
+        <div className="card-actions">
+          <button
+            title="Open fullscreen terminal"
+            onClick={(event) => {
+              event.stopPropagation();
+              onActivate();
+              setFullscreenOpen(true);
+            }}
+          >
+            <Maximize2 size={13} />
+          </button>
+          <button title="Open log tail" onClick={openLog}>
+            <ScrollText size={13} />
+          </button>
+          <button title="Stop session" onClick={stop}>
+            <Square size={13} />
+          </button>
+        </div>
+      </header>
+      <XtermPreview sessionId={session.id} status={session.status} />
+      <footer aria-busy={isSending}>
+        <textarea
+          rows={1}
+          value={prompt}
+          onMouseDown={(event) => event.stopPropagation()}
+          onChange={(event) => {
+            promptRef.current = event.target.value;
+            setPrompt(event.target.value);
+          }}
+          onKeyDown={handleComposerKeyDown}
+          placeholder="Enter instruction"
+        />
+        <button className="primary icon" disabled={!prompt.trim() || isSending} onMouseDown={(event) => event.stopPropagation()} onClick={() => send().catch(console.error)} title="Send">
+          <Send size={14} />
+        </button>
+      </footer>
+      {fullscreenOpen && (
+        <FullscreenTerminalModal session={session} sessions={sessions} onClose={() => setFullscreenOpen(false)} onChanged={onChanged} />
+      )}
+      {logOpen && (
+        <div className="log-modal" role="dialog" aria-modal="true">
+          <div className="log-panel">
+            <header>
+              <strong>{session.name} log tail</strong>
+              <button onClick={() => setLogOpen(false)}>Close</button>
+            </header>
+            <TerminalLogView text={tailTerminalLines(logText || "No log available yet. Restart the session after enabling logging.\r\n")} />
+          </div>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ActiveTerminalPane({
+  session,
+  sessions,
+  onChanged
+}: {
+  session?: Session;
+  sessions: Session[];
+  onChanged: () => Promise<void>;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [target, setTarget] = useState(session?.id ?? "");
+  const [logOpen, setLogOpen] = useState(false);
+  const [logText, setLogText] = useState("");
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const promptRef = useRef("");
+  const sendingRef = useRef(false);
+
+  useEffect(() => {
+    setTarget((current) => {
+      if (!session) return "";
+      if (current && sessions.some((item) => item.id === current)) return current;
+      return session.id;
+    });
+  }, [session, sessions]);
+
+  if (!session) {
+    return (
+      <section className="active-terminal-pane empty">
+        <div>
+          <strong>No active session</strong>
+          <p>Select a grid card to attach the live terminal.</p>
+        </div>
+      </section>
+    );
   }
 
   async function send() {
@@ -1136,32 +1336,30 @@ function TerminalCard({
   }
 
   async function stop() {
-    if (!confirm(`${session.name} 세션을 중지할까요?`)) return;
+    if (!confirm(`Stop session ${session.name}?`)) return;
     await api.send(`/api/sessions/${session.id}`, "DELETE");
     await onChanged();
   }
 
   return (
-    <article className={`terminal-card ${session.status}`}>
+    <section className={`active-terminal-pane ${session.status}`}>
       <header>
         <div>
           <span className="status-dot" />
           <strong>{session.name}</strong>
+          <em>{session.status}</em>
           <em>{session.team}</em>
           {session.model && <em>{session.model}</em>}
         </div>
         <div className="card-actions">
-          <button title="터미널 크게 보기" onClick={() => setFullscreenOpen(true)}>
+          <button title="Open fullscreen terminal" onClick={() => setFullscreenOpen(true)}>
             <Maximize2 size={13} />
           </button>
-          <button title="터미널 로그" onClick={openLog}>
+          <button title="Open log tail" onClick={openLog}>
             <ScrollText size={13} />
           </button>
-          <button title="중지" onClick={stop}>
+          <button title="Stop session" onClick={stop}>
             <Square size={13} />
-          </button>
-          <button title="삭제" onClick={stop}>
-            <Trash2 size={13} />
           </button>
         </div>
       </header>
@@ -1177,7 +1375,10 @@ function TerminalCard({
         <textarea
           rows={1}
           value={prompt}
-          onChange={(event) => handlePromptChange(event.target.value)}
+          onChange={(event) => {
+            promptRef.current = event.target.value;
+            setPrompt(event.target.value);
+          }}
           onKeyDown={(event) => {
             event.stopPropagation();
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -1185,9 +1386,9 @@ function TerminalCard({
               send().catch(console.error);
             }
           }}
-          placeholder="지시 입력"
+          placeholder="Enter instruction"
         />
-        <button className="primary icon" onClick={send} title="전송">
+        <button className="primary icon" onClick={() => send().catch(console.error)} title="Send">
           <Send size={15} />
         </button>
       </footer>
@@ -1199,14 +1400,14 @@ function TerminalCard({
         <div className="log-modal" role="dialog" aria-modal="true">
           <div className="log-panel">
             <header>
-              <strong>{session.name} 터미널 로그</strong>
-              <button onClick={() => setLogOpen(false)}>닫기</button>
+              <strong>{session.name} log tail</strong>
+              <button onClick={() => setLogOpen(false)}>Close</button>
             </header>
-            <TerminalLogView text={tailTerminalLines(logText || "아직 이 세션에 저장된 로그가 없습니다. 로그 기능이 켜진 뒤 세션을 다시 시작해야 합니다.\r\n")} />
+            <TerminalLogView text={tailTerminalLines(logText || "No log available yet. Restart the session after enabling logging.\r\n")} />
           </div>
         </div>
       )}
-    </article>
+    </section>
   );
 }
 
@@ -1272,7 +1473,7 @@ function FullscreenTerminalModal({
             <em>{session.team}</em>
             {session.model && <em>{session.model}</em>}
           </div>
-          <button className="icon" onClick={onClose} title="크게 보기 닫기">
+          <button className="icon" onClick={onClose} title="?ш쾶 蹂닿린 ?リ린">
             <X size={16} />
           </button>
         </header>
@@ -1294,9 +1495,9 @@ function FullscreenTerminalModal({
               setPrompt(event.target.value);
             }}
             onKeyDown={handleComposerKeyDown}
-            placeholder="지시 입력"
+            placeholder="吏???낅젰"
           />
-          <button className="primary icon" onClick={send} title="전송">
+          <button className="primary icon" onClick={send} title="?꾩넚">
             <Send size={15} />
           </button>
         </footer>
@@ -1366,7 +1567,7 @@ function XtermPreview({
     term.loadAddon(fit);
     term.loadAddon(new WebLinksAddon());
     term.open(container);
-    term.focus();
+    if (variant === "fullscreen") term.focus();
     termRef.current = term;
     fitRef.current = fit;
 
@@ -1405,11 +1606,11 @@ function XtermPreview({
       }
       if (message.type === "replay") {
         term.reset();
-        term.write(tailTerminalLines(message.data ?? ""));
+        term.write(message.data ?? "");
         scrollToBottomSoon();
       }
       if (message.type === "output") {
-        term.write(tailTerminalLines(message.data ?? ""));
+        term.write(message.data ?? "");
         scrollToBottomSoon();
       }
       if (message.type === "exit") {
@@ -1500,6 +1701,26 @@ function TerminalLogView({ text }: { text: string }) {
   return <div className="log-terminal" ref={containerRef} />;
 }
 
+function TerminalSummaryPreview({
+  text,
+  onActivate
+}: {
+  text: string;
+  onActivate: () => void;
+}) {
+  const preview = tailTerminalLines(
+    sanitizeTerminalPreviewForSummary(text || "No preview available yet.") || "No preview available yet.",
+    TERMINAL_SUMMARY_LINE_LIMIT
+  );
+
+  return (
+    <button className="terminal-summary" onClick={onActivate} title="Activate live terminal">
+      <span>Summary preview only</span>
+      <pre>{preview}</pre>
+    </button>
+  );
+}
+
 function CanvasWorkspace({
   canvas,
   sessions,
@@ -1560,7 +1781,7 @@ function CanvasWorkspace({
         <header className="canvas-header">
           <div>
             <h2>{canvas.title}</h2>
-            <p>{canvas.owner} · {canvas.canvas_type} · {canvas.status}</p>
+            <p>{canvas.owner} 쨌 {canvas.canvas_type} 쨌 {canvas.status}</p>
           </div>
           <button className="primary" onClick={saveContent}>
             Save
@@ -1637,6 +1858,7 @@ function codexYoloArgs(model: string) {
 
 function standardDevAgents(cmd: string, model: string) {
   return [
+    { id: "ceo", name: "CEO", team: "executive", cwd: "workspaces/ceo/repo", cmd, args: codexYoloArgs(model), model },
     { id: "dev-lead", name: "Dev Lead", team: "development", cwd: "workspaces/dev-lead/repo", cmd, args: codexYoloArgs(model), model },
     ...Array.from({ length: 4 }, (_, index) => {
       const n = index + 1;
@@ -1654,6 +1876,7 @@ function standardDevAgents(cmd: string, model: string) {
 }
 
 function agentRank(id: string) {
+  if (id === "ceo") return -1;
   if (id === "dev-lead") return 0;
   const match = id.match(/^developer-(\d+)$/);
   if (match) return Number(match[1]);

@@ -1,3 +1,9 @@
+param(
+  [string]$Port = $env:LCC_API_PORT,
+  [string]$OsAgentRegistry = $env:LCC_OS_AGENT_REGISTRY,
+  [string]$MaxActiveSessions = $env:LCC_MAX_ACTIVE_SESSIONS
+)
+
 $ErrorActionPreference = "Stop"
 
 $root = Resolve-Path "$PSScriptRoot\.."
@@ -10,4 +16,4 @@ if (-not (Test-Path -LiteralPath $script)) {
 Start-Process powershell.exe `
   -Verb RunAs `
   -WorkingDirectory $root `
-  -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$script`""
+  -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"& '$script' -Port '$Port' -OsAgentRegistry '$OsAgentRegistry' -MaxActiveSessions '$MaxActiveSessions'`""

@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bun --cwd apps/web dev",
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-lcc-core.ps1",
+    "web": "bun --cwd apps/web dev",
     "build": "bun --cwd apps/web build",
-    "api": "cargo run --manifest-path apps/api/Cargo.toml",
+    "api": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-api.ps1",
     "check": "cargo check --manifest-path apps/api/Cargo.toml"
   },
   "type": "module",

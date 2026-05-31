@@ -1,9 +1,32 @@
+param(
+  [string]$Port = $env:LCC_API_PORT,
+  [string]$OsAgentRegistry = $env:LCC_OS_AGENT_REGISTRY,
+  [string]$MaxActiveSessions = $env:LCC_MAX_ACTIVE_SESSIONS
+)
+
 $ErrorActionPreference = "Stop"
 
+if (-not $Port) {
+  $Port = "9001"
+}
 $vcvars = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
 if (-not (Test-Path -LiteralPath $vcvars)) {
   throw "vcvars64.bat not found. Install Visual Studio Build Tools with C++ workload."
 }
 
-$command = "call `"$vcvars`" && set PATH=%USERPROFILE%\.cargo\bin;%PATH% && cargo run --manifest-path apps/api/Cargo.toml"
+$envParts = @(
+  'set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"',
+  "set `"CARGO_TARGET_DIR=target-$Port`"",
+  "set `"LCC_API_PORT=$Port`""
+)
+if ($MaxActiveSessions) {
+  $envParts += "set `"LCC_MAX_ACTIVE_SESSIONS=$MaxActiveSessions`""
+}
+if ($OsAgentRegistry) {
+  $envParts += "set `"LCC_OS_AGENT_REGISTRY=$OsAgentRegistry`""
+} else {
+  $envParts += 'set "LCC_OS_AGENT_REGISTRY=disabled"'
+}
+
+$command = "call `"$vcvars`" && $($envParts -join ' && ') && cargo run --manifest-path apps/api/Cargo.toml --bin lcc-core-api"
 cmd /c $command

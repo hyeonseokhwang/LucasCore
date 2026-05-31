@@ -37,6 +37,25 @@ Rules:
 - File-only, markdown-only, or log-only status is not counted until it is visible in PTY or routed to Chief Min/HQ.
 - Secrets must never appear in PTY, ledger body, docs, screenshots, or commit messages.
 
+## Command-Mode Binding
+
+State updates must include the active command mode when the task involves multiple agents.
+
+Allowed command modes:
+
+```text
+normal
+lucas-direct-control
+emergency-recovery
+```
+
+Rules:
+
+- In `normal` mode, developer task state flows through Dev Lead.
+- In `lucas-direct-control` mode, Chief Min records policy and evidence but does not issue competing developer orders.
+- In `emergency-recovery` mode, Chief Min may act directly only to restore control, visibility, or containment.
+- Any direct Chief Min runtime action outside `emergency-recovery` must be recorded as unratified until Dev Lead or Lucas accepts it.
+
 ## Work Ledger Event Kinds
 
 `/api/work-ledger/tasks/:id/events` only accepts these event kinds:

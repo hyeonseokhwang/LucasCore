@@ -1,11 +1,11 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Path, State,
+        Path, Query, State,
     },
     http::{header, HeaderMap, StatusCode},
     response::IntoResponse,
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
     Json, Router,
 };
 use chrono::{DateTime, Utc};
@@ -16,7 +16,7 @@ use std::{
     collections::{HashMap, HashSet, VecDeque},
     env,
     io::{Read, SeekFrom, Write},
-    net::SocketAddr,
+    net::{SocketAddr, ToSocketAddrs},
     path::PathBuf,
     sync::Arc,
     thread,
@@ -24,6 +24,7 @@ use std::{
 use tokio::{
     fs,
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
+    net::TcpStream,
     runtime::Handle,
     sync::{broadcast, Mutex, RwLock},
     time::{sleep, Duration},
@@ -47,9 +48,111 @@ struct TerminalSession {
     output_bytes: usize,
 }
 
-const DEFAULT_MAX_ACTIVE_SESSIONS: usize = 6;
 const SESSION_PREVIEW_LIMIT_BYTES: usize = 12_000;
+const TERMINAL_CANONICAL_BUFFER_LIMIT_BYTES: usize = 32 * 1024;
 const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = 256 * 1024;
+const SESSION_LOG_MAX_TAIL_BYTES: u64 = 1024 * 1024;
+const TERMINAL_WS_REPLAY_LIMIT_BYTES: u64 = 32 * 1024;
+
+fn tail_string_by_bytes(value: &str, max_bytes: usize) -> String {
+    if max_bytes == 0 {
+        return String::new();
+    }
+    if value.len() <= max_bytes {
+        return value.to_string();
+    }
+    let mut start = value.len() - max_bytes;
+    while !value.is_char_boundary(start) {
+        start += 1;
+    }
+    value[start..].to_string()
+}
+
+fn strip_ansi_for_ui(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    let mut chars = value.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\u{1b}' {
+            output.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('[') => {
+                for next in chars.by_ref() {
+                    if ('@'..='~').contains(&next) {
+                        break;
+                    }
+                }
+            }
+            Some(']') => {
+                let mut saw_esc = false;
+                for next in chars.by_ref() {
+                    if next == '\u{7}' || (saw_esc && next == '\\') {
+                        break;
+                    }
+                    saw_esc = next == '\u{1b}';
+                }
+            }
+            Some(_) => {}
+            None => break,
+        }
+    }
+    output
+}
+
+fn clamp_log_tail_limit(limit: Option<u64>) -> u64 {
+    limit.unwrap_or(SESSION_LOG_VIEW_LIMIT_BYTES).clamp(1, SESSION_LOG_MAX_TAIL_BYTES)
+}
+
+fn session_log_info_for_path(path: &PathBuf, tail_bytes: u64) -> SessionLogInfo {
+    match std::fs::metadata(path) {
+        Ok(metadata) => SessionLogInfo {
+            path: path.display().to_string(),
+            available: true,
+            bytes: metadata.len(),
+            tail_bytes: tail_bytes.min(metadata.len()),
+            updated_at: metadata.modified().ok().map(DateTime::<Utc>::from),
+        },
+        Err(_) => SessionLogInfo {
+            path: path.display().to_string(),
+            available: false,
+            bytes: 0,
+            tail_bytes: 0,
+            updated_at: None,
+        },
+    }
+}
+
+fn build_session_view(
+    meta: SessionMeta,
+    preview: String,
+    source: SessionSource,
+    attached: bool,
+    interactive: bool,
+    input_disabled_reason: Option<String>,
+    log_path: PathBuf,
+) -> SessionView {
+    let preview_text = strip_ansi_for_ui(&preview);
+    let preview_has_ansi = preview_text != preview;
+    SessionView {
+        meta,
+        preview,
+        preview_text,
+        preview_has_ansi,
+        source,
+        attached,
+        interactive,
+        input_disabled_reason,
+        log: session_log_info_for_path(&log_path, SESSION_LOG_VIEW_LIMIT_BYTES),
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum SessionSource {
+    Internal,
+    Os,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct SessionMeta {
@@ -81,6 +184,84 @@ struct SessionView {
     #[serde(flatten)]
     meta: SessionMeta,
     preview: String,
+    preview_text: String,
+    preview_has_ansi: bool,
+    source: SessionSource,
+    attached: bool,
+    interactive: bool,
+    input_disabled_reason: Option<String>,
+    log: SessionLogInfo,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SessionLogInfo {
+    path: String,
+    available: bool,
+    bytes: u64,
+    tail_bytes: u64,
+    updated_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct SessionLogQuery {
+    format: Option<String>,
+    limit: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SessionLogTailResponse {
+    session_id: String,
+    source: SessionSource,
+    log: SessionLogInfo,
+    tail: SessionLogTail,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SessionLogTail {
+    ansi: String,
+    text: String,
+    has_ansi: bool,
+    truncated: bool,
+    bytes: usize,
+    text_bytes: usize,
+    start_offset: u64,
+    end_offset: u64,
+}
+
+#[derive(Debug, Clone)]
+struct TailChunk {
+    text: String,
+    start: u64,
+    end: u64,
+    file_len: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct OsAgentRecord {
+    id: String,
+    name: String,
+    team: String,
+    cwd: String,
+    cmd: String,
+    args: Vec<String>,
+    model: Option<String>,
+    pid: Option<u32>,
+    status: Option<String>,
+    log_path: Option<String>,
+    created_at: Option<DateTime<Utc>>,
+    updated_at: Option<DateTime<Utc>>,
+    attach_url: Option<String>,
+    control_url: Option<String>,
+    write_url: Option<String>,
+    log_url: Option<String>,
+    resize_url: Option<String>,
+    runner_endpoint: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct OsAgentAttachmentRecord {
+    attached: bool,
+    updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -297,6 +478,10 @@ async fn main() -> anyhow::Result<()> {
         .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
 
+    let serve_web = env::var("LCC_SERVE_WEB")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
     let route = if inbound_only {
         Router::new()
             .route("/api/branch/health", get(branch_health))
@@ -304,15 +489,18 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/branch/work-ledger", get(branch_work_ledger))
             .route("/api/branch/messages", get(branch_list_messages).post(branch_add_message))
     } else {
-        Router::new()
+        let api_route = Router::new()
             .route("/api/health", get(health))
             .route("/api/sessions", get(list_sessions).post(create_session))
             .route("/api/sessions/active", get(list_sessions))
             .route("/api/sessions/pty-stats", get(pty_stats))
-            .route("/api/sessions/:id", delete(delete_session))
+            .route("/api/sessions/:id", get(get_session).delete(delete_session))
             .route("/api/sessions/:id/log", get(get_session_log))
             .route("/api/sessions/:id/write", post(write_session))
             .route("/api/sessions/:id/resize", post(resize_session))
+            .route("/api/os-agents", get(list_os_agents))
+            .route("/api/os-agents/:id/attach", post(attach_os_agent))
+            .route("/api/os-agents/:id/detach", post(detach_os_agent))
             .route("/ws/terminal", get(terminal_ws))
             .route("/api/peer/status", get(peer_status))
             .route("/api/peer/messages", get(list_peer_messages).post(add_peer_message))
@@ -323,8 +511,13 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/canvases/:id", get(get_canvas).patch(update_canvas))
             .route("/api/canvases/:id/content", get(get_content).put(put_content).patch(put_content))
             .route("/api/canvases/:id/messages", get(get_messages).post(add_message))
-            .route("/api/canvases/:id/invite", post(invite_member))
-            .nest_service("/", ServeDir::new("apps/web/dist").fallback(ServeDir::new("apps/web")))
+            .route("/api/canvases/:id/invite", post(invite_member));
+
+        if serve_web {
+            api_route.nest_service("/", ServeDir::new("apps/web/dist").fallback(ServeDir::new("apps/web")))
+        } else {
+            api_route
+        }
     };
 
     let app = if inbound_only {
@@ -339,7 +532,7 @@ async fn main() -> anyhow::Result<()> {
     let port = env::var("LCC_API_PORT")
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
-        .unwrap_or(9000);
+        .unwrap_or(9001);
     let addr: SocketAddr = format!("{host}:{port}")
         .parse()
         .expect("LCC_API_HOST/LCC_API_PORT must form a valid socket address");
@@ -433,9 +626,13 @@ fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
 async fn list_sessions(State(state): State<AppState>) -> Json<Vec<SessionView>> {
     let sessions = state.sessions.read().await;
     let mut views = Vec::new();
+    let mut internal_ids = HashSet::new();
     for session in sessions.values() {
-        views.push(session.lock().await.view());
+        let view = session.lock().await.view();
+        internal_ids.insert(view.meta.id.clone());
+        views.push(view);
     }
+    views.extend(read_os_agent_views(&internal_ids).await);
     Json(views)
 }
 
@@ -445,7 +642,7 @@ async fn pty_stats(State(state): State<AppState>) -> Json<Value> {
         .iter()
         .filter(|session| matches!(session.meta.status, SessionStatus::Active))
         .count();
-    Json(json!({ "total": sessions.len(), "active": active, "max_active": max_active_sessions(), "sessions": sessions }))
+    Json(json!({ "total": sessions.len(), "active": active, "max_active": active_session_limit(), "sessions": sessions }))
 }
 
 async fn create_session(
@@ -456,12 +653,13 @@ async fn create_session(
     if state.sessions.read().await.contains_key(&id) {
         return Err(ApiError::conflict("session already exists"));
     }
-    let active = active_session_count(&state).await;
-    let max_active = max_active_sessions();
-    if active >= max_active {
-        return Err(ApiError::service_unavailable(format!(
-            "active session limit reached ({active}/{max_active}); stop a session before creating another"
-        )));
+    if let Some(max_active) = active_session_limit() {
+        let active = active_session_count(&state).await;
+        if active >= max_active {
+            return Err(ApiError::service_unavailable(format!(
+                "active session limit reached ({active}/{max_active}); stop a session before creating another"
+            )));
+        }
     }
 
     let cmd = input.cmd.unwrap_or_else(default_shell);
@@ -529,6 +727,10 @@ async fn delete_session(
     Path(id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     let Some(session) = state.sessions.write().await.remove(&id) else {
+        if read_os_agent_record(&id).await.is_some() {
+            set_os_agent_attached(&id, false).await?;
+            return Ok(Json(json!({ "ok": true, "detached": true, "session_id": id })));
+        }
         return Err(ApiError::not_found("session not found"));
     };
     let mut session = session.lock().await;
@@ -536,6 +738,41 @@ async fn delete_session(
     let _ = session.writer.write_all(b"\x03exit\r\n");
     let _ = state.tx.send(ServerEvent::SessionDeleted { session_id: id });
     Ok(Json(json!({ "ok": true })))
+}
+
+async fn list_os_agents() -> Json<Vec<SessionView>> {
+    let attachment_states = read_os_agent_attachment_states().await;
+    let mut views = Vec::new();
+    for record in read_os_agent_records().await {
+        let attached = os_agent_attached_by_default(&record, &attachment_states);
+        let preview = read_os_agent_preview(&record).await.unwrap_or_default();
+        views.push(os_agent_view(record, preview, attached));
+    }
+    Json(views)
+}
+
+async fn attach_os_agent(Path(id): Path<String>) -> Result<Json<SessionView>, ApiError> {
+    let Some(record) = read_os_agent_record(&id).await else {
+        return Err(ApiError::not_found("OS agent not found"));
+    };
+    set_os_agent_attached(&id, true).await?;
+    let preview = read_os_agent_preview(&record).await.unwrap_or_default();
+    Ok(Json(os_agent_view(record, preview, true)))
+}
+
+async fn get_session(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<SessionView>, ApiError> {
+    Ok(Json(resolve_session_view(&state, &id).await?))
+}
+
+async fn detach_os_agent(Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
+    if read_os_agent_record(&id).await.is_none() {
+        return Err(ApiError::not_found("OS agent not found"));
+    }
+    set_os_agent_attached(&id, false).await?;
+    Ok(Json(json!({ "ok": true, "detached": true, "session_id": id })))
 }
 
 async fn write_session(
@@ -548,24 +785,67 @@ async fn write_session(
     Ok(Json(session))
 }
 
-async fn get_session_log(Path(id): Path<String>) -> Result<impl IntoResponse, ApiError> {
-    let path = terminal_log_path(&id);
-    let text = match read_tail_lossy(path, SESSION_LOG_VIEW_LIMIT_BYTES).await {
-        Ok(text) => text,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => String::new(),
+async fn get_session_log(
+    Path(id): Path<String>,
+    Query(query): Query<SessionLogQuery>,
+) -> Result<axum::response::Response, ApiError> {
+    let (source, path) = resolve_session_log_path(&id).await?;
+    let limit = clamp_log_tail_limit(query.limit);
+    let chunk = match read_tail_chunk(path.clone(), limit).await {
+        Ok(chunk) => chunk,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => TailChunk {
+            text: String::new(),
+            start: 0,
+            end: 0,
+            file_len: 0,
+        },
         Err(err) => return Err(ApiError::internal(err)),
     };
-    Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text))
+    let text = strip_ansi_for_ui(&chunk.text);
+    let has_ansi = text != chunk.text;
+    let log = session_log_info_for_path(&path, limit);
+    match query.format.as_deref().unwrap_or("ansi") {
+        "ansi" => Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], chunk.text).into_response()),
+        "text" => Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text).into_response()),
+        "json" => Ok(Json(SessionLogTailResponse {
+            session_id: id,
+            source,
+            log,
+            tail: SessionLogTail {
+                ansi: chunk.text.clone(),
+                text,
+                has_ansi,
+                truncated: chunk.start > 0,
+                bytes: chunk.text.len(),
+                text_bytes: strip_ansi_for_ui(&chunk.text).len(),
+                start_offset: chunk.start,
+                end_offset: chunk.end.max(chunk.file_len),
+            },
+        })
+        .into_response()),
+        other => Err(ApiError::bad_request(format!(
+            "unsupported log format '{other}'; expected ansi, text, or json"
+        ))),
+    }
 }
 
 async fn read_tail_lossy(path: PathBuf, max_bytes: u64) -> std::io::Result<String> {
+    Ok(read_tail_chunk(path, max_bytes).await?.text)
+}
+
+async fn read_tail_chunk(path: PathBuf, max_bytes: u64) -> std::io::Result<TailChunk> {
     let mut file = fs::File::open(path).await?;
     let len = file.metadata().await?.len();
     let start = len.saturating_sub(max_bytes);
     file.seek(SeekFrom::Start(start)).await?;
     let mut bytes = Vec::with_capacity((len - start).min(max_bytes) as usize);
     file.read_to_end(&mut bytes).await?;
-    Ok(String::from_utf8_lossy(&bytes).to_string())
+    Ok(TailChunk {
+        text: String::from_utf8_lossy(&bytes).to_string(),
+        start,
+        end: len,
+        file_len: len,
+    })
 }
 
 async fn resize_session(
@@ -655,9 +935,13 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
                 return Some(json!({ "type": "error", "sessionId": session_id, "message": "session not found" }));
             };
             let session = session.lock().await;
-            let preview = session.view().preview;
+            let fallback_replay = session.replay_buffer();
+            drop(session);
+            let replay = read_tail_lossy(terminal_log_path(&session_id), TERMINAL_WS_REPLAY_LIMIT_BYTES)
+                .await
+                .unwrap_or(fallback_replay);
             let _ = state.tx.send(ServerEvent::Attached { session_id: session_id.clone() });
-            Some(json!({ "type": "replay", "sessionId": session_id, "data": preview }))
+            Some(json!({ "type": "replay", "sessionId": session_id, "data": replay }))
         }
         "input" => {
             let data = value.get("data").and_then(Value::as_str).unwrap_or_default().to_string();
@@ -687,6 +971,15 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
 
 async fn resize_to_session(state: &AppState, id: &str, cols: u16, rows: u16) -> Result<SessionView, ApiError> {
     let Some(session) = state.sessions.read().await.get(id).cloned() else {
+        if let Some(record) = read_os_agent_record(id).await {
+            let attached = os_agent_is_attached(&record).await;
+            if !attached {
+                return Err(ApiError::conflict("OS agent is detached from this API"));
+            }
+            return Err(ApiError::bad_request(format!(
+                "OS agent resize is not supported by this runner-backed session (cols={cols}, rows={rows})"
+            )));
+        }
         return Err(ApiError::not_found("session not found"));
     };
     let mut session = session.lock().await;
@@ -727,8 +1020,9 @@ fn prompt_submit_key() -> &'static str {
 #[cfg(test)]
 mod tests {
     use axum::http::StatusCode;
+    use std::{env, fs as stdfs, path::PathBuf};
 
-    use super::{normalize_prompt_body, normalize_work_event_kind, prompt_submit_key};
+    use super::{normalize_prompt_body, normalize_work_event_kind, prompt_submit_key, read_tail_lossy, strip_ansi_for_ui, tail_string_by_bytes};
 
     fn encode_prompt_submit_for_test(data: &str) -> String {
         format!("{}{}", normalize_prompt_body(data), prompt_submit_key())
@@ -787,6 +1081,46 @@ mod tests {
     }
 
     #[test]
+    fn tail_string_by_bytes_preserves_utf8_boundaries() {
+        let value = format!("{}끝", "가".repeat(8));
+        let tail = tail_string_by_bytes(&value, 7);
+        assert_eq!(tail, "가끝");
+    }
+
+    #[test]
+    fn strip_ansi_for_ui_removes_csi_and_osc_sequences() {
+        let raw = "\u{1b}[2Khello\u{1b}]0;title\u{7}\u{1b}[31m world\u{1b}[0m";
+        assert_eq!(strip_ansi_for_ui(raw), "hello world");
+    }
+
+    #[tokio::test]
+    async fn read_tail_lossy_returns_only_the_requested_tail_window() {
+        let path = temp_test_file("read-tail-window.log");
+        let content = (0..512).map(|idx| format!("line-{idx:04}\n")).collect::<String>();
+        stdfs::write(&path, &content).unwrap();
+
+        let tail = read_tail_lossy(path.clone(), 64).await.unwrap();
+
+        assert!(tail.len() <= 64);
+        assert!(tail.contains("line-0511"));
+        assert!(!tail.contains("line-0000"));
+
+        let _ = stdfs::remove_file(path);
+    }
+
+    #[tokio::test]
+    async fn read_tail_lossy_returns_entire_file_when_under_limit() {
+        let path = temp_test_file("read-tail-small.log");
+        stdfs::write(&path, "alpha\nbeta\n").unwrap();
+
+        let tail = read_tail_lossy(path.clone(), 1024).await.unwrap();
+
+        assert_eq!(tail, "alpha\nbeta\n");
+
+        let _ = stdfs::remove_file(path);
+    }
+
+    #[test]
     fn work_event_kind_defaults_to_note() {
         assert_eq!(normalize_work_event_kind(None).unwrap(), "note");
     }
@@ -803,6 +1137,11 @@ mod tests {
         let err = normalize_work_event_kind(Some("maybe-later".to_string())).unwrap_err();
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
+
+    fn temp_test_file(name: &str) -> PathBuf {
+        let unique = uuid::Uuid::new_v4().to_string();
+        env::temp_dir().join(format!("lcc-core-{unique}-{name}"))
+    }
 }
 
 async fn write_raw_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
@@ -811,6 +1150,17 @@ async fn write_raw_to_session(state: &AppState, id: &str, data: String) -> Resul
 
 async fn write_session_bytes(state: &AppState, id: &str, data: String, echo_input: bool) -> Result<SessionView, ApiError> {
     let Some(session) = state.sessions.read().await.get(id).cloned() else {
+        if let Some(record) = read_os_agent_record(id).await {
+            if !os_agent_is_attached(&record).await {
+                return Err(ApiError::conflict("OS agent is detached from this API"));
+            }
+            let Some(write_url) = os_agent_write_url(&record) else {
+                return Err(ApiError::bad_request("OS agent is attached but does not expose a write endpoint"));
+            };
+            os_agent_control_write(&write_url, &data).await?;
+            let preview = read_os_agent_preview(&record).await.unwrap_or_default();
+            return Ok(os_agent_view(record, preview, true));
+        }
         return Err(ApiError::not_found("session not found"));
     };
     let mut session = session.lock().await;
@@ -878,6 +1228,29 @@ fn terminal_log_path(id: &str) -> PathBuf {
     PathBuf::from("data").join("terminal-logs").join(format!("{safe_id}.ansi.log"))
 }
 
+async fn resolve_session_view(state: &AppState, id: &str) -> Result<SessionView, ApiError> {
+    if let Some(session) = state.sessions.read().await.get(id).cloned() {
+        return Ok(session.lock().await.view());
+    }
+    let Some(record) = read_os_agent_record(id).await else {
+        return Err(ApiError::not_found("session not found"));
+    };
+    let attached = os_agent_is_attached(&record).await;
+    let preview = read_os_agent_preview(&record).await.unwrap_or_default();
+    Ok(os_agent_view(record, preview, attached))
+}
+
+async fn resolve_session_log_path(id: &str) -> Result<(SessionSource, PathBuf), ApiError> {
+    if let Some(record) = read_os_agent_record(id).await {
+        if !os_agent_is_attached(&record).await {
+            return Err(ApiError::not_found("OS agent is detached from this API"));
+        }
+        let path = record.log_path.map(PathBuf::from).unwrap_or_else(|| terminal_log_path(id));
+        return Ok((SessionSource::Os, path));
+    }
+    Ok((SessionSource::Internal, terminal_log_path(id)))
+}
+
 fn spawn_pty_waiter<F>(state: AppState, id: String, wait: F)
 where
     F: FnOnce() -> Option<i32> + Send + 'static,
@@ -903,7 +1276,7 @@ impl TerminalSession {
     fn push_output(&mut self, data: &str) {
         self.output_bytes += data.len();
         self.output.push_back(data.to_string());
-        while self.output_bytes > SESSION_PREVIEW_LIMIT_BYTES {
+        while self.output_bytes > TERMINAL_CANONICAL_BUFFER_LIMIT_BYTES {
             let Some(front) = self.output.pop_front() else {
                 self.output_bytes = 0;
                 break;
@@ -913,12 +1286,248 @@ impl TerminalSession {
         self.meta.updated_at = Utc::now();
     }
 
+    fn replay_buffer(&self) -> String {
+        self.output.iter().cloned().collect::<String>()
+    }
+
     fn view(&self) -> SessionView {
-        SessionView {
-            meta: self.meta.clone(),
-            preview: self.output.iter().cloned().collect::<String>(),
+        build_session_view(
+            self.meta.clone(),
+            tail_string_by_bytes(&self.replay_buffer(), SESSION_PREVIEW_LIMIT_BYTES),
+            SessionSource::Internal,
+            true,
+            true,
+            None,
+            terminal_log_path(&self.meta.id),
+        )
+    }
+}
+
+async fn read_os_agent_views(internal_ids: &HashSet<String>) -> Vec<SessionView> {
+    let attachment_states = read_os_agent_attachment_states().await;
+    let mut views = Vec::new();
+    for record in read_os_agent_records().await {
+        if internal_ids.contains(&record.id) {
+            continue;
+        }
+        let attached = os_agent_attached_by_default(&record, &attachment_states);
+        if !attached {
+            continue;
+        }
+        let preview = read_os_agent_preview(&record).await.unwrap_or_default();
+        views.push(os_agent_view(record, preview, true));
+    }
+    views
+}
+
+async fn read_os_agent_record(id: &str) -> Option<OsAgentRecord> {
+    read_os_agent_records().await.into_iter().find(|record| record.id == id)
+}
+
+fn os_agent_registry_path() -> Option<PathBuf> {
+    let raw = env::var("LCC_OS_AGENT_REGISTRY").ok();
+    match raw.as_deref().map(str::trim) {
+        Some("") | Some("0") | Some("off") | Some("false") | Some("none") | Some("disabled") => None,
+        Some(path) => Some(PathBuf::from(path)),
+        None => Some(PathBuf::from("data/os-agents/registry.json")),
+    }
+}
+
+async fn read_os_agent_records() -> Vec<OsAgentRecord> {
+    let Some(path) = os_agent_registry_path() else {
+        return Vec::new();
+    };
+    let Ok(text) = fs::read_to_string(path).await else {
+        return Vec::new();
+    };
+    let text = text.trim_start_matches('\u{feff}');
+    serde_json::from_str::<Vec<OsAgentRecord>>(text).unwrap_or_default()
+}
+
+fn os_agent_attachment_path() -> PathBuf {
+    if let Ok(path) = env::var("LCC_OS_AGENT_ATTACHMENTS") {
+        let trimmed = path.trim();
+        if !trimmed.is_empty() {
+            return PathBuf::from(trimmed);
         }
     }
+    if let Some(path) = os_agent_registry_path() {
+        if let Some(parent) = path.parent() {
+            return parent.join("attachments.json");
+        }
+    }
+    PathBuf::from("data/os-agents/attachments.json")
+}
+
+async fn read_os_agent_attachment_states() -> HashMap<String, OsAgentAttachmentRecord> {
+    let path = os_agent_attachment_path();
+    let Ok(text) = fs::read_to_string(path).await else {
+        return HashMap::new();
+    };
+    let text = text.trim_start_matches('\u{feff}');
+    serde_json::from_str::<HashMap<String, OsAgentAttachmentRecord>>(text).unwrap_or_default()
+}
+
+async fn write_os_agent_attachment_states(states: &HashMap<String, OsAgentAttachmentRecord>) -> Result<(), ApiError> {
+    let path = os_agent_attachment_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).await.map_err(ApiError::internal)?;
+    }
+    let text = serde_json::to_string_pretty(states).map_err(ApiError::internal)?;
+    fs::write(path, text).await.map_err(ApiError::internal)
+}
+
+async fn set_os_agent_attached(id: &str, attached: bool) -> Result<(), ApiError> {
+    let mut states = read_os_agent_attachment_states().await;
+    states.insert(
+        id.to_string(),
+        OsAgentAttachmentRecord {
+            attached,
+            updated_at: Some(Utc::now()),
+        },
+    );
+    write_os_agent_attachment_states(&states).await
+}
+
+fn os_agent_attached_by_default(record: &OsAgentRecord, states: &HashMap<String, OsAgentAttachmentRecord>) -> bool {
+    if let Some(state) = states.get(&record.id) {
+        return state.attached;
+    }
+    !matches!(record.status.as_deref(), Some("stopped") | Some("exited") | Some("error"))
+}
+
+async fn os_agent_is_attached(record: &OsAgentRecord) -> bool {
+    let states = read_os_agent_attachment_states().await;
+    os_agent_attached_by_default(record, &states)
+}
+
+async fn read_os_agent_preview(record: &OsAgentRecord) -> std::io::Result<String> {
+    let Some(path) = record.log_path.as_ref() else {
+        return Ok(String::new());
+    };
+    let text = read_tail_lossy(PathBuf::from(path), SESSION_PREVIEW_LIMIT_BYTES as u64).await?;
+    Ok(tail_string_by_bytes(&text, SESSION_PREVIEW_LIMIT_BYTES))
+}
+
+fn os_agent_write_url(record: &OsAgentRecord) -> Option<String> {
+    record
+        .write_url
+        .as_deref()
+        .or(record.control_url.as_deref())
+        .or(record.attach_url.as_deref())
+        .map(normalize_os_agent_write_url)
+}
+
+fn normalize_os_agent_write_url(url: &str) -> String {
+    let base = url.trim_end_matches('/');
+    if base.ends_with("/write") {
+        base.to_string()
+    } else if let Some(prefix) = base.strip_suffix("/control") {
+        format!("{prefix}/write")
+    } else {
+        format!("{base}/write")
+    }
+}
+
+async fn os_agent_control_write(write_url: &str, data: &str) -> Result<(), ApiError> {
+    let base = write_url.trim_end_matches('/');
+    let Some(rest) = base.strip_prefix("http://") else {
+        return Err(ApiError::bad_request("OS agent write endpoint must use http://"));
+    };
+    let (host_port, path_prefix) = match rest.split_once('/') {
+        Some((host_port, path)) => (host_port, format!("/{path}")),
+        None => (rest, "/write".to_string()),
+    };
+    let addr = host_port
+        .to_socket_addrs()
+        .map_err(ApiError::internal)?
+        .next()
+        .ok_or_else(|| ApiError::bad_request("OS agent write endpoint did not resolve"))?;
+    let body = serde_json::to_vec(&json!({ "input": data, "data": data })).map_err(ApiError::internal)?;
+    let request = format!(
+        "POST {} HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        path_prefix, host_port, body.len()
+    );
+    let mut stream = TcpStream::connect(addr).await.map_err(ApiError::internal)?;
+    stream.write_all(request.as_bytes()).await.map_err(ApiError::internal)?;
+    stream.write_all(&body).await.map_err(ApiError::internal)?;
+    stream.flush().await.map_err(ApiError::internal)?;
+    let mut response = Vec::new();
+    stream.read_to_end(&mut response).await.map_err(ApiError::internal)?;
+    let status = parse_http_response_status(&response)
+        .ok_or_else(|| ApiError::bad_request("OS agent write endpoint returned an invalid HTTP response"))?;
+    if !(200..300).contains(&status) {
+        return Err(ApiError::bad_request(format!(
+            "OS agent control write failed with HTTP {status}: {}",
+            http_response_body_preview(&response)
+        )));
+    }
+    Ok(())
+}
+
+fn parse_http_response_status(response: &[u8]) -> Option<u16> {
+    let line_end = response.windows(2).position(|window| window == b"\r\n")?;
+    let status_line = std::str::from_utf8(&response[..line_end]).ok()?;
+    let mut parts = status_line.split_whitespace();
+    let version = parts.next()?;
+    if !version.starts_with("HTTP/") {
+        return None;
+    }
+    parts.next()?.parse().ok()
+}
+
+fn http_response_body_preview(response: &[u8]) -> String {
+    let body = response
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .map(|idx| &response[idx + 4..])
+        .unwrap_or_default();
+    let text = String::from_utf8_lossy(body).trim().to_string();
+    if text.is_empty() {
+        "<empty body>".to_string()
+    } else {
+        text.chars().take(200).collect()
+    }
+}
+
+fn os_agent_view(record: OsAgentRecord, preview: String, attached: bool) -> SessionView {
+    let now = Utc::now();
+    let interactive = os_agent_write_url(&record).is_some();
+    let log_path = record.log_path.as_ref().map(PathBuf::from).unwrap_or_else(|| terminal_log_path(&record.id));
+    let status = match record.status.as_deref() {
+        Some("stopped") => SessionStatus::Stopped,
+        Some("error") => SessionStatus::Error,
+        Some("exited") => SessionStatus::Exited,
+        _ => SessionStatus::Active,
+    };
+    build_session_view(
+        SessionMeta {
+            id: record.id,
+            name: record.name,
+            team: record.team,
+            cwd: record.cwd,
+            cmd: record.cmd,
+            args: record.args,
+            model: record.model,
+            status,
+            pid: record.pid,
+            created_at: record.created_at.unwrap_or(now),
+            updated_at: record.updated_at.unwrap_or(now),
+            exit_code: None,
+        },
+        preview,
+        SessionSource::Os,
+        attached,
+        interactive,
+        if !attached {
+            Some("OS agent is detached from this API".to_string())
+        } else if interactive {
+            None
+        } else {
+            Some("OS agent is attached as a bounded log-backed session; write endpoint is unavailable".to_string())
+        },
+        log_path,
+    )
 }
 
 async fn active_session_count(state: &AppState) -> usize {
@@ -932,12 +1541,11 @@ async fn active_session_count(state: &AppState) -> usize {
     active
 }
 
-fn max_active_sessions() -> usize {
+fn active_session_limit() -> Option<usize> {
     env::var("LCC_MAX_ACTIVE_SESSIONS")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .filter(|value| *value > 0)
-        .unwrap_or(DEFAULT_MAX_ACTIVE_SESSIONS)
 }
 
 async fn peer_status(State(state): State<AppState>) -> Json<Value> {

@@ -36,6 +36,47 @@ Dev-lead responsibilities:
 
 Developer agents are responsible for implementation, local investigation, focused fixes, and verification.
 
+## Command Chain Policy
+
+Operational work must follow one explicit chain unless HQ says otherwise:
+
+`HQ / Chief Min -> dev-lead -> assigned developer(s) -> dev-lead -> HQ / Chief Min`
+
+Command-chain rules:
+
+- Chief Min sets objective, priority, constraints, and acceptance criteria.
+- Dev Lead decomposes the objective, assigns owners, prevents duplicate work, and reviews evidence.
+- Developers execute assigned implementation, investigation, or verification tasks.
+- Developers report only to Dev Lead unless Chief Min explicitly requests a direct report.
+- Dev Lead is the only role that consolidates developer findings into a final operational recommendation.
+- Chief Min does not bypass Dev Lead for developer work except during emergency recovery or when explicitly taking manual control.
+- If Chief Min directly performs implementation or test execution, that action must be labeled `[chief-min-direct]` with the reason.
+- If a developer receives conflicting instructions, the developer must stop and ask Dev Lead to resolve priority.
+
+Default routing:
+
+- Implementation: assign to one developer owner, with optional reviewer or tester.
+- Verification and stress testing: assign to developers; Chief Min may define scenarios but should not be the primary executor.
+- Runtime operations such as starting, stopping, attaching, detaching, or respawning agents: assign to Dev Lead unless emergency recovery is needed.
+- Emergency recovery: Chief Min may act directly to restore control-plane visibility, then must report what was done and hand control back to Dev Lead.
+
+Direct-action exceptions are narrow:
+
+- control plane is unreachable and no developer terminal can receive instructions
+- a process must be recovered before delegation is possible
+- user explicitly orders Chief Min to execute directly
+- security containment requires immediate action
+
+Every direct-action exception must include:
+
+- `Reason`
+- `Commands or files touched`
+- `State before`
+- `State after`
+- `Handoff back to dev-lead`
+
+Any work performed outside this chain is considered unratified until Dev Lead reviews it and records either acceptance, rollback request, or follow-up verification.
+
 ## Developer Report Format
 
 Developer reports to dev-lead should be short and evidence-based.

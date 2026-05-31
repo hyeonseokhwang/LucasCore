@@ -207,6 +207,7 @@ Researcher 4:
 
 - Lucas 확인 질문과 실습 채점 기준을 준비한다.
 - 수업 후 과제: `LedgerEventCreated` 스키마와 서비스별 owned data/must-not-access 표를 정리한다.
+- Evidence file: `docs/spring-msa-r4-checklist-template-20260531.md`
 
 ## 8. 수업 후 REPORT 형식
 
