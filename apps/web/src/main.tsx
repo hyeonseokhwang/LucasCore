@@ -237,7 +237,15 @@ function sendTerminalInput(sessionId: string, data: string) {
 }
 
 function sendTerminalPrompt(sessionId: string, prompt: string) {
-  return sendTerminalProtocol(sessionId, { type: "sendPrompt", prompt });
+  return sendTerminalInput(sessionId, encodePromptForPtySubmit(prompt));
+}
+
+function encodePromptForPtySubmit(value: string) {
+  const prompt = normalizePromptForSubmit(value).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (prompt.includes("\n")) {
+    return `\x1b[200~${prompt}\x1b[201~\r`;
+  }
+  return `${prompt}\r\r`;
 }
 
 function normalizeSessionWriteBody(path: string, body: unknown) {
