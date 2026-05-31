@@ -1330,21 +1330,13 @@ textarea {
   grid-auto-rows: initial;
 }
 
-.terminal-workspace .terminal-roster.even {
-  grid-template-rows: minmax(0, 1fr);
-}
-
-.terminal-workspace .terminal-roster.even .terminal-roster-toolbar {
-  display: none;
-}
-
 .terminal-roster-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   min-width: 0;
-  padding: 0 2px;
+  padding: 0;
 }
 
 .terminal-roster-toolbar > div:first-child {
@@ -1377,13 +1369,16 @@ textarea {
 
 .terminal-roster-toolbar button {
   min-height: 30px;
-  padding: 0 9px;
+  padding: 0 10px;
+  border-color: #30363d;
+  background: #0d1117;
+  color: #c9d1d9;
 }
 
 .terminal-roster-toolbar button.active {
-  color: #ffffff;
-  border-color: #3d63f0;
-  background: #3045a0;
+  color: #f0f6fc;
+  border-color: #58a6ff;
+  background: #1f6feb;
 }
 
 .terminal-roster-sections {
@@ -1393,9 +1388,9 @@ textarea {
 }
 
 .terminal-roster.team .terminal-roster-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
 
 .terminal-roster.even .terminal-roster-sections {
@@ -1467,15 +1462,18 @@ textarea {
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 288px;
-  border: 1px solid #283851;
+  border: 1px solid #30363d;
   border-radius: 8px;
   overflow: hidden;
-  background: #0d1626;
+  background: #0d1117;
+  box-shadow: 0 12px 26px rgba(1, 4, 9, 0.28);
 }
 
 .terminal-grid-tile.selected {
-  border-color: #3de0a1;
-  box-shadow: inset 0 0 0 1px rgba(61, 224, 161, 0.22);
+  border-color: #58a6ff;
+  box-shadow:
+    inset 0 0 0 1px rgba(88, 166, 255, 0.24),
+    0 14px 30px rgba(1, 4, 9, 0.36);
 }
 
 .terminal-grid-tile > header,
@@ -1487,12 +1485,12 @@ textarea {
   gap: 8px;
   min-width: 0;
   padding: 5px 9px;
-  background: #172338;
+  background: #161b22;
 }
 
 .terminal-grid-tile > header {
   justify-content: space-between;
-  border-bottom: 1px solid #283851;
+  border-bottom: 1px solid #30363d;
 }
 
 .terminal-grid-tile > header > div:first-child {
@@ -1513,17 +1511,19 @@ textarea {
 }
 
 .terminal-grid-tile strong {
-  color: #d8e2f1;
+  color: #f0f6fc;
+  font-family: "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
   font-size: 13px;
 }
 
 .terminal-grid-tile em {
   flex: 0 0 auto;
-  color: #a5b4cf;
+  color: #8b949e;
   font-size: 11px;
   font-style: normal;
-  background: #23314b;
+  background: #21262d;
   padding: 2px 7px;
+  border: 1px solid #30363d;
   border-radius: 999px;
 }
 
@@ -1533,15 +1533,15 @@ textarea {
   min-height: 0;
   height: auto;
   overflow: hidden;
-  background: #070c15;
+  background: #0d1117;
 }
 
 .terminal-grid-tile > footer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 28px;
   align-items: center;
-  border-top: 1px solid #22324a;
-  background: #111b2c;
+  border-top: 1px solid #30363d;
+  background: #161b22;
 }
 
 .terminal-grid-tile > footer textarea {
@@ -1554,8 +1554,10 @@ textarea {
   resize: none;
   line-height: 1.25;
   overflow-y: auto;
-  border-color: #263954;
-  background: #0d1728;
+  border-color: #30363d;
+  background: #0d1117;
+  color: #c9d1d9;
+  font-family: "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
 }
 
 .terminal-grid-tile > footer button {
@@ -1570,10 +1572,10 @@ textarea {
   grid-template-rows: 34px minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
-  border: 1px solid #283851;
+  border: 1px solid #30363d;
   border-radius: 8px;
   overflow: hidden;
-  background: #0b1422;
+  background: #010409;
 }
 
 .terminal-roster-section > header {
@@ -1583,9 +1585,9 @@ textarea {
   gap: 10px;
   min-height: 34px;
   padding: 0 10px;
-  color: #d8e2f1;
-  background: #132036;
-  border-bottom: 1px solid #22324a;
+  color: #f0f6fc;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
 }
 
 .terminal-roster-section > header strong {
@@ -1595,15 +1597,18 @@ textarea {
 }
 
 .terminal-roster-section > header span {
-  color: #74c7b8;
+  color: #7ee787;
   font-size: 12px;
   font-weight: 700;
 }
 
 .terminal-roster-section > div {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  grid-auto-rows: minmax(288px, 1fr);
+  gap: 10px;
   min-height: 0;
+  padding: 10px;
   overflow: auto;
 }
 

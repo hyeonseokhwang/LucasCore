@@ -112,6 +112,30 @@ const SESSION_GROUP_BY_FILTER = new Map(SESSION_GROUPS.map((group) => [group.fil
 const MAX_ACTIVE_SESSIONS = 20;
 const TERMINAL_FONT_FAMILY =
   "'Cascadia Mono', 'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace";
+const VITE_ENV = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
+const API_ORIGIN = VITE_ENV.VITE_LCC_API_ORIGIN || window.location.origin;
+const WS_ORIGIN =
+  VITE_ENV.VITE_LCC_WS_ORIGIN ||
+  API_ORIGIN.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+
+function apiUrl(path: string) {
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_ORIGIN}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function terminalWsUrl() {
+  return `${WS_ORIGIN}/ws/terminal`;
+}
+
+function closeWebSocket(socket: WebSocket) {
+  if (socket.readyState === WebSocket.CONNECTING) {
+    socket.addEventListener("open", () => socket.close(), { once: true });
+    return;
+  }
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.close();
+  }
+}
 
 type CanvasSection = {
   id: string;
@@ -223,13 +247,13 @@ const fallbackLedgerTasks: WorkLedgerTask[] = [
 
 const api = {
   async get<T>(path: string): Promise<T> {
-    const response = await fetch(path);
+    const response = await fetch(apiUrl(path));
     if (!response.ok) throw new Error(await response.text());
     return response.json();
   },
   async send<T>(path: string, method: string, body?: unknown): Promise<T> {
     const nextBody = normalizeSessionWriteBody(path, body);
-    const response = await fetch(path, {
+    const response = await fetch(apiUrl(path), {
       method,
       headers: { "content-type": "application/json" },
       body: nextBody === undefined ? undefined : JSON.stringify(nextBody)
@@ -241,10 +265,9 @@ const api = {
 
 function sendTerminalProtocol(sessionId: string, payload: Record<string, unknown>) {
   return new Promise<void>((resolve, reject) => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const socket = new WebSocket(`${protocol}//${window.location.host}/ws/terminal`);
+    const socket = new WebSocket(terminalWsUrl());
     const timeout = window.setTimeout(() => {
-      socket.close();
+      closeWebSocket(socket);
       reject(new Error("terminal input timed out"));
     }, 5000);
 
@@ -252,7 +275,7 @@ function sendTerminalProtocol(sessionId: string, payload: Record<string, unknown
       socket.send(JSON.stringify({ sessionId, ...payload }));
       window.setTimeout(() => {
         window.clearTimeout(timeout);
-        socket.close();
+        closeWebSocket(socket);
         resolve();
       }, 150);
     });
@@ -337,16 +360,8 @@ function ShellApp() {
   useEffect(() => {
     refresh().catch((err) => setError(String(err)));
     const timer = window.setInterval(() => refresh().catch(() => undefined), 2500);
-    const socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/terminal`);
-    socket.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.type === "sessionCreated" || message.type === "sessionDeleted" || message.type === "exit") {
-        refresh().catch(() => undefined);
-      }
-    };
     return () => {
       window.clearInterval(timer);
-      socket.close();
     };
   }, []);
 
@@ -491,7 +506,7 @@ function ShellApp() {
         {view === "terminals" ? (
           <>
             <CreateSession sessions={sessions} onCreated={refresh} />
-            <div className={`terminal-workspace ${terminalRosterLayout === "even" ? "even-grid" : ""}`}>
+            <div className="terminal-workspace even-grid">
               <TerminalGrid
                 sessions={visibleSessions}
                 allSessions={sessions}
@@ -501,7 +516,6 @@ function ShellApp() {
                 layout={terminalRosterLayout}
                 onLayoutChange={setTerminalRosterLayout}
               />
-              {terminalRosterLayout !== "even" && <ActiveTerminalPane session={selectedSession} sessions={sessions} onChanged={refresh} />}
             </div>
           </>
         ) : (
@@ -1027,7 +1041,7 @@ function TerminalGrid({
     <div className={`terminal-grid terminal-roster ${layout}`}>
       <header className="terminal-roster-toolbar">
         <div>
-          <strong>Organization</strong>
+          <strong>Terminal Fleet</strong>
           <span>{activeCount}/{sessions.length} active · team grouped</span>
         </div>
         <div>
@@ -1062,7 +1076,7 @@ function TerminalGrid({
             </header>
             <div>
               {team.sessions.map((session) => (
-                <TerminalRosterItem
+                <TerminalGridTile
                   key={session.id}
                   session={session}
                   sessions={allSessions}
@@ -1128,7 +1142,7 @@ function TerminalRosterItem({
 
   async function openLog(event?: React.MouseEvent<HTMLButtonElement>) {
     event?.stopPropagation();
-    const response = await fetch(`/api/sessions/${session.id}/log`);
+    const response = await fetch(apiUrl(`/api/sessions/${session.id}/log`));
     setLogText(await response.text());
     setLogOpen(true);
   }
@@ -1252,7 +1266,7 @@ function TerminalGridTile({
 
   async function openLog(event: React.MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
-    const response = await fetch(`/api/sessions/${session.id}/log`);
+    const response = await fetch(apiUrl(`/api/sessions/${session.id}/log`));
     setLogText(await response.text());
     setLogOpen(true);
   }
@@ -1413,7 +1427,7 @@ function ActiveTerminalPane({
   }
 
   async function openLog() {
-    const response = await fetch(`/api/sessions/${session.id}/log`);
+    const response = await fetch(apiUrl(`/api/sessions/${session.id}/log`));
     setLogText(await response.text());
     setLogOpen(true);
   }
@@ -1613,7 +1627,7 @@ function SessionLogTailSurface({
 
     const load = async () => {
       try {
-        const response = await fetch(`/api/sessions/${sessionId}/log?format=ansi&limit=32768`);
+        const response = await fetch(apiUrl(`/api/sessions/${sessionId}/log?format=ansi&limit=32768`));
         if (!response.ok) return;
         const next = await response.text();
         if (!cancelled) {
@@ -1706,7 +1720,7 @@ function XtermPreview({
     termRef.current = term;
     fitRef.current = fit;
 
-    const socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/terminal`);
+    const socket = new WebSocket(terminalWsUrl());
     socketRef.current = socket;
     const scrollToBottomSoon = () => {
       if (scrollRafRef.current !== null) return;
@@ -1796,7 +1810,7 @@ function XtermPreview({
         scrollRafRef.current = null;
       }
       dataDisposable.dispose();
-      socket.close();
+      closeWebSocket(socket);
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
