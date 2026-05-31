@@ -1,4 +1,4 @@
-import {
+﻿import {
   Activity,
   AlertTriangle,
   Bot,
@@ -38,7 +38,7 @@ import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
 type SessionStatus = "active" | "exited" | "error" | "stopped";
-type TerminalLayout = "grid" | "stack" | "columns";
+type TerminalLayout = "grid" | "stack" | "columns" | "fit";
 
 type Session = {
   id: string;
@@ -73,12 +73,19 @@ const SESSION_GROUPS = [
     filter: "development-team",
     label: "Development Team",
     members: [
-      { id: "chief-min", name: "Chief Min", role: "Context and coordination", session: true },
       { id: "dev-lead", name: "Dev Lead", role: "Development lead", session: true },
       { id: "developer-1", name: "Developer 1", role: "Developer", session: true },
       { id: "developer-2", name: "Developer 2", role: "Developer", session: true },
       { id: "developer-3", name: "Developer 3", role: "Developer", session: true },
-      { id: "developer-4", name: "Developer 4", role: "Developer", session: true }
+      { id: "developer-4", name: "Developer 4", role: "Developer", session: true },
+      { id: "developer-5", name: "Developer 5", role: "Developer", session: true },
+      { id: "developer-6", name: "Developer 6", role: "Developer", session: true },
+      { id: "developer-7", name: "Developer 7", role: "Developer", session: true },
+      { id: "developer-8", name: "Developer 8", role: "Developer", session: true },
+      { id: "android-tester-1", name: "Android Tester 1", role: "Android QA", session: true },
+      { id: "android-tester-2", name: "Android Tester 2", role: "Android QA", session: true },
+      { id: "android-tester-3", name: "Android Tester 3", role: "Android QA", session: true },
+      { id: "android-tester-4", name: "Android Tester 4", role: "Android QA", session: true }
     ]
   }
 ];
@@ -238,13 +245,39 @@ const api = {
 function sendTerminalProtocol(sessionId: string, payload: Record<string, unknown>) {
   return new Promise<void>((resolve, reject) => {
     const socket = new WebSocket(terminalWsUrl());
+    const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const payloadData = typeof payload.data === "string" ? payload.data : "";
+    writeTerminalDiagnostic("terminal_input_protocol_start", {
+      requestId,
+      sessionId,
+      payloadType: payload.type,
+      dataBytes: payloadData.length,
+      dataHasNewline: /[\r\n]/.test(payloadData),
+      dataPreview: payloadData.slice(0, 180)
+    });
     const timeout = window.setTimeout(() => {
       closeWebSocket(socket);
+      writeTerminalDiagnostic("terminal_input_protocol_timeout", {
+        requestId,
+        sessionId,
+        readyState: socket.readyState
+      });
       reject(new Error("terminal input timed out"));
     }, 5000);
 
     socket.addEventListener("open", () => {
+      writeTerminalDiagnostic("terminal_input_protocol_ws_open", {
+        requestId,
+        sessionId,
+        readyState: socket.readyState
+      });
       socket.send(JSON.stringify({ sessionId, ...payload }));
+      writeTerminalDiagnostic("terminal_input_protocol_sent", {
+        requestId,
+        sessionId,
+        payloadType: payload.type,
+        dataBytes: payloadData.length
+      });
       window.setTimeout(() => {
         window.clearTimeout(timeout);
         closeWebSocket(socket);
@@ -253,7 +286,21 @@ function sendTerminalProtocol(sessionId: string, payload: Record<string, unknown
     });
     socket.addEventListener("error", () => {
       window.clearTimeout(timeout);
+      writeTerminalDiagnostic("terminal_input_protocol_error", {
+        requestId,
+        sessionId,
+        readyState: socket.readyState
+      });
       reject(new Error("terminal input socket failed"));
+    });
+    socket.addEventListener("close", (event) => {
+      writeTerminalDiagnostic("terminal_input_protocol_close", {
+        requestId,
+        sessionId,
+        code: event.code,
+        reason: event.reason,
+        wasClean: event.wasClean
+      });
     });
   });
 }
@@ -268,7 +315,28 @@ function waitForTerminalInputFlush() {
 
 async function sendTerminalPrompt(sessionId: string, prompt: string) {
   const data = encodePromptForPtySubmit(prompt);
-  return sendTerminalInput(sessionId, data);
+  writeTerminalDiagnostic("terminal_prompt_submit_start", {
+    sessionId,
+    promptBytes: prompt.length,
+    promptLineCount: prompt.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").length,
+    encodedBytes: data.length,
+    encodedHasNewline: /[\r\n]/.test(data),
+    promptPreview: prompt.slice(0, 180)
+  });
+  try {
+    await sendTerminalInput(sessionId, data);
+    writeTerminalDiagnostic("terminal_prompt_submit_done", {
+      sessionId,
+      encodedBytes: data.length
+    });
+  } catch (error) {
+    writeTerminalDiagnostic("terminal_prompt_submit_failed", {
+      sessionId,
+      encodedBytes: data.length,
+      error: error instanceof Error ? error.message : String(error)
+    });
+    throw error;
+  }
 }
 
 function normalizeSessionWriteBody(path: string, body: unknown) {
@@ -292,9 +360,110 @@ function isStandaloneLedgerView() {
 const TERMINAL_VIEW_STORAGE_KEY = "lcc-core-terminal-view";
 const TERMINAL_FILTER_STORAGE_KEY = "lcc-core-terminal-filter";
 const TERMINAL_LAYOUT_STORAGE_KEY = "lcc-core-terminal-layout";
+const TERMINAL_RECENT_SESSION_STORAGE_KEY = "lcc-core-terminal-recent-session";
+const TERMINAL_DIAGNOSTICS_STORAGE_KEY = "lcc-core-terminal-diagnostics";
+const TERMINAL_PAGE_INSTANCE_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+function terminalDiagnosticsNavigationType() {
+  try {
+    const [navigation] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+    return navigation?.type ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function terminalRectSnapshot(element: HTMLElement | null) {
+  if (!element) return null;
+  const rect = element.getBoundingClientRect();
+  return {
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+    top: Math.round(rect.top),
+    left: Math.round(rect.left),
+    clientWidth: element.clientWidth,
+    clientHeight: element.clientHeight
+  };
+}
+
+function writeTerminalDiagnostic(type: string, details: Record<string, unknown> = {}) {
+  try {
+    const raw = localStorage.getItem(TERMINAL_DIAGNOSTICS_STORAGE_KEY);
+    const events = raw ? (JSON.parse(raw) as unknown[]) : [];
+    const event = {
+      at: new Date().toISOString(),
+      type,
+      pageId: TERMINAL_PAGE_INSTANCE_ID,
+      navType: terminalDiagnosticsNavigationType(),
+      href: window.location.href,
+      ...details
+    };
+    const next = [...events, event].slice(-500);
+    localStorage.setItem(TERMINAL_DIAGNOSTICS_STORAGE_KEY, JSON.stringify(next));
+    console.info("[lcc-terminal-diagnostic]", event);
+  } catch {}
+}
+
+writeTerminalDiagnostic("page_loaded");
+
+type ShellUrlState = {
+  view?: string | null;
+  filter?: string | null;
+  layout?: string | null;
+  sessionId?: string | null;
+};
+
+function parseShellHashState() {
+  const hash = window.location.hash.replace(/^#/, "");
+  if (!hash) return new URLSearchParams();
+  if (hash.startsWith("/")) {
+    const queryIndex = hash.indexOf("?");
+    if (queryIndex >= 0) return new URLSearchParams(hash.slice(queryIndex + 1));
+    if (hash === "/canvas") return new URLSearchParams("view=canvas");
+    if (hash === "/terminals") return new URLSearchParams("view=terminals");
+    return new URLSearchParams();
+  }
+  return new URLSearchParams(hash);
+}
+
+function normalizeLayoutAlias(value?: string | null): TerminalLayout | undefined {
+  switch ((value || "").toLowerCase()) {
+    case "grid":
+    case "fleet":
+      return "grid";
+    case "stack":
+    case "focus":
+      return "stack";
+    case "columns":
+    case "work":
+      return "columns";
+    case "fit":
+    case "equal":
+      return "fit";
+    default:
+      return undefined;
+  }
+}
+
+function terminalLayoutStorageKey(scope: string) {
+  return `${TERMINAL_LAYOUT_STORAGE_KEY}:${scope || "all"}`;
+}
+
+function readShellUrlState() {
+  const params = new URLSearchParams(window.location.search);
+  const hashParams = parseShellHashState();
+  const read = (key: string) => params.get(key) || hashParams.get(key);
+  const view = read("view");
+  const filter = read("filter") || read("team");
+  const layout = read("layout");
+  const sessionId = read("session") || read("selected");
+  return { view, filter, layout, sessionId } as ShellUrlState;
+}
 
 function readStoredShellView(): "terminals" | "canvas" {
   try {
+    const { view } = readShellUrlState();
+    if (view === "canvas" || view === "terminals") return view;
     return localStorage.getItem(TERMINAL_VIEW_STORAGE_KEY) === "canvas" ? "canvas" : "terminals";
   } catch {
     return "terminals";
@@ -303,6 +472,8 @@ function readStoredShellView(): "terminals" | "canvas" {
 
 function readStoredTerminalFilter() {
   try {
+    const { filter } = readShellUrlState();
+    if (filter) return filter;
     return localStorage.getItem(TERMINAL_FILTER_STORAGE_KEY) || "all";
   } catch {
     return "all";
@@ -311,10 +482,24 @@ function readStoredTerminalFilter() {
 
 function readStoredTerminalLayout(): TerminalLayout {
   try {
-    const stored = localStorage.getItem(TERMINAL_LAYOUT_STORAGE_KEY);
-    return stored === "stack" || stored === "columns" ? stored : "grid";
+    const { layout } = readShellUrlState();
+    const aliased = normalizeLayoutAlias(layout);
+    if (aliased) return aliased;
+    const scope = readStoredTerminalFilter();
+    const stored = sessionStorage.getItem(terminalLayoutStorageKey(scope));
+    return stored === "stack" || stored === "columns" || stored === "fit" ? stored : "grid";
   } catch {
     return "grid";
+  }
+}
+
+function readStoredRecentSessionId() {
+  try {
+    const { sessionId } = readShellUrlState();
+    if (sessionId) return sessionId;
+    return sessionStorage.getItem(TERMINAL_RECENT_SESSION_STORAGE_KEY) || "";
+  } catch {
+    return "";
   }
 }
 
@@ -423,6 +608,7 @@ function ShellApp() {
   const [view, setView] = useState<"terminals" | "canvas">(() => readStoredShellView());
   const [filter, setFilter] = useState(() => readStoredTerminalFilter());
   const [terminalLayout, setTerminalLayout] = useState<TerminalLayout>(() => readStoredTerminalLayout());
+  const [selectedSessionId, setSelectedSessionId] = useState(() => readStoredRecentSessionId());
   const [error, setError] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [topbarCollapsed, setTopbarCollapsed] = useState(false);
@@ -469,9 +655,9 @@ function ShellApp() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(TERMINAL_LAYOUT_STORAGE_KEY, terminalLayout);
+      sessionStorage.setItem(terminalLayoutStorageKey(filter), terminalLayout);
     } catch {}
-  }, [terminalLayout]);
+  }, [filter, terminalLayout]);
 
   const visibleSessions = useMemo(() => {
     const selectedGroup = SESSION_GROUP_BY_FILTER.get(filter);
@@ -486,6 +672,28 @@ function ShellApp() {
 
   const teams = useMemo(() => [...new Set(sessions.map((session) => session.team).filter(Boolean))], [sessions]);
   const sessionIds = useMemo(() => new Set(sessions.map((session) => session.id)), [sessions]);
+
+  useEffect(() => {
+    if (view !== "terminals") return;
+    if (selectedSessionId && visibleSessions.some((session) => session.id === selectedSessionId)) return;
+    const fallback = visibleSessions.find((session) => session.status === "active") ?? visibleSessions[0];
+    if (fallback && fallback.id !== selectedSessionId) setSelectedSessionId(fallback.id);
+  }, [selectedSessionId, view, visibleSessions]);
+
+  useEffect(() => {
+    try {
+      if (selectedSessionId) sessionStorage.setItem(TERMINAL_RECENT_SESSION_STORAGE_KEY, selectedSessionId);
+      else sessionStorage.removeItem(TERMINAL_RECENT_SESSION_STORAGE_KEY);
+    } catch {}
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(terminalLayoutStorageKey(filter));
+      const nextLayout = stored === "stack" || stored === "columns" || stored === "fit" ? stored : "grid";
+      if (nextLayout !== terminalLayout) setTerminalLayout(nextLayout);
+    } catch {}
+  }, [filter]);
 
   return (
     <main className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${topbarCollapsed ? "topbar-collapsed" : ""}`}>
@@ -597,13 +805,16 @@ function ShellApp() {
             {view === "terminals" && (
               <div className="terminal-layout-toggle" role="group" aria-label="터미널 배치">
                 <button onClick={() => setTerminalLayout("grid")} className={terminalLayout === "grid" ? "primary" : ""} type="button">
-                  <LayoutGrid size={15} /> 그리드
+                  <LayoutGrid size={15} /> Fleet
                 </button>
                 <button onClick={() => setTerminalLayout("stack")} className={terminalLayout === "stack" ? "primary" : ""} type="button">
-                  <PanelTopOpen size={15} /> 세로
+                  <PanelTopOpen size={15} /> Focus
                 </button>
                 <button onClick={() => setTerminalLayout("columns")} className={terminalLayout === "columns" ? "primary" : ""} type="button">
-                  <PanelLeftOpen size={15} /> 세로 가로배치
+                  <PanelLeftOpen size={15} /> Work
+                </button>
+                <button onClick={() => setTerminalLayout("fit")} className={terminalLayout === "fit" ? "primary" : ""} type="button">
+                  <LayoutGrid size={15} /> Equal
                 </button>
               </div>
             )}
@@ -615,7 +826,14 @@ function ShellApp() {
         {view === "terminals" ? (
           <>
             <CreateSession sessions={sessions} onCreated={refresh} />
-            <TerminalGrid sessions={visibleSessions} allSessions={sessions} onChanged={refresh} layout={terminalLayout} />
+            <TerminalGrid
+              sessions={visibleSessions}
+              allSessions={sessions}
+              onChanged={refresh}
+              layout={terminalLayout}
+              selectedSessionId={selectedSessionId}
+              onSelectSession={setSelectedSessionId}
+            />
           </>
         ) : (
           <CanvasWorkspace
@@ -1243,14 +1461,31 @@ function TerminalGrid({
   sessions,
   allSessions,
   onChanged,
-  layout
+  layout,
+  selectedSessionId,
+  onSelectSession
 }: {
   sessions: Session[];
   allSessions: Session[];
   onChanged: () => Promise<void>;
   layout: TerminalLayout;
+  selectedSessionId: string;
+  onSelectSession: (sessionId: string) => void;
 }) {
-  const columns = layout === "stack" || layout === "columns" ? 1 : sessions.length <= 1 ? 1 : sessions.length <= 4 ? 2 : 3;
+  const fitColumns =
+    sessions.length <= 1 ? 1 : sessions.length <= 4 ? 2 : sessions.length <= 9 ? 3 : sessions.length <= 16 ? 5 : 6;
+  const columns =
+    layout === "stack"
+      ? 1
+      : layout === "columns"
+        ? Math.max(1, sessions.length)
+      : layout === "fit"
+        ? fitColumns
+        : sessions.length <= 1
+          ? 1
+          : sessions.length <= 4
+            ? 2
+            : 3;
   const rows = Math.max(1, Math.ceil(sessions.length / columns));
   const gridStyle = {
     "--grid-cols": columns,
@@ -1260,7 +1495,14 @@ function TerminalGrid({
   return (
     <div className={`terminal-grid ${layout}`} style={gridStyle}>
       {sessions.map((session) => (
-        <TerminalCard key={session.id} session={session} sessions={allSessions} onChanged={onChanged} />
+        <TerminalCard
+          key={session.id}
+          session={session}
+          sessions={allSessions}
+          onChanged={onChanged}
+          selected={selectedSessionId === session.id}
+          onSelectSession={onSelectSession}
+        />
       ))}
     </div>
   );
@@ -1269,11 +1511,15 @@ function TerminalGrid({
 function TerminalCard({
   session,
   sessions,
-  onChanged
+  onChanged,
+  selected,
+  onSelectSession
 }: {
   session: Session;
   sessions: Session[];
   onChanged: () => Promise<void>;
+  selected: boolean;
+  onSelectSession: (sessionId: string) => void;
 }) {
   const [prompt, setPrompt] = useState("");
   const [target, setTarget] = useState(session.id);
@@ -1319,7 +1565,7 @@ function TerminalCard({
   }
 
   function openPopout() {
-    const url = new URL(window.location.origin);
+    const url = new URL(window.location.href);
     url.searchParams.set("popout", session.id);
     url.searchParams.set("name", session.name);
     const width = 1200;
@@ -1334,7 +1580,7 @@ function TerminalCard({
   }
 
   return (
-    <article className={`terminal-card ${session.status}`}>
+    <article className={`terminal-card ${session.status} ${selected ? "selected" : ""}`} onMouseDown={() => onSelectSession(session.id)}>
       <header>
         <div>
           <span className="status-dot" />
@@ -1520,10 +1766,34 @@ function XtermPreview({
   const attachedRef = useRef(false);
   const inputQueueRef = useRef<string[]>([]);
   const lastDimsRef = useRef({ cols: 0, rows: 0 });
+  const lifecycleRef = useRef({
+    replayBytes: 0,
+    outputBytes: 0,
+    inputBytes: 0,
+    messageCount: 0,
+    outputEventsLogged: 0,
+    inputEventsLogged: 0,
+    openedAt: 0
+  });
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    lifecycleRef.current = {
+      replayBytes: 0,
+      outputBytes: 0,
+      inputBytes: 0,
+      messageCount: 0,
+      outputEventsLogged: 0,
+      inputEventsLogged: 0,
+      openedAt: Date.now()
+    };
+    writeTerminalDiagnostic("xterm_mount_start", {
+      sessionId,
+      status,
+      variant,
+      rect: terminalRectSnapshot(container)
+    });
 
     const term = new XTerm({
       fontSize: variant === "fullscreen" ? 13 : 12,
@@ -1566,9 +1836,21 @@ function XtermPreview({
     term.focus();
     termRef.current = term;
     fitRef.current = fit;
+    writeTerminalDiagnostic("xterm_opened", {
+      sessionId,
+      variant,
+      cols: term.cols,
+      rows: term.rows,
+      rect: terminalRectSnapshot(container)
+    });
 
     const socket = new WebSocket(terminalWsUrl());
     socketRef.current = socket;
+    writeTerminalDiagnostic("terminal_ws_created", {
+      sessionId,
+      variant,
+      url: terminalWsUrl()
+    });
     const isNearBottom = () => {
       const buffer = term.buffer.active;
       return buffer.baseY - buffer.viewportY <= 1;
@@ -1595,26 +1877,99 @@ function XtermPreview({
         fit.fit();
       } catch {}
       lastDimsRef.current = { cols: term.cols, rows: term.rows };
+      writeTerminalDiagnostic("terminal_ws_open", {
+        sessionId,
+        variant,
+        cols: term.cols,
+        rows: term.rows,
+        rect: terminalRectSnapshot(container)
+      });
       sendSocket({ type: "attach", sessionId, requestReplay: true, cols: term.cols, rows: term.rows });
     });
+    socket.addEventListener("error", () => {
+      writeTerminalDiagnostic("terminal_ws_error", {
+        sessionId,
+        variant,
+        readyState: socket.readyState,
+        rect: terminalRectSnapshot(container)
+      });
+    });
+    socket.addEventListener("close", (event) => {
+      writeTerminalDiagnostic("terminal_ws_close", {
+        sessionId,
+        variant,
+        code: event.code,
+        reason: event.reason,
+        wasClean: event.wasClean,
+        replayBytes: lifecycleRef.current.replayBytes,
+        outputBytes: lifecycleRef.current.outputBytes,
+        messageCount: lifecycleRef.current.messageCount
+      });
+    });
     socket.addEventListener("message", (event) => {
-      const message = JSON.parse(event.data);
+      let message: Record<string, unknown>;
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        writeTerminalDiagnostic("terminal_ws_parse_error", {
+          sessionId,
+          variant,
+          dataPreview: String(event.data).slice(0, 500)
+        });
+        return;
+      }
+      lifecycleRef.current.messageCount += 1;
       const messageSessionId = message.sessionId ?? message.session_id;
       if (messageSessionId && messageSessionId !== sessionId) return;
       if (message.type === "attached") {
         attachedRef.current = true;
+        writeTerminalDiagnostic("terminal_attached", {
+          sessionId,
+          variant,
+          queuedInputs: inputQueueRef.current.length
+        });
         const queue = inputQueueRef.current.splice(0);
         for (const data of queue) sendSocket({ type: "input", sessionId, data });
       }
       if (message.type === "replay") {
+        const data = String(message.data ?? "");
+        lifecycleRef.current.replayBytes += data.length;
+        writeTerminalDiagnostic("terminal_replay_received", {
+          sessionId,
+          variant,
+          bytes: data.length,
+          totalReplayBytes: lifecycleRef.current.replayBytes
+        });
         term.reset();
-        term.write(message.data ?? "", () => {
+        term.write(data, () => {
           term.scrollToBottom();
+          writeTerminalDiagnostic("terminal_replay_written", {
+            sessionId,
+            variant,
+            bytes: data.length,
+            cols: term.cols,
+            rows: term.rows,
+            bufferBaseY: term.buffer.active.baseY,
+            viewportY: term.buffer.active.viewportY,
+            rect: terminalRectSnapshot(container)
+          });
         });
       }
       if (message.type === "output") {
+        const data = String(message.data ?? "");
+        lifecycleRef.current.outputBytes += data.length;
+        if (lifecycleRef.current.outputEventsLogged < 10 || lifecycleRef.current.outputBytes % 50000 < data.length) {
+          lifecycleRef.current.outputEventsLogged += 1;
+          writeTerminalDiagnostic("terminal_output_received", {
+            sessionId,
+            variant,
+            bytes: data.length,
+            totalOutputBytes: lifecycleRef.current.outputBytes,
+            loggedCount: lifecycleRef.current.outputEventsLogged
+          });
+        }
         const stickToBottom = isNearBottom();
-        term.write(message.data ?? "", () => {
+        term.write(data, () => {
           if (stickToBottom) term.scrollToBottom();
         });
       }
@@ -1624,9 +1979,27 @@ function XtermPreview({
     });
     const dataDisposable = term.onData((data) => {
       const processed = data.includes("\n") ? data.replace(/\n/g, "\r") : data;
+      lifecycleRef.current.inputBytes += processed.length;
       if (!attachedRef.current) {
         inputQueueRef.current.push(processed);
+        writeTerminalDiagnostic("terminal_input_queued_before_attach", {
+          sessionId,
+          variant,
+          bytes: processed.length,
+          queueLength: inputQueueRef.current.length
+        });
         return;
+      }
+      if (lifecycleRef.current.inputEventsLogged < 20) {
+        lifecycleRef.current.inputEventsLogged += 1;
+        writeTerminalDiagnostic("terminal_direct_input_sent", {
+          sessionId,
+          variant,
+          bytes: processed.length,
+          hasNewline: /[\r\n]/.test(processed),
+          inputPreview: processed.slice(0, 80),
+          loggedCount: lifecycleRef.current.inputEventsLogged
+        });
       }
       sendSocket({ type: "input", sessionId, data: processed });
     });
@@ -1639,6 +2012,13 @@ function XtermPreview({
         requestAnimationFrame(() => {
           try {
             fit.fit();
+            writeTerminalDiagnostic("terminal_font_ready_fit", {
+              sessionId,
+              variant,
+              cols: term.cols,
+              rows: term.rows,
+              rect: terminalRectSnapshot(container)
+            });
           } catch {}
         });
       })
@@ -1648,20 +2028,72 @@ function XtermPreview({
       try {
         fit.fit();
         const dims = { cols: term.cols, rows: term.rows };
+        const rect = terminalRectSnapshot(container);
+        if (!rect?.width || !rect?.height || !dims.cols || !dims.rows) {
+          writeTerminalDiagnostic("terminal_fit_zero_size", {
+            sessionId,
+            variant,
+            cols: dims.cols,
+            rows: dims.rows,
+            rect
+          });
+        }
         const last = lastDimsRef.current;
         if (dims.cols !== last.cols || dims.rows !== last.rows) {
           lastDimsRef.current = dims;
+          writeTerminalDiagnostic("terminal_resize_sent", {
+            sessionId,
+            variant,
+            cols: dims.cols,
+            rows: dims.rows,
+            rect
+          });
           sendSocket({ type: "resize", sessionId, cols: dims.cols, rows: dims.rows });
         }
       } catch {
-        // xterm can throw during first zero-size layout pass.
+        writeTerminalDiagnostic("terminal_fit_error", {
+          sessionId,
+          variant,
+          rect: terminalRectSnapshot(container)
+        });
       }
     };
     requestAnimationFrame(() => requestAnimationFrame(fitNow));
     const resizeObserver = new ResizeObserver(() => requestAnimationFrame(fitNow));
     resizeObserver.observe(container);
+    const blankCheckTimers = [3000, 10000].map((delayMs) =>
+      window.setTimeout(() => {
+        const stats = lifecycleRef.current;
+        const rect = terminalRectSnapshot(container);
+        if ((rect?.width ?? 0) > 0 && (rect?.height ?? 0) > 0 && stats.replayBytes === 0 && stats.outputBytes === 0) {
+          writeTerminalDiagnostic("terminal_blank_suspect", {
+            sessionId,
+            variant,
+            delayMs,
+            cols: term.cols,
+            rows: term.rows,
+            rect,
+            readyState: socket.readyState,
+            attached: attachedRef.current,
+            messageCount: stats.messageCount
+          });
+        }
+      }, delayMs)
+    );
 
     return () => {
+      for (const timer of blankCheckTimers) window.clearTimeout(timer);
+      writeTerminalDiagnostic("xterm_dispose", {
+        sessionId,
+        variant,
+        lifetimeMs: Date.now() - lifecycleRef.current.openedAt,
+        replayBytes: lifecycleRef.current.replayBytes,
+        outputBytes: lifecycleRef.current.outputBytes,
+        inputBytes: lifecycleRef.current.inputBytes,
+        messageCount: lifecycleRef.current.messageCount,
+        attached: attachedRef.current,
+        rect: terminalRectSnapshot(container)
+      });
       resizeObserver.disconnect();
       dataDisposable.dispose();
       closeWebSocket(socket);

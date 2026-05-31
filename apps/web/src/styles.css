@@ -1305,8 +1305,8 @@ textarea {
 
 .terminal-grid.columns {
   grid-auto-flow: column;
-  grid-auto-columns: minmax(420px, 30vw);
-  grid-template-columns: none;
+  grid-auto-columns: minmax(320px, 1fr);
+  grid-template-columns: repeat(var(--grid-cols), minmax(320px, 1fr));
   grid-template-rows: minmax(0, 1fr);
   align-content: stretch;
   overflow-x: auto;
@@ -1316,6 +1316,17 @@ textarea {
 .terminal-grid.columns .terminal-card {
   min-height: 0;
   height: 100%;
+}
+
+.terminal-grid.fit {
+  grid-template-columns: repeat(var(--grid-cols), minmax(220px, 1fr));
+  grid-template-rows: repeat(var(--grid-rows), minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.terminal-grid.fit .terminal-card {
+  min-height: 0;
 }
 
 .sidebar-collapsed .terminal-grid,
@@ -1342,12 +1353,23 @@ textarea {
   overflow: hidden;
 }
 
+.terminal-card.selected {
+  border-color: #5d79ff;
+  box-shadow: 0 0 0 1px rgba(93, 121, 255, 0.45), 0 12px 24px rgba(8, 13, 23, 0.28);
+}
+
 .terminal-grid.stack .terminal-card {
   min-height: 420px;
 }
 
 .terminal-grid.columns .terminal-card {
-  min-width: 420px;
+  min-width: 320px;
+}
+
+.terminal-grid.fit .terminal-card header,
+.terminal-grid.fit .terminal-card footer {
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .terminal-card header,
@@ -1835,7 +1857,8 @@ textarea {
   }
 
   .terminal-grid,
-  .terminal-grid.stack {
+  .terminal-grid.stack,
+  .terminal-grid.fit {
     grid-template-columns: 1fr;
     grid-template-rows: none;
     grid-auto-rows: minmax(360px, auto);
