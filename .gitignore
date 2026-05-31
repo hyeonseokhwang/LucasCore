@@ -8,5 +8,14 @@ inspect-Lucas-Initiative/
 data/*.json
 data/*.jsonl
 data/*.tmp
+data/os-agents/
+data/os-agents-9003/
+data/session-restart-*/
+data/system-logs/
 *.log
 *.png
+attach-body.json
+p0-overlay-audit-*.json
+tmp/
+tmp-chrome-cdp/
+tmp-chrome-cdp-sanitize/

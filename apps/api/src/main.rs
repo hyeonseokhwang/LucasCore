@@ -13,7 +13,7 @@ use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     env,
     io::{Read, SeekFrom, Write},
     net::{SocketAddr, ToSocketAddrs},
@@ -44,12 +44,9 @@ struct TerminalSession {
     meta: SessionMeta,
     _master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
-    output: VecDeque<String>,
-    output_bytes: usize,
 }
 
 const SESSION_PREVIEW_LIMIT_BYTES: usize = 12_000;
-const TERMINAL_CANONICAL_BUFFER_LIMIT_BYTES: usize = 32 * 1024;
 const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = 256 * 1024;
 const SESSION_LOG_MAX_TAIL_BYTES: u64 = 1024 * 1024;
 const TERMINAL_WS_REPLAY_LIMIT_BYTES: u64 = 32 * 1024;
@@ -625,11 +622,28 @@ fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
 
 async fn list_sessions(State(state): State<AppState>) -> Json<Vec<SessionView>> {
     let sessions = state.sessions.read().await;
+    let mut internal_meta = Vec::with_capacity(sessions.len());
+    for session in sessions.values() {
+        internal_meta.push(session.lock().await.meta.clone());
+    }
+    drop(sessions);
     let mut views = Vec::new();
     let mut internal_ids = HashSet::new();
-    for session in sessions.values() {
-        let view = session.lock().await.view();
-        internal_ids.insert(view.meta.id.clone());
+    for meta in internal_meta {
+        internal_ids.insert(meta.id.clone());
+        let log_path = terminal_log_path(&meta.id);
+        let view = match build_internal_session_view(meta.clone()).await {
+            Ok(view) => view,
+            Err(_) => build_session_view(
+                meta,
+                String::new(),
+                SessionSource::Internal,
+                true,
+                true,
+                None,
+                log_path,
+            ),
+        };
         views.push(view);
     }
     views.extend(read_os_agent_views(&internal_ids).await);
@@ -710,14 +724,13 @@ async fn create_session(
         meta,
         _master: pair.master,
         writer,
-        output: VecDeque::new(),
-        output_bytes: 0,
     }));
 
     state.sessions.write().await.insert(id.clone(), session.clone());
     spawn_pty_reader(state.clone(), id.clone(), reader);
     spawn_pty_waiter(state.clone(), id.clone(), move || child.wait().ok().map(|status| status.exit_code() as i32));
-    let view = session.lock().await.view();
+    let meta = session.lock().await.meta.clone();
+    let view = build_internal_session_view(meta).await?;
     let _ = state.tx.send(ServerEvent::SessionCreated { session: view.clone() });
     Ok((StatusCode::CREATED, Json(view)))
 }
@@ -833,6 +846,14 @@ async fn read_tail_lossy(path: PathBuf, max_bytes: u64) -> std::io::Result<Strin
     Ok(read_tail_chunk(path, max_bytes).await?.text)
 }
 
+async fn read_tail_lossy_or_empty(path: PathBuf, max_bytes: u64) -> std::io::Result<String> {
+    match read_tail_lossy(path, max_bytes).await {
+        Ok(text) => Ok(text),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(err) => Err(err),
+    }
+}
+
 async fn read_tail_chunk(path: PathBuf, max_bytes: u64) -> std::io::Result<TailChunk> {
     let mut file = fs::File::open(path).await?;
     let len = file.metadata().await?.len();
@@ -930,16 +951,10 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
 
     match kind {
         "attach" => {
-            let sessions = state.sessions.read().await;
-            let Some(session) = sessions.get(&session_id).cloned() else {
-                return Some(json!({ "type": "error", "sessionId": session_id, "message": "session not found" }));
+            let replay = match resolve_terminal_replay(state, &session_id).await {
+                Ok(replay) => replay,
+                Err(err) => return Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
             };
-            let session = session.lock().await;
-            let fallback_replay = session.replay_buffer();
-            drop(session);
-            let replay = read_tail_lossy(terminal_log_path(&session_id), TERMINAL_WS_REPLAY_LIMIT_BYTES)
-                .await
-                .unwrap_or(fallback_replay);
             let _ = state.tx.send(ServerEvent::Attached { session_id: session_id.clone() });
             Some(json!({ "type": "replay", "sessionId": session_id, "data": replay }))
         }
@@ -992,8 +1007,10 @@ async fn resize_to_session(state: &AppState, id: &str, cols: u16, rows: u16) -> 
             pixel_height: 0,
         })
         .map_err(ApiError::internal)?;
-    session.meta.updated_at = Utc::now();
-    Ok(session.view())
+    session.touch();
+    let meta = session.meta.clone();
+    drop(session);
+    build_internal_session_view(meta).await
 }
 
 async fn write_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
@@ -1144,6 +1161,40 @@ mod tests {
     }
 }
 
+async fn resolve_terminal_replay(state: &AppState, id: &str) -> Result<String, ApiError> {
+    if state.sessions.read().await.contains_key(id) {
+        return read_tail_lossy_or_empty(terminal_log_path(id), TERMINAL_WS_REPLAY_LIMIT_BYTES)
+            .await
+            .map_err(ApiError::internal);
+    }
+    let Some(record) = read_os_agent_record(id).await else {
+        return Err(ApiError::not_found("session not found"));
+    };
+    if !os_agent_is_attached(&record).await {
+        return Err(ApiError::conflict("OS agent is detached from this API"));
+    }
+    let path = record.log_path.map(PathBuf::from).unwrap_or_else(|| terminal_log_path(id));
+    read_tail_lossy_or_empty(path, TERMINAL_WS_REPLAY_LIMIT_BYTES)
+        .await
+        .map_err(ApiError::internal)
+}
+
+async fn build_internal_session_view(meta: SessionMeta) -> Result<SessionView, ApiError> {
+    let log_path = terminal_log_path(&meta.id);
+    let preview = read_tail_lossy_or_empty(log_path.clone(), SESSION_PREVIEW_LIMIT_BYTES as u64)
+        .await
+        .map_err(ApiError::internal)?;
+    Ok(build_session_view(
+        meta,
+        tail_string_by_bytes(&preview, SESSION_PREVIEW_LIMIT_BYTES),
+        SessionSource::Internal,
+        true,
+        true,
+        None,
+        log_path,
+    ))
+}
+
 async fn write_raw_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
     write_session_bytes(state, id, data, false).await
 }
@@ -1167,16 +1218,17 @@ async fn write_session_bytes(state: &AppState, id: &str, data: String, echo_inpu
     if !data.is_empty() {
         session.writer.write_all(data.as_bytes()).map_err(ApiError::internal)?;
         session.writer.flush().map_err(ApiError::internal)?;
-        session.meta.updated_at = Utc::now();
+        session.touch();
         if echo_input {
             let _ = state.tx.send(ServerEvent::Input { session_id: id.to_string(), data });
         }
     }
-    Ok(session.view())
+    let meta = session.meta.clone();
+    drop(session);
+    build_internal_session_view(meta).await
 }
 
 fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send>) {
-    let handle = Handle::current();
     let log_path = terminal_log_path(&id);
     thread::spawn(move || {
         if let Some(parent) = log_path.parent() {
@@ -1203,14 +1255,6 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
                 let _ = file.flush();
             }
             let data = String::from_utf8_lossy(&buf[..n]).to_string();
-            let state_for_buffer = state.clone();
-            let id_for_buffer = id.clone();
-            let data_for_buffer = data.clone();
-            handle.spawn(async move {
-                if let Some(session) = state_for_buffer.sessions.read().await.get(&id_for_buffer).cloned() {
-                    session.lock().await.push_output(&data_for_buffer);
-                }
-            });
             let _ = state.tx.send(ServerEvent::Output {
                 session_id: id.clone(),
                 source: "pty".to_string(),
@@ -1230,7 +1274,8 @@ fn terminal_log_path(id: &str) -> PathBuf {
 
 async fn resolve_session_view(state: &AppState, id: &str) -> Result<SessionView, ApiError> {
     if let Some(session) = state.sessions.read().await.get(id).cloned() {
-        return Ok(session.lock().await.view());
+        let meta = session.lock().await.meta.clone();
+        return build_internal_session_view(meta).await;
     }
     let Some(record) = read_os_agent_record(id).await else {
         return Err(ApiError::not_found("session not found"));
@@ -1273,33 +1318,8 @@ where
 }
 
 impl TerminalSession {
-    fn push_output(&mut self, data: &str) {
-        self.output_bytes += data.len();
-        self.output.push_back(data.to_string());
-        while self.output_bytes > TERMINAL_CANONICAL_BUFFER_LIMIT_BYTES {
-            let Some(front) = self.output.pop_front() else {
-                self.output_bytes = 0;
-                break;
-            };
-            self.output_bytes = self.output_bytes.saturating_sub(front.len());
-        }
+    fn touch(&mut self) {
         self.meta.updated_at = Utc::now();
-    }
-
-    fn replay_buffer(&self) -> String {
-        self.output.iter().cloned().collect::<String>()
-    }
-
-    fn view(&self) -> SessionView {
-        build_session_view(
-            self.meta.clone(),
-            tail_string_by_bytes(&self.replay_buffer(), SESSION_PREVIEW_LIMIT_BYTES),
-            SessionSource::Internal,
-            true,
-            true,
-            None,
-            terminal_log_path(&self.meta.id),
-        )
     }
 }
 

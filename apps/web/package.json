@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1 --port 9000",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1 --port 9000",
-    "test": "node --experimental-strip-types --test src/terminalPrompt.test.ts src/terminalReplay.test.ts src/terminalSurface.test.ts"
+    "test": "node --experimental-strip-types --test src/terminalPrompt.test.ts src/terminalReplay.test.ts src/terminalSurface.test.ts src/terminalTileFooter.test.ts"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",

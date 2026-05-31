@@ -36,6 +36,10 @@ test("pickActiveTerminalSessionId falls back to the first session when none are 
   );
 });
 
+test("pickActiveTerminalSessionId returns empty when no sessions exist", () => {
+  assert.equal(pickActiveTerminalSessionId([]), "");
+});
+
 test("shouldAttachLiveTerminal allows only the selected active card to attach", () => {
   assert.equal(shouldAttachLiveTerminal("dev-1", "dev-1"), true);
   assert.equal(shouldAttachLiveTerminal("dev-2", "dev-1"), false);

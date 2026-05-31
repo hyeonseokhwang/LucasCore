@@ -32,9 +32,10 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { TERMINAL_PROMPT_SUBMIT_KEY, encodePromptForPtySubmit, normalizePromptForSubmit } from "./terminalPrompt";
-import { sanitizeTerminalPreviewForSummary, tailTerminalLines } from "./terminalReplay";
-import { shouldAttachLiveTerminal, TERMINAL_SUMMARY_LINE_LIMIT } from "./terminalSurface";
+import { TERMINAL_PROMPT_SUBMIT_KEY, normalizePromptForSubmit } from "./terminalPrompt";
+import { tailTerminalLines } from "./terminalReplay";
+import { shouldAttachLiveTerminal } from "./terminalSurface";
+import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
@@ -54,6 +55,12 @@ type Session = {
   updated_at: string;
   exit_code?: number;
   preview: string;
+  preview_text?: string;
+  preview_has_ansi?: boolean;
+  source?: "internal" | "os";
+  attached?: boolean;
+  interactive?: boolean;
+  input_disabled_reason?: string | null;
 };
 
 const ORG_TEAMS = [
@@ -103,6 +110,8 @@ const SESSION_GROUPS = [
 ];
 const SESSION_GROUP_BY_FILTER = new Map(SESSION_GROUPS.map((group) => [group.filter, group]));
 const MAX_ACTIVE_SESSIONS = 20;
+const TERMINAL_FONT_FAMILY =
+  "'Cascadia Mono', 'JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace";
 
 type CanvasSection = {
   id: string;
@@ -289,6 +298,14 @@ function isStandaloneLedgerView() {
   return params.get("view") === "ledger" || window.location.hash === "#/ledger";
 }
 
+function sessionPreviewText(session: Session) {
+  return session.preview_text ?? session.preview ?? "";
+}
+
+function supportsLiveTerminalAttach(session: Session) {
+  return (session.source ?? "internal") === "internal";
+}
+
 function App() {
   return isStandaloneLedgerView() ? <WorkLedgerPage /> : <ShellApp />;
 }
@@ -457,10 +474,7 @@ function ShellApp() {
         <header className="topbar">
           <div>
             <h1>{view === "terminals" ? "Terminal Fleet" : "Canvas Workspace"}</h1>
-            <p>
-              {sessions.filter((session) => session.status === "active").length} active sessions 쨌 {canvases.length} canvases 쨌
-              local control plane
-            </p>
+            <p>{sessions.filter((session) => session.status === "active").length} active sessions / {canvases.length} canvases / local control plane</p>
           </div>
           <div className="top-actions">
             <button onClick={() => setView("terminals")} className={view === "terminals" ? "primary" : ""}>
@@ -1107,17 +1121,44 @@ function TerminalRosterItem({
 }) {
   const [logOpen, setLogOpen] = useState(false);
   const [logText, setLogText] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const promptRef = useRef("");
+  const sendingRef = useRef(false);
 
-  async function openLog() {
+  async function openLog(event?: React.MouseEvent<HTMLButtonElement>) {
+    event?.stopPropagation();
     const response = await fetch(`/api/sessions/${session.id}/log`);
     setLogText(await response.text());
     setLogOpen(true);
   }
 
-  async function stop() {
+  async function stop(event?: React.MouseEvent<HTMLButtonElement>) {
+    event?.stopPropagation();
     if (!confirm(`Stop session ${session.name}?`)) return;
     await api.send(`/api/sessions/${session.id}`, "DELETE");
     await onChanged();
+  }
+
+  async function send() {
+    const nextPrompt = normalizePromptForSubmit(promptRef.current);
+    if (!nextPrompt.trim() || sendingRef.current) return;
+    sendingRef.current = true;
+    setIsSending(true);
+    try {
+      await sendTerminalPrompt(session.id, nextPrompt);
+      promptRef.current = "";
+      setPrompt("");
+      await onChanged();
+    } finally {
+      sendingRef.current = false;
+      setIsSending(false);
+    }
+  }
+
+  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (!shouldSubmitTerminalTileComposer(event)) return;
+    send().catch(console.error);
   }
 
   return (
@@ -1131,17 +1172,46 @@ function TerminalRosterItem({
         <em>{selected ? "live" : session.status}</em>
       </button>
       <div className="terminal-roster-actions">
-        <button title="Open active terminal" onClick={onActivate}>
+        <button
+          title="Open active terminal"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onActivate();
+          }}
+        >
           <Maximize2 size={13} />
         </button>
-        <button title="Open log tail" onClick={openLog}>
+        <button title="Open log tail" onMouseDown={(event) => event.stopPropagation()} onClick={openLog}>
           <ScrollText size={13} />
         </button>
-        <button title="Stop session" onClick={stop}>
+        <button title="Stop session" onMouseDown={(event) => event.stopPropagation()} onClick={stop}>
           <Square size={13} />
         </button>
-        <button title="Delete session" onClick={stop}>
+        <button title="Delete session" onMouseDown={(event) => event.stopPropagation()} onClick={stop}>
           <Trash2 size={13} />
+        </button>
+      </div>
+      <div className="terminal-roster-composer" aria-busy={isSending}>
+        <textarea
+          rows={1}
+          value={prompt}
+          onMouseDown={(event) => event.stopPropagation()}
+          onChange={(event) => {
+            promptRef.current = event.target.value;
+            setPrompt(event.target.value);
+          }}
+          onKeyDown={handleComposerKeyDown}
+          placeholder="Enter instruction"
+        />
+        <button
+          className="primary icon"
+          disabled={!prompt.trim() || isSending}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={() => send().catch(console.error)}
+          title="Send"
+        >
+          <Send size={14} />
         </button>
       </div>
       {logOpen && (
@@ -1232,6 +1302,7 @@ function TerminalGridTile({
         <div className="card-actions">
           <button
             title="Open fullscreen terminal"
+            onMouseDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
               onActivate();
@@ -1240,20 +1311,24 @@ function TerminalGridTile({
           >
             <Maximize2 size={13} />
           </button>
-          <button title="Open log tail" onClick={openLog}>
+          <button title="Open log tail" onMouseDown={(event) => event.stopPropagation()} onClick={openLog}>
             <ScrollText size={13} />
           </button>
-          <button title="Stop session" onClick={stop}>
+          <button title="Stop session" onMouseDown={(event) => event.stopPropagation()} onClick={stop}>
             <Square size={13} />
           </button>
         </div>
       </header>
-      <XtermPreview sessionId={session.id} status={session.status} />
+      {selected && supportsLiveTerminalAttach(session) ? (
+        <XtermPreview sessionId={session.id} status={session.status} />
+      ) : (
+        <SessionLogTailSurface sessionId={session.id} fallbackText={sessionPreviewText(session)} />
+      )}
       <footer aria-busy={isSending}>
         <textarea
           rows={1}
           value={prompt}
-          onMouseDown={(event) => event.stopPropagation()}
+          onMouseDown={stopTerminalTileFooterMouseDown}
           onChange={(event) => {
             promptRef.current = event.target.value;
             setPrompt(event.target.value);
@@ -1261,7 +1336,7 @@ function TerminalGridTile({
           onKeyDown={handleComposerKeyDown}
           placeholder="Enter instruction"
         />
-        <button className="primary icon" disabled={!prompt.trim() || isSending} onMouseDown={(event) => event.stopPropagation()} onClick={() => send().catch(console.error)} title="Send">
+        <button className="primary icon" disabled={!prompt.trim() || isSending} onMouseDown={stopTerminalTileFooterMouseDown} onClick={() => send().catch(console.error)} title="Send">
           <Send size={14} />
         </button>
       </footer>
@@ -1371,7 +1446,11 @@ function ActiveTerminalPane({
           </button>
         </div>
       </header>
-      <XtermPreview sessionId={session.id} status={session.status} />
+      {supportsLiveTerminalAttach(session) ? (
+        <XtermPreview sessionId={session.id} status={session.status} />
+      ) : (
+        <SessionLogTailSurface sessionId={session.id} fallbackText={sessionPreviewText(session)} />
+      )}
       <footer aria-busy={isSending}>
         <select value={target} onChange={(event) => setTarget(event.target.value)}>
           {sessions.map((item) => (
@@ -1481,11 +1560,15 @@ function FullscreenTerminalModal({
             <em>{session.team}</em>
             {session.model && <em>{session.model}</em>}
           </div>
-          <button className="icon" onClick={onClose} title="?ш쾶 蹂닿린 ?リ린">
+          <button className="icon" onClick={onClose} title="Close fullscreen terminal">
             <X size={16} />
           </button>
         </header>
-        <XtermPreview sessionId={session.id} status={session.status} variant="fullscreen" />
+        {supportsLiveTerminalAttach(session) ? (
+          <XtermPreview sessionId={session.id} status={session.status} variant="fullscreen" />
+        ) : (
+          <SessionLogTailSurface sessionId={session.id} fallbackText={sessionPreviewText(session)} />
+        )}
         <footer>
           <select value={target} onChange={(event) => setTarget(event.target.value)}>
             {sessions.map((item) => (
@@ -1498,14 +1581,15 @@ function FullscreenTerminalModal({
             ref={textareaRef}
             rows={1}
             value={prompt}
+            onMouseDown={(event) => event.stopPropagation()}
             onChange={(event) => {
               promptRef.current = event.target.value;
               setPrompt(event.target.value);
             }}
             onKeyDown={handleComposerKeyDown}
-            placeholder="吏???낅젰"
+            placeholder="Enter instruction"
           />
-          <button className="primary icon" onClick={send} title="?꾩넚">
+          <button className="primary icon" onMouseDown={(event) => event.stopPropagation()} onClick={send} title="Send">
             <Send size={15} />
           </button>
         </footer>
@@ -1513,6 +1597,46 @@ function FullscreenTerminalModal({
       </section>
     </div>
   );
+}
+
+function SessionLogTailSurface({
+  sessionId,
+  fallbackText
+}: {
+  sessionId: string;
+  fallbackText: string;
+}) {
+  const [text, setText] = useState(fallbackText);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const response = await fetch(`/api/sessions/${sessionId}/log?format=ansi&limit=32768`);
+        if (!response.ok) return;
+        const next = await response.text();
+        if (!cancelled) {
+          setText(next || fallbackText);
+        }
+      } catch {
+        if (!cancelled) {
+          setText((current) => current || fallbackText);
+        }
+      }
+    };
+
+    setText(fallbackText);
+    load().catch(() => undefined);
+    const timer = window.setInterval(() => load().catch(() => undefined), 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [fallbackText, sessionId]);
+
+  return <TerminalLogView text={text || fallbackText || "No log available yet. Restart the session after enabling logging.\r\n"} />;
 }
 
 function XtermPreview({
@@ -1524,6 +1648,7 @@ function XtermPreview({
   status: SessionStatus;
   variant?: "card" | "fullscreen";
 }) {
+  const interactiveTerminal = variant === "fullscreen";
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -1538,37 +1663,39 @@ function XtermPreview({
     if (!container) return;
 
     const term = new XTerm({
+      cols: variant === "fullscreen" ? 120 : 72,
+      rows: variant === "fullscreen" ? 32 : 18,
+      disableStdin: !interactiveTerminal,
       fontSize: variant === "fullscreen" ? 13 : 12,
-      fontFamily:
-        "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace",
+      fontFamily: TERMINAL_FONT_FAMILY,
       fontWeight: 400,
       fontWeightBold: 700,
       drawBoldTextInBrightColors: false,
       cursorBlink: status === "active",
-      scrollback: 150,
+      scrollback: 120,
       convertEol: true,
       allowProposedApi: true,
       theme: {
-        background: "#070c15",
-        foreground: "#e2e8f0",
-        cursor: "#60a5fa",
-        selectionBackground: "#334155",
-        black: "#1e293b",
-        red: "#f87171",
-        green: "#4ade80",
-        yellow: "#facc15",
-        blue: "#60a5fa",
-        magenta: "#c084fc",
-        cyan: "#22d3ee",
-        white: "#f1f5f9",
-        brightBlack: "#475569",
-        brightRed: "#fca5a5",
-        brightGreen: "#86efac",
-        brightYellow: "#fde047",
-        brightBlue: "#93c5fd",
-        brightMagenta: "#d8b4fe",
-        brightCyan: "#67e8f9",
-        brightWhite: "#f8fafc"
+        background: "#0d1117",
+        foreground: "#d6dee8",
+        cursor: "#f0f6fc",
+        selectionBackground: "#263244",
+        black: "#0d1117",
+        red: "#ff7b72",
+        green: "#7ee787",
+        yellow: "#d29922",
+        blue: "#79c0ff",
+        magenta: "#d2a8ff",
+        cyan: "#39c5cf",
+        white: "#c9d1d9",
+        brightBlack: "#6e7681",
+        brightRed: "#ffa198",
+        brightGreen: "#56d364",
+        brightYellow: "#e3b341",
+        brightBlue: "#79c0ff",
+        brightMagenta: "#d2a8ff",
+        brightCyan: "#56d4dd",
+        brightWhite: "#f0f6fc"
       }
     });
     const fit = new FitAddon();
@@ -1593,15 +1720,23 @@ function XtermPreview({
       if (socket.readyState === WebSocket.OPEN) socket.send(text);
       else socket.addEventListener("open", () => socket.send(text), { once: true });
     };
+    const fitViewport = () => {
+      fit.fit();
+      return { cols: term.cols, rows: term.rows };
+    };
     socket.addEventListener("open", () => {
       attachedRef.current = false;
       inputQueueRef.current = [];
       term.reset();
       try {
-        fit.fit();
+        const dims = fitViewport();
+        if (interactiveTerminal) {
+          lastDimsRef.current = dims;
+          sendSocket({ type: "attach", sessionId, requestReplay: true, cols: dims.cols, rows: dims.rows });
+        } else {
+          sendSocket({ type: "attach", sessionId, requestReplay: true });
+        }
       } catch {}
-      lastDimsRef.current = { cols: term.cols, rows: term.rows };
-      sendSocket({ type: "attach", sessionId, requestReplay: true, cols: term.cols, rows: term.rows });
     });
     socket.addEventListener("message", (event) => {
       const message = JSON.parse(event.data);
@@ -1626,6 +1761,7 @@ function XtermPreview({
       }
     });
     const dataDisposable = term.onData((data) => {
+      if (!interactiveTerminal) return;
       const processed = data.includes("\n") ? data.replace(/\n/g, "\r") : data;
       if (!attachedRef.current) {
         inputQueueRef.current.push(processed);
@@ -1637,7 +1773,8 @@ function XtermPreview({
 
     const fitNow = () => {
       try {
-        fit.fit();
+        fitViewport();
+        if (!interactiveTerminal) return;
         const dims = { cols: term.cols, rows: term.rows };
         const last = lastDimsRef.current;
         if (dims.cols !== last.cols || dims.rows !== last.rows) {
@@ -1667,7 +1804,7 @@ function XtermPreview({
       attachedRef.current = false;
       inputQueueRef.current = [];
     };
-  }, [sessionId, variant]);
+  }, [sessionId, variant, interactiveTerminal]);
 
   return <div className={`xterm-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} ref={containerRef} />;
 }
@@ -1681,15 +1818,15 @@ function TerminalLogView({ text }: { text: string }) {
 
     const term = new XTerm({
       fontSize: 12,
-      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace",
-      scrollback: 150,
+      fontFamily: TERMINAL_FONT_FAMILY,
+      scrollback: 120,
       convertEol: true,
       cursorBlink: false,
       theme: {
-        background: "#070c15",
-        foreground: "#d8e2f1",
-        cursor: "#60a5fa",
-        selectionBackground: "#334155"
+        background: "#0d1117",
+        foreground: "#d6dee8",
+        cursor: "#f0f6fc",
+        selectionBackground: "#263244"
       }
     });
     const fit = new FitAddon();
@@ -1707,26 +1844,6 @@ function TerminalLogView({ text }: { text: string }) {
   }, [text]);
 
   return <div className="log-terminal" ref={containerRef} />;
-}
-
-function TerminalSummaryPreview({
-  text,
-  onActivate
-}: {
-  text: string;
-  onActivate: () => void;
-}) {
-  const preview = tailTerminalLines(
-    sanitizeTerminalPreviewForSummary(text || "No preview available yet.") || "No preview available yet.",
-    TERMINAL_SUMMARY_LINE_LIMIT
-  );
-
-  return (
-    <button className="terminal-summary" onClick={onActivate} title="Activate live terminal">
-      <span>Summary preview only</span>
-      <pre>{preview}</pre>
-    </button>
-  );
 }
 
 function CanvasWorkspace({
@@ -1789,7 +1906,7 @@ function CanvasWorkspace({
         <header className="canvas-header">
           <div>
             <h2>{canvas.title}</h2>
-            <p>{canvas.owner} 쨌 {canvas.canvas_type} 쨌 {canvas.status}</p>
+            <p>{canvas.owner} / {canvas.canvas_type} / {canvas.status}</p>
           </div>
           <button className="primary" onClick={saveContent}>
             Save
