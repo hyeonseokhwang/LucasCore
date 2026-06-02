@@ -4,6 +4,8 @@
   Bot,
   Boxes,
   CalendarCheck,
+  ChevronDown,
+  ChevronRight,
   CheckCircle2,
   ClipboardList,
   Clock3,
@@ -90,6 +92,16 @@ const SESSION_GROUPS = [
         session: true
       }))
     ]
+  },
+  {
+    filter: "hkl-handover-tf",
+    label: "HKL Handover TF",
+    members: Array.from({ length: 4 }, (_, index) => ({
+      id: `hkl-handover-tf-${index + 1}`,
+      name: `HKL TF ${index + 1}`,
+      role: "Heungkuk Life manual and handover support",
+      session: true
+    }))
   }
 ];
 const SESSION_GROUP_BY_FILTER = new Map(SESSION_GROUPS.map((group) => [group.filter, group]));
@@ -877,6 +889,7 @@ function ShellApp() {
   const [error, setError] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [topbarCollapsed, setTopbarCollapsed] = useState(false);
+  const [collapsedSessionGroups, setCollapsedSessionGroups] = useState<Record<string, boolean>>({});
   const [composerActivityVersion, setComposerActivityVersion] = useState(0);
   const pendingRefreshRef = useRef(false);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
@@ -1054,12 +1067,43 @@ function ShellApp() {
           {SESSION_GROUPS.map((group) => {
             const liveCount = group.members.filter((member) => member.session && sessionIds.has(member.id)).length;
             const sessionCount = group.members.filter((member) => member.session).length;
+            const collapsed = Boolean(collapsedSessionGroups[group.filter]);
             return (
-              <div className="session-group" key={group.filter}>
-                <button className={`filter group-filter ${filter === group.filter ? "active" : ""}`} onClick={() => selectTerminalFilter(group.filter)}>
-                  <Users size={14} /> {group.label} <strong>{liveCount}/{sessionCount}</strong>
+              <div className={`session-group ${collapsed ? "collapsed" : ""}`} key={group.filter}>
+                <button
+                  className={`filter group-filter ${filter === group.filter ? "active" : ""}`}
+                  onClick={() => selectTerminalFilter(group.filter)}
+                  type="button"
+                >
+                  <Users size={14} />
+                  <span>{group.label}</span>
+                  <strong>{liveCount}/{sessionCount}</strong>
+                  <span
+                    className="group-collapse"
+                    role="button"
+                    tabIndex={0}
+                    title={collapsed ? "그룹 펼치기" : "그룹 접기"}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setCollapsedSessionGroups((current) => ({
+                        ...current,
+                        [group.filter]: !current[group.filter]
+                      }));
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setCollapsedSessionGroups((current) => ({
+                        ...current,
+                        [group.filter]: !current[group.filter]
+                      }));
+                    }}
+                  >
+                    {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                  </span>
                 </button>
-                <div className="group-members" aria-label={`${group.label} members`}>
+                <div className="group-members" aria-label={`${group.label} members`} hidden={collapsed}>
                   {group.members.map((member) => (
                     <span key={member.id} className={member.session && sessionIds.has(member.id) ? "online" : "offline"} title={member.role}>
                       {member.name}
@@ -2286,6 +2330,7 @@ function XtermPreview({
   const attachedRef = useRef(false);
   const inputQueueRef = useRef<string[]>([]);
   const lastDimsRef = useRef({ cols: 0, rows: 0 });
+  const canResizePty = variant === "fullscreen";
   const lifecycleRef = useRef({
     replayBytes: 0,
     outputBytes: 0,
@@ -2460,7 +2505,13 @@ function XtermPreview({
         rows: term.rows,
         rect: terminalRectSnapshot(container)
       });
-      sendSocket({ type: "attach", sessionId, requestReplay: true, cols: term.cols, rows: term.rows });
+      sendSocket({
+        type: "attach",
+        sessionId,
+        requestReplay: true,
+        cols: canResizePty ? term.cols : undefined,
+        rows: canResizePty ? term.rows : undefined
+      });
     });
     socket.addEventListener("error", () => {
       writeTerminalDiagnostic("terminal_ws_error", {
@@ -2618,14 +2669,14 @@ function XtermPreview({
         const last = lastDimsRef.current;
         if (dims.cols !== last.cols || dims.rows !== last.rows) {
           lastDimsRef.current = dims;
-          writeTerminalDiagnostic("terminal_resize_sent", {
+          writeTerminalDiagnostic(canResizePty ? "terminal_resize_sent" : "terminal_resize_observed", {
             sessionId,
             variant,
             cols: dims.cols,
             rows: dims.rows,
             rect
           });
-          sendSocket({ type: "resize", sessionId, cols: dims.cols, rows: dims.rows });
+          if (canResizePty) sendSocket({ type: "resize", sessionId, cols: dims.cols, rows: dims.rows });
         }
       } catch {
         writeTerminalDiagnostic("terminal_fit_error", {

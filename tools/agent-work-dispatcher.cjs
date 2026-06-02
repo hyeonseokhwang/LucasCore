@@ -3,6 +3,7 @@ const path = require("path");
 
 const root = path.resolve(__dirname, "..");
 const ledgerPath = path.join(root, "data", "ceo-command-ledger.json");
+const workLedgerPath = path.join(root, "data", "work-ledger.json");
 const statePath = path.join(root, "data", "agent-work-dispatch-state.json");
 const idleLedgerPath = path.join(root, "data", "agent-idle-ledger.json");
 const opsEventLogPath = path.join(root, "data", "agent-ops-events.jsonl");
@@ -50,6 +51,27 @@ const rolePlan = {
     role: "운영 모니터링/유휴 감지/화면 배치"
   }
 };
+
+const protectedAgentIds = new Set(["developer-7"]);
+
+Object.assign(rolePlan, {
+  "hkl-handover-tf-1": {
+    taskIds: ["hkl-auth-manual-handover-20260602"],
+    role: "Heungkuk Life integrated-auth manual outline and procedure draft"
+  },
+  "hkl-handover-tf-2": {
+    taskIds: ["hkl-auth-manual-handover-20260602"],
+    role: "Heungkuk Life source and evidence inventory for handover"
+  },
+  "hkl-handover-tf-3": {
+    taskIds: ["hkl-auth-manual-handover-20260602"],
+    role: "Heungkuk Life handover QA checklist and acceptance matrix"
+  },
+  "hkl-handover-tf-4": {
+    taskIds: ["hkl-auth-manual-handover-20260602"],
+    role: "Heungkuk Life delivery index, editorial pass, and gap tracker"
+  }
+});
 
 const managerSession = {
   id: "dev-lead",
@@ -183,6 +205,22 @@ function pickTask(ledger, plan) {
   return directives
     .filter((directive) => !isDone(directive))
     .sort((a, b) => String(a.priority || "").localeCompare(String(b.priority || "")) || Number(a.progress || 0) - Number(b.progress || 0))[0];
+}
+
+function activeWorkLedgerDirectives() {
+  const workLedger = readJson(workLedgerPath, { tasks: [] });
+  const tasks = Array.isArray(workLedger.tasks) ? workLedger.tasks : [];
+  return tasks
+    .filter((task) => !/done|complete|completed|archived/i.test(String(task.status || "")))
+    .map((task) => ({
+      id: task.id,
+      title: task.title || task.id,
+      status: task.status || "todo",
+      priority: task.priority || 0,
+      progress: task.status === "doing" ? 50 : 0,
+      owner: task.owner || null,
+      notes: task.notes || ""
+    }));
 }
 
 function classifyAgent(session, dispatchState) {
@@ -453,10 +491,14 @@ async function maybeAlertManager(sessions, dispatchState, reports) {
 
 async function main() {
   const ledger = readJson(ledgerPath, { directives: [] });
+  ledger.directives = [
+    ...(Array.isArray(ledger.directives) ? ledger.directives : []),
+    ...activeWorkLedgerDirectives()
+  ];
   const dispatchState = readJson(statePath, {});
   const idleLedger = readJson(idleLedgerPath, { agents: {} });
   const sessions = await getSessions();
-  const targets = sessions.filter((session) => rolePlan[session.id]);
+  const targets = sessions.filter((session) => rolePlan[session.id] && !protectedAgentIds.has(session.id));
   const reports = [];
 
   for (const session of targets) {

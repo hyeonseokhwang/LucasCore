@@ -1119,10 +1119,33 @@ textarea {
   background: #102432;
 }
 
+.group-filter > span:not(.group-collapse) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .group-filter strong {
   margin-left: auto;
   color: #93e7d2;
   font-size: 12px;
+}
+
+.group-collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: -2px -7px -2px 0;
+  border-radius: 5px;
+  color: #bfd3ee;
+  flex: 0 0 auto;
+}
+
+.group-collapse:hover {
+  background: rgba(148, 163, 184, 0.16);
 }
 
 .group-members {
@@ -1133,6 +1156,10 @@ textarea {
   border: 1px solid #1d3148;
   border-radius: 6px;
   background: #0d1725;
+}
+
+.session-group.collapsed {
+  margin-bottom: 7px;
 }
 
 .group-members span {
