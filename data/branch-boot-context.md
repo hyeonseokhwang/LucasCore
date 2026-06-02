@@ -9,7 +9,10 @@ This file is the restart-safe context for branch agents.
 - Agent cap remains 20 unless Lucas changes it.
 - Branch Director coordinates and reviews; agents execute assigned roles.
 - File-based context is the source of truth until DB storage is introduced.
-- Do not rely on terminal scrollback as memory.
+- Policy-first startup is mandatory: every system loop, bootstrap script, and agent session must read this context and the command-chain policy before issuing or executing work.
+- Restart memory recovery is mandatory: after reading policy, Caesar/Max/agents must search the relevant ledgers, decision logs, recent evidence files, and session state for their current lane, then continue from the latest verified state instead of waiting silently.
+- When port 9001 is restored or restarted, bootstrap only Caesar (`ceo`) and Max (`dev-lead`) by default; worker agents are spawned only after Caesar/Max inspect the ledger and identify required capacity.
+- Do not rely on terminal scrollback as memory. Use file ledgers, decision logs, terminal log tails, evidence artifacts, and API session state as restart memory.
 - Do not print or persist real tokens.
 - HQ hotline works through `http://hanwool-board.duckdns.org:9082/api/lcc`.
 - Current HQ live speak passed with msgId `msg-1780198222835-f4b511e9`.
@@ -21,6 +24,11 @@ This file is the restart-safe context for branch agents.
 - Caesar is the overall supervisor, not the default hands-on implementer.
 - Caesar should avoid direct product coding unless Lucas explicitly requests emergency hands-on recovery.
 - Caesar's normal duties are supervision, task decomposition, delegation to Max, review, QA evidence enforcement, commit gatekeeping, and concise status reporting.
+- Caesar and Max are the first required sessions after 9001 startup.
+- Caesar and Max must inspect the 9100 command ledger and `data/ceo-command-ledger.json` before spawning workers.
+- After any restart, Caesar and Max must reconstruct active work from `data/ceo-command-ledger.json`, `data/work-ledger.json`, `data/branch-decisions.jsonl`, available `data/terminal-logs/*.ansi.log` tails, `data/system-logs/` evidence, and live `/api/sessions` state before assigning or reporting.
+- Caesar/Max may spawn only needed agents for active ledger items; do not start full fleets by default.
+- Newly spawned agents must read policy, context, ledger files, and relevant recent evidence for their assigned lane before accepting or executing task instructions.
 - Max and assigned developers are responsible for implementation work.
 - Max is the development lead, not the sole implementer.
 - Max must decompose work, assign owners, collect reports, review, integrate, verify, and commit.
@@ -46,6 +54,7 @@ This file is the restart-safe context for branch agents.
 ## 24/365 Ledger-Driven Operating Policy
 
 - The 9100 command ledger is the shared backlog and operating board.
+- The ledger is the authority for worker capacity: spawn, assign, idle handling, and stop decisions must point to a ledger item or evidence.
 - No development agent should wait idly for manual prompting when ledger work exists.
 - If the ledger has any active development-team item and any developer is idle, Max must immediately acknowledge the idle capacity, assign the developer to a ledger item, and report the assignment.
 - Max must not wait for Lucas or Caesar to notice idle developers; idle detection and redistribution are Max's standing responsibility.
@@ -57,6 +66,7 @@ This file is the restart-safe context for branch agents.
 - Every agent report must include current item, next action, blocker if any, evidence path if applicable, and expected next checkpoint.
 - Developer-4 owns the QA queue and must pull completed UI/backend changes into verification without waiting for a separate request.
 - Work should move in small loops: pick ledger item, inspect source, implement minimal patch, test/build, CDP or relevant verification, report evidence, commit, then pick the next item.
+- On restart, every active agent must report `recovered_context / latest_ledger_item / latest_evidence / next_action / blocker` before doing implementation work.
 
 ## Human-Team Operating Rhythm
 
@@ -77,15 +87,27 @@ This file is the restart-safe context for branch agents.
 
 ## Files To Read On Startup
 
-1. `data/branch-org.json`
-2. `data/branch-session-restart-plan.json`
-3. `data/branch-decisions.jsonl`
-4. `data/work-ledger.json`
-5. `lcc-hq-communication-test-report-20260531.md`
-6. `docs/branch-inbound-ops.md`
-7. `D:\안드로이드이슈배포\android_joint_cert_task_full_report_ascii_20260531_0308.md` when working Android
+1. `data/branch-boot-context.md`
+2. `docs/command-chain-policy-20260531.md`
+3. `data/ceo-command-ledger.json`
+4. `data/branch-org.json`
+5. `data/branch-session-restart-plan.json`
+6. `data/branch-decisions.jsonl`
+7. `data/work-ledger.json`
+8. `lcc-hq-communication-test-report-20260531.md`
+9. `docs/branch-inbound-ops.md`
+10. `D:\안드로이드이슈배포\android_joint_cert_task_full_report_ascii_20260531_0308.md` when working Android
 
 ## Today Timeline
+
+Restart memory search, after the required reads:
+
+11. Search `data/ceo-command-ledger.json` for active directives, owners, evidence, and next action.
+12. Search `data/work-ledger.json` events for the latest assigned/doing/qa/completed state.
+13. Search `data/branch-decisions.jsonl` for command-mode, staffing, and policy decisions.
+14. Inspect relevant `data/terminal-logs/*.ansi.log` tail only as supporting evidence, not as the primary memory store.
+15. Inspect relevant `data/system-logs/` evidence paths before claiming QA or completion.
+16. Compare live `/api/sessions` state on the active control plane with the expected team roster before declaring agents missing or idle.
 
 - 13:30 KST: prepare Spring MSA technical whitepaper.
 - 14:00 KST: start parallel Android final debugging.

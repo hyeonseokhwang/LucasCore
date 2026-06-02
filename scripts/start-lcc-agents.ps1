@@ -2,7 +2,10 @@ param(
   [string]$ApiUrl = "http://127.0.0.1:9001",
   [string]$LeadModel = "gpt-5.5",
   [string]$WorkerModel = "gpt-5.4",
-  [string]$LogPath = ""
+  [string]$LogPath = "",
+  [switch]$IncludeWorkers,
+  [string[]]$WorkerIds = @(),
+  [switch]$RefreshBootPrompt
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,19 +48,90 @@ function Get-AgentModel {
 }
 
 $agents = @(
-  @{ id = "ceo"; name = "CEO"; team = "executive"; cwd = "workspaces/ceo/repo" },
-  @{ id = "dev-lead"; name = "Dev Lead"; team = "development"; cwd = "workspaces/dev-lead/repo" }
+  @{ id = "ceo"; name = "Caesar"; team = "executive"; cwd = "workspaces/ceo/repo" },
+  @{ id = "dev-lead"; name = "Max"; team = "development"; cwd = "workspaces/dev-lead/repo" }
 )
-foreach ($n in 1..12) {
+
+$resolvedWorkerIds = @()
+if ($IncludeWorkers -and $WorkerIds.Count -eq 0) {
+  $resolvedWorkerIds = 1..12 | ForEach-Object { "developer-$_" }
+} elseif ($WorkerIds.Count -gt 0) {
+  $resolvedWorkerIds = $WorkerIds | ForEach-Object {
+    if ($_ -match '^\d+$') {
+      "developer-$_"
+    } else {
+      $_
+    }
+  }
+}
+
+foreach ($workerId in $resolvedWorkerIds) {
+  if ($workerId -notmatch '^developer-(\d+)$') {
+    throw "Invalid worker id '$workerId'. Use developer-N or N."
+  }
+  $n = [int]$Matches[1]
   $agents += @{ id = "developer-$n"; name = "Developer $n"; team = "development"; cwd = "workspaces/developer-$n/repo" }
+}
+
+Write-AgentOpsLog -Event "spawn.policy" -Status "planned" -Message "9001 bootstrap starts Caesar and Max by default; workers require IncludeWorkers or WorkerIds after ledger review" -Data @{
+  api_url = $ApiUrl
+  include_workers = [bool]$IncludeWorkers
+  worker_ids = $resolvedWorkerIds
 }
 
 function Get-Sessions {
   @(Invoke-RestMethod -Uri "$ApiUrl/api/sessions" -Method Get -TimeoutSec 10)
 }
 
+function Get-AgentBootPrompt {
+  param([string]$AgentId)
+
+  $promptPath = Join-Path $Root "data\agent-boot-prompts.json"
+  $rolePrompt = ""
+  if (Test-Path -LiteralPath $promptPath) {
+    $prompts = Get-Content -LiteralPath $promptPath -Raw | ConvertFrom-Json
+    $entry = $prompts.PSObject.Properties[$AgentId]
+    if ($entry) {
+      $rolePrompt = [string]$entry.Value
+    }
+  }
+
+  return @(
+    "[LCC BOOT POLICY - MUST READ BEFORE WORK]"
+    "agent=$AgentId"
+    "1. Read AGENTS.md at repo root if present."
+    "2. Read data/branch-boot-context.md."
+    "3. Read docs/command-chain-policy-20260531.md."
+    "4. Read docs/agent-state-management-policy-20260531.md if present."
+    "5. Read data/ceo-command-ledger.json and data/work-ledger.json."
+    "6. Read data/agent-boot-prompts.json and follow your own role entry."
+    "Role entry: $rolePrompt"
+    "Rules: 9001 startup begins with Caesar and Max. Caesar/Max inspect the ledger before spawning workers. Workers are spawned only for needed active ledger items. Do not code before POLICY_ACK unless Lucas gives a direct emergency instruction."
+    "Reply first with: POLICY_ACK agent=<id> role=<role> read=<files> mode=<normal|lucas-direct|emergency> ledger_item=<id|none> next=<first action> blocker=<none|...>"
+  ) -join "`n"
+}
+
+function Send-AgentBootPrompt {
+  param([string]$AgentId)
+
+  $prompt = Get-AgentBootPrompt -AgentId $AgentId
+  try {
+    Start-Sleep -Seconds 8
+    Invoke-RestMethod -Uri "$ApiUrl/api/sessions/$AgentId/write" -Method Post -ContentType "application/json" -Body (@{ data = "" } | ConvertTo-Json -Compress) -TimeoutSec 10 | Out-Null
+    Start-Sleep -Seconds 2
+    Invoke-RestMethod -Uri "$ApiUrl/api/sessions/$AgentId/write" -Method Post -ContentType "application/json" -Body (@{ data = $prompt } | ConvertTo-Json -Compress) -TimeoutSec 20 | Out-Null
+    Write-AgentOpsLog -Event "boot_prompt.sent" -AgentId $AgentId -Status "sent" -Message "policy-first boot prompt submitted" -Data @{
+      api_url = $ApiUrl
+    }
+  } catch {
+    Write-AgentOpsLog -Event "boot_prompt.failed" -AgentId $AgentId -Status "error" -Message $_.Exception.Message -Data @{
+      api_url = $ApiUrl
+    }
+  }
+}
+
 $existing = @{}
-foreach ($session in Get-Sessions) {
+foreach ($session in (Get-Sessions)) {
   if (-not $session -or -not $session.id) {
     continue
   }
@@ -76,6 +150,9 @@ foreach ($agent in $agents) {
     Write-AgentOpsLog -Event "spawn.skipped" -AgentId $agent.id -Status "active" -Message "session already active" -Data @{
       team = $agent.team
       cwd = $agent.cwd
+    }
+    if ($RefreshBootPrompt) {
+      Send-AgentBootPrompt -AgentId $agent.id
     }
     continue
   }
@@ -105,6 +182,7 @@ foreach ($agent in $agents) {
       cwd = $agent.cwd
       model = $agentModel
     }
+    Send-AgentBootPrompt -AgentId $agent.id
   } catch {
     $failed += "$($agent.id): $($_.Exception.Message)"
     Write-AgentOpsLog -Event "spawn.failed" -AgentId $agent.id -Status "error" -Message $_.Exception.Message -Data @{

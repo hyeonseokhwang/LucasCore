@@ -3,7 +3,9 @@ param(
   [string]$ApiPort = "9001",
   [string]$HostName = "127.0.0.1",
   [switch]$ApiOnly,
-  [switch]$WebOnly
+  [switch]$WebOnly,
+  [switch]$SkipAgentBootstrap,
+  [int]$AgentBootstrapTimeoutSeconds = 90
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,6 +22,14 @@ if (-not $WebOnly) {
     -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\dev-api.ps1`" -Port `"$ApiPort`"" `
     -WorkingDirectory $Root `
     -WindowStyle Hidden
+
+  if (-not $SkipAgentBootstrap) {
+    Write-Host "Scheduling Caesar/Max bootstrap after API readiness"
+    Start-Process -FilePath "powershell.exe" `
+      -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\bootstrap-lcc-managers.ps1`" -ApiUrl `"$ApiOrigin`" -TimeoutSeconds `"$AgentBootstrapTimeoutSeconds`"" `
+      -WorkingDirectory $Root `
+      -WindowStyle Hidden
+  }
 }
 
 if (-not $ApiOnly) {

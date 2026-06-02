@@ -18,7 +18,7 @@ use std::{
     io::{Read, SeekFrom, Write},
     net::{SocketAddr, ToSocketAddrs},
     path::PathBuf,
-    sync::Arc,
+    sync::{Arc, Mutex as StdMutex},
     thread,
 };
 use tokio::{
@@ -34,10 +34,12 @@ use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
 #[derive(Clone)]
 struct AppState {
     sessions: Arc<RwLock<HashMap<String, Arc<Mutex<TerminalSession>>>>>,
+    terminal_buffers: Arc<StdMutex<HashMap<String, TerminalRingBuffer>>>,
     tx: broadcast::Sender<ServerEvent>,
     canvas_store: CanvasStore,
     peer_store: PeerStore,
     work_ledger: WorkLedgerStore,
+    memory_store: MemoryStore,
 }
 
 struct TerminalSession {
@@ -46,11 +48,38 @@ struct TerminalSession {
     writer: Box<dyn Write + Send>,
 }
 
-const SESSION_PREVIEW_LIMIT_BYTES: usize = 12_000;
+const SESSION_PREVIEW_LIMIT_BYTES: usize = 4_000;
 const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = 256 * 1024;
 const SESSION_LOG_MAX_TAIL_BYTES: u64 = 1024 * 1024;
 const TERMINAL_WS_REPLAY_LIMIT_BYTES: u64 = 32 * 1024;
-const TERMINAL_LOG_ROTATE_BYTES: u64 = 50 * 1024 * 1024;
+const TERMINAL_LOG_ROTATE_BYTES: u64 = 5 * 1024 * 1024;
+const TERMINAL_RING_BUFFER_BYTES: usize = 256 * 1024;
+
+#[derive(Debug, Clone)]
+struct TerminalRingBuffer {
+    data: String,
+    max_bytes: usize,
+}
+
+impl TerminalRingBuffer {
+    fn new(max_bytes: usize) -> Self {
+        Self {
+            data: String::new(),
+            max_bytes,
+        }
+    }
+
+    fn push(&mut self, value: &str) {
+        self.data.push_str(value);
+        if self.data.len() > self.max_bytes {
+            self.data = tail_string_by_bytes(&self.data, self.max_bytes);
+        }
+    }
+
+    fn tail(&self, max_bytes: usize) -> String {
+        tail_string_by_bytes(&self.data, max_bytes)
+    }
+}
 
 fn tail_string_by_bytes(value: &str, max_bytes: usize) -> String {
     if max_bytes == 0 {
@@ -483,6 +512,61 @@ struct AddWorkTaskEvent {
     body: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct MemoryEntry {
+    id: String,
+    at: DateTime<Utc>,
+    agent_id: String,
+    layer: String,
+    scope: String,
+    kind: String,
+    topic: Option<String>,
+    content: String,
+    importance: i32,
+    source: String,
+    source_id: Option<String>,
+    ledger_item: Option<String>,
+    evidence_path: Option<String>,
+    tags: Vec<String>,
+    archived_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateMemoryEntry {
+    id: Option<String>,
+    at: Option<DateTime<Utc>>,
+    agent_id: Option<String>,
+    layer: Option<String>,
+    scope: Option<String>,
+    kind: Option<String>,
+    topic: Option<String>,
+    content: Option<String>,
+    importance: Option<i32>,
+    source: Option<String>,
+    source_id: Option<String>,
+    ledger_item: Option<String>,
+    evidence_path: Option<String>,
+    tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct MemoryQuery {
+    agent_id: Option<String>,
+    scope: Option<String>,
+    layer: Option<String>,
+    kind: Option<String>,
+    topic: Option<String>,
+    search: Option<String>,
+    include_archived: Option<bool>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct RecoveryQuery {
+    search: Option<String>,
+    limit: Option<usize>,
+}
+
 #[derive(Clone)]
 struct CanvasStore {
     path: Arc<PathBuf>,
@@ -501,6 +585,12 @@ struct WorkLedgerStore {
     ledger: Arc<RwLock<WorkLedger>>,
 }
 
+#[derive(Clone)]
+struct MemoryStore {
+    path: Arc<PathBuf>,
+    entries: Arc<RwLock<Vec<MemoryEntry>>>,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -514,12 +604,16 @@ async fn main() -> anyhow::Result<()> {
     let peer_store = PeerStore::new(PathBuf::from(peer_storage_path)).await?;
     let work_ledger_path = env::var("LCC_WORK_LEDGER_PATH").unwrap_or_else(|_| "data/work-ledger.json".to_string());
     let work_ledger = WorkLedgerStore::new(PathBuf::from(work_ledger_path)).await?;
+    let memory_path = env::var("LCC_MEMORY_PATH").unwrap_or_else(|_| "data/memory-ledger.jsonl".to_string());
+    let memory_store = MemoryStore::new(PathBuf::from(memory_path)).await?;
     let state = AppState {
         sessions: Arc::new(RwLock::new(HashMap::new())),
+        terminal_buffers: Arc::new(StdMutex::new(HashMap::new())),
         tx,
         canvas_store,
         peer_store,
         work_ledger,
+        memory_store,
     };
 
     let inbound_only = env::var("LCC_INBOUND_ONLY")
@@ -555,6 +649,8 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/work-ledger", get(get_work_ledger))
             .route("/api/work-ledger/tasks/:id", put(upsert_work_task))
             .route("/api/work-ledger/tasks/:id/events", post(add_work_task_event))
+            .route("/api/memory", get(list_memory).post(add_memory))
+            .route("/api/memory/recover/:agent_id", get(recover_agent_context))
             .route("/api/canvases", get(list_canvases).post(create_canvas))
             .route("/api/canvases/:id", get(get_canvas).patch(update_canvas))
             .route("/api/canvases/:id/content", get(get_content).put(put_content).patch(put_content))
@@ -683,7 +779,7 @@ async fn list_sessions(State(state): State<AppState>) -> Json<Vec<SessionView>> 
     for meta in internal_meta {
         internal_ids.insert(meta.id.clone());
         let log_path = terminal_log_path(&meta.id);
-        let view = match build_internal_session_view(meta.clone()).await {
+        let view = match build_internal_session_view(&state, meta.clone()).await {
             Ok(view) => view,
             Err(_) => build_session_view(
                 meta,
@@ -781,7 +877,7 @@ async fn create_session(
     spawn_pty_reader(state.clone(), id.clone(), reader);
     spawn_pty_waiter(state.clone(), id.clone(), move || child.wait().ok().map(|status| status.exit_code() as i32));
     let meta = session.lock().await.meta.clone();
-    let view = build_internal_session_view(meta).await?;
+    let view = build_internal_session_view(&state, meta).await?;
     let _ = state.tx.send(ServerEvent::SessionCreated { session: view.clone() });
     Ok((StatusCode::CREATED, Json(view)))
 }
@@ -1061,7 +1157,7 @@ async fn resize_to_session(state: &AppState, id: &str, cols: u16, rows: u16) -> 
     session.touch();
     let meta = session.meta.clone();
     drop(session);
-    build_internal_session_view(meta).await
+    build_internal_session_view(state, meta).await
 }
 
 async fn write_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
@@ -1151,7 +1247,8 @@ mod tests {
     #[test]
     fn terminal_replay_limit_matches_hq_tail_policy() {
         assert_eq!(super::TERMINAL_WS_REPLAY_LIMIT_BYTES, 32 * 1024);
-        assert_eq!(super::TERMINAL_LOG_ROTATE_BYTES, 50 * 1024 * 1024);
+        assert_eq!(super::TERMINAL_LOG_ROTATE_BYTES, 5 * 1024 * 1024);
+        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 256 * 1024);
     }
 
     #[test]
@@ -1220,6 +1317,9 @@ mod tests {
 
 async fn resolve_terminal_replay(state: &AppState, id: &str) -> Result<String, ApiError> {
     if state.sessions.read().await.contains_key(id) {
+        if let Some(replay) = terminal_buffer_tail(state, id, TERMINAL_WS_REPLAY_LIMIT_BYTES as usize) {
+            return Ok(replay);
+        }
         return read_tail_lossy_or_empty(terminal_log_path(id), TERMINAL_WS_REPLAY_LIMIT_BYTES)
             .await
             .map_err(ApiError::internal);
@@ -1236,11 +1336,14 @@ async fn resolve_terminal_replay(state: &AppState, id: &str) -> Result<String, A
         .map_err(ApiError::internal)
 }
 
-async fn build_internal_session_view(meta: SessionMeta) -> Result<SessionView, ApiError> {
+async fn build_internal_session_view(state: &AppState, meta: SessionMeta) -> Result<SessionView, ApiError> {
     let log_path = terminal_log_path(&meta.id);
-    let preview = read_tail_lossy_or_empty(log_path.clone(), SESSION_PREVIEW_LIMIT_BYTES as u64)
-        .await
-        .map_err(ApiError::internal)?;
+    let preview = match terminal_buffer_tail(state, &meta.id, SESSION_PREVIEW_LIMIT_BYTES) {
+        Some(preview) => preview,
+        None => read_tail_lossy_or_empty(log_path.clone(), SESSION_PREVIEW_LIMIT_BYTES as u64)
+            .await
+            .map_err(ApiError::internal)?,
+    };
     Ok(build_session_view(
         meta,
         tail_string_by_bytes(&preview, SESSION_PREVIEW_LIMIT_BYTES),
@@ -1250,6 +1353,14 @@ async fn build_internal_session_view(meta: SessionMeta) -> Result<SessionView, A
         None,
         log_path,
     ))
+}
+
+fn terminal_buffer_tail(state: &AppState, id: &str, max_bytes: usize) -> Option<String> {
+    state
+        .terminal_buffers
+        .lock()
+        .ok()
+        .and_then(|buffers| buffers.get(id).map(|buffer| buffer.tail(max_bytes)))
 }
 
 async fn write_raw_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
@@ -1282,12 +1393,15 @@ async fn write_session_bytes(state: &AppState, id: &str, data: String, echo_inpu
     }
     let meta = session.meta.clone();
     drop(session);
-    build_internal_session_view(meta).await
+    build_internal_session_view(state, meta).await
 }
 
 fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send>) {
     let log_path = terminal_log_path(&id);
     thread::spawn(move || {
+        if let Ok(mut buffers) = state.terminal_buffers.lock() {
+            buffers.insert(id.clone(), TerminalRingBuffer::new(TERMINAL_RING_BUFFER_BYTES));
+        }
         if let Some(parent) = log_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -1333,6 +1447,12 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
                 }
             }
             let data = String::from_utf8_lossy(&buf[..n]).to_string();
+            if let Ok(mut buffers) = state.terminal_buffers.lock() {
+                buffers
+                    .entry(id.clone())
+                    .or_insert_with(|| TerminalRingBuffer::new(TERMINAL_RING_BUFFER_BYTES))
+                    .push(&data);
+            }
             let _ = state.tx.send(ServerEvent::Output {
                 session_id: id.clone(),
                 source: "pty".to_string(),
@@ -1353,7 +1473,7 @@ fn terminal_log_path(id: &str) -> PathBuf {
 async fn resolve_session_view(state: &AppState, id: &str) -> Result<SessionView, ApiError> {
     if let Some(session) = state.sessions.read().await.get(id).cloned() {
         let meta = session.lock().await.meta.clone();
-        return build_internal_session_view(meta).await;
+        return build_internal_session_view(state, meta).await;
     }
     let Some(record) = read_os_agent_record(id).await else {
         return Err(ApiError::not_found("session not found"));
@@ -1714,6 +1834,114 @@ async fn add_work_task_event(
     Ok((StatusCode::CREATED, Json(event)))
 }
 
+async fn list_memory(
+    State(state): State<AppState>,
+    Query(query): Query<MemoryQuery>,
+) -> Json<Value> {
+    let entries = state.memory_store.search(&query).await;
+    Json(json!({
+        "ok": true,
+        "path": state.memory_store.path.display().to_string(),
+        "count": entries.len(),
+        "memories": entries
+    }))
+}
+
+async fn add_memory(
+    State(state): State<AppState>,
+    Json(input): Json<CreateMemoryEntry>,
+) -> Result<(StatusCode, Json<MemoryEntry>), ApiError> {
+    let entry = MemoryEntry {
+        id: input.id.unwrap_or_else(|| format!("mem-{}", Utc::now().timestamp_millis())),
+        at: input.at.unwrap_or_else(Utc::now),
+        agent_id: require_field(input.agent_id, "agent_id")?,
+        layer: normalize_memory_layer(input.layer)?,
+        scope: normalize_memory_scope(input.scope)?,
+        kind: input.kind.unwrap_or_else(|| "note".to_string()).trim().to_ascii_lowercase(),
+        topic: input.topic.filter(|value| !value.trim().is_empty()),
+        content: require_field(input.content, "content")?,
+        importance: input.importance.unwrap_or(3).clamp(0, 10),
+        source: input.source.unwrap_or_else(|| "manual".to_string()),
+        source_id: input.source_id.filter(|value| !value.trim().is_empty()),
+        ledger_item: input.ledger_item.filter(|value| !value.trim().is_empty()),
+        evidence_path: input.evidence_path.filter(|value| !value.trim().is_empty()),
+        tags: input.tags.unwrap_or_default(),
+        archived_at: None,
+    };
+    state.memory_store.insert(entry.clone()).await?;
+    Ok((StatusCode::CREATED, Json(entry)))
+}
+
+async fn recover_agent_context(
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    Query(query): Query<RecoveryQuery>,
+) -> Json<Value> {
+    let limit = query.limit.unwrap_or(8).clamp(1, 50);
+    let memory_query = MemoryQuery {
+        agent_id: Some(agent_id.clone()),
+        scope: None,
+        layer: None,
+        kind: None,
+        topic: None,
+        search: query.search.clone(),
+        include_archived: Some(false),
+        limit: Some(limit),
+    };
+    let personal = state.memory_store.search(&memory_query).await;
+    let shared_query = MemoryQuery {
+        agent_id: None,
+        scope: Some("team,global".to_string()),
+        layer: None,
+        kind: None,
+        topic: None,
+        search: query.search,
+        include_archived: Some(false),
+        limit: Some(limit),
+    };
+    let shared = state.memory_store.search(&shared_query).await;
+    let ledger = state.work_ledger.ledger.read().await.clone();
+    let active_tasks: Vec<WorkTask> = ledger
+        .tasks
+        .iter()
+        .filter(|task| matches!(task.status, WorkTaskStatus::Todo | WorkTaskStatus::Doing | WorkTaskStatus::Blocked))
+        .cloned()
+        .collect();
+    let mut recent_events = ledger.events.clone();
+    recent_events.sort_by(|a, b| b.at.cmp(&a.at));
+    recent_events.truncate(limit);
+
+    Json(json!({
+        "ok": true,
+        "agent_id": agent_id,
+        "recovered_context": {
+            "personal_memories": personal,
+            "shared_memories": shared,
+            "active_tasks": active_tasks,
+            "recent_work_events": recent_events,
+        },
+        "report_contract": "recovered_context / latest_ledger_item / latest_evidence / next_action / blocker"
+    }))
+}
+
+fn normalize_memory_layer(layer: Option<String>) -> Result<String, ApiError> {
+    let value = layer.unwrap_or_else(|| "working".to_string()).trim().to_ascii_lowercase();
+    if ["working", "short_term", "long_term"].contains(&value.as_str()) {
+        Ok(value)
+    } else {
+        Err(ApiError::bad_request("layer must be working, short_term, or long_term"))
+    }
+}
+
+fn normalize_memory_scope(scope: Option<String>) -> Result<String, ApiError> {
+    let value = scope.unwrap_or_else(|| "personal".to_string()).trim().to_ascii_lowercase();
+    if ["personal", "team", "global"].contains(&value.as_str()) {
+        Ok(value)
+    } else {
+        Err(ApiError::bad_request("scope must be personal, team, or global"))
+    }
+}
+
 fn normalize_work_event_kind(kind: Option<String>) -> Result<String, ApiError> {
     let kind = kind.unwrap_or_else(|| "note".to_string()).trim().to_ascii_lowercase();
     if allowed_work_event_kinds().contains(&kind.as_str()) {
@@ -2036,6 +2264,123 @@ impl WorkLedgerStore {
         task.updated_at = Utc::now();
         ledger.events.push(event);
         self.persist(&ledger).await
+    }
+}
+
+impl MemoryStore {
+    async fn new(path: PathBuf) -> anyhow::Result<Self> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        let entries = match fs::read_to_string(&path).await {
+            Ok(raw) => raw
+                .lines()
+                .filter_map(|line| {
+                    let line = line.trim();
+                    if line.is_empty() {
+                        None
+                    } else {
+                        serde_json::from_str::<MemoryEntry>(line).ok()
+                    }
+                })
+                .collect(),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                fs::write(&path, "").await?;
+                Vec::new()
+            }
+            Err(err) => return Err(err.into()),
+        };
+        Ok(Self {
+            path: Arc::new(path),
+            entries: Arc::new(RwLock::new(entries)),
+        })
+    }
+
+    async fn insert(&self, entry: MemoryEntry) -> Result<(), ApiError> {
+        let raw = serde_json::to_string(&entry).map_err(ApiError::internal)?;
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&*self.path)
+            .await
+            .map_err(ApiError::internal)?;
+        file.write_all(raw.as_bytes()).await.map_err(ApiError::internal)?;
+        file.write_all(b"\n").await.map_err(ApiError::internal)?;
+        file.flush().await.map_err(ApiError::internal)?;
+        self.entries.write().await.push(entry);
+        Ok(())
+    }
+
+    async fn search(&self, query: &MemoryQuery) -> Vec<MemoryEntry> {
+        let include_archived = query.include_archived.unwrap_or(false);
+        let search = query.search.as_ref().map(|value| value.to_ascii_lowercase());
+        let scope_set: Option<HashSet<String>> = query.scope.as_ref().map(|value| {
+            value
+                .split(',')
+                .map(|item| item.trim().to_ascii_lowercase())
+                .filter(|item| !item.is_empty())
+                .collect()
+        });
+        let mut entries: Vec<MemoryEntry> = self
+            .entries
+            .read()
+            .await
+            .iter()
+            .filter(|entry| include_archived || entry.archived_at.is_none())
+            .filter(|entry| {
+                query
+                    .agent_id
+                    .as_ref()
+                    .map(|agent_id| entry.agent_id == *agent_id)
+                    .unwrap_or(true)
+            })
+            .filter(|entry| {
+                scope_set
+                    .as_ref()
+                    .map(|scopes| scopes.contains(&entry.scope))
+                    .unwrap_or(true)
+            })
+            .filter(|entry| {
+                query
+                    .layer
+                    .as_ref()
+                    .map(|layer| entry.layer == layer.trim().to_ascii_lowercase())
+                    .unwrap_or(true)
+            })
+            .filter(|entry| {
+                query
+                    .kind
+                    .as_ref()
+                    .map(|kind| entry.kind == kind.trim().to_ascii_lowercase())
+                    .unwrap_or(true)
+            })
+            .filter(|entry| {
+                query
+                    .topic
+                    .as_ref()
+                    .map(|topic| entry.topic.as_deref() == Some(topic.as_str()))
+                    .unwrap_or(true)
+            })
+            .filter(|entry| {
+                search
+                    .as_ref()
+                    .map(|needle| {
+                        entry.content.to_ascii_lowercase().contains(needle)
+                            || entry.topic.as_ref().map(|topic| topic.to_ascii_lowercase().contains(needle)).unwrap_or(false)
+                            || entry.tags.iter().any(|tag| tag.to_ascii_lowercase().contains(needle))
+                            || entry.ledger_item.as_ref().map(|item| item.to_ascii_lowercase().contains(needle)).unwrap_or(false)
+                    })
+                    .unwrap_or(true)
+            })
+            .cloned()
+            .collect();
+        entries.sort_by(|a, b| {
+            b.importance
+                .cmp(&a.importance)
+                .then_with(|| b.at.cmp(&a.at))
+        });
+        entries.truncate(query.limit.unwrap_or(50).clamp(1, 500));
+        entries
     }
 }
 

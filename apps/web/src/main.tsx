@@ -30,10 +30,18 @@
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import React, { FormEvent, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { encodePromptForPtySubmit, normalizePromptForSubmit } from "./terminalPrompt";
-import { tailTerminalLines } from "./terminalReplay";
+import { sanitizeTerminalPreviewForSummary, tailTerminalLines } from "./terminalReplay";
+import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
+import {
+  enqueueTerminalWriteItems,
+  shiftTerminalWriteItem,
+  type TerminalWriteItem,
+  XTERM_MAX_QUEUED_BYTES,
+  XTERM_WRITE_CHUNK_BYTES
+} from "./xtermWriteQueue";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
@@ -54,6 +62,7 @@ type Session = {
   updated_at: string;
   exit_code?: number;
   preview: string;
+  preview_text?: string;
 };
 
 const SESSION_GROUPS = [
@@ -74,18 +83,12 @@ const SESSION_GROUPS = [
     label: "Development Team",
     members: [
       { id: "dev-lead", name: "Dev Lead", role: "Development lead", session: true },
-      { id: "developer-1", name: "Developer 1", role: "Developer", session: true },
-      { id: "developer-2", name: "Developer 2", role: "Developer", session: true },
-      { id: "developer-3", name: "Developer 3", role: "Developer", session: true },
-      { id: "developer-4", name: "Developer 4", role: "Developer", session: true },
-      { id: "developer-5", name: "Developer 5", role: "Developer", session: true },
-      { id: "developer-6", name: "Developer 6", role: "Developer", session: true },
-      { id: "developer-7", name: "Developer 7", role: "Developer", session: true },
-      { id: "developer-8", name: "Developer 8", role: "Developer", session: true },
-      { id: "android-tester-1", name: "Android Tester 1", role: "Android QA", session: true },
-      { id: "android-tester-2", name: "Android Tester 2", role: "Android QA", session: true },
-      { id: "android-tester-3", name: "Android Tester 3", role: "Android QA", session: true },
-      { id: "android-tester-4", name: "Android Tester 4", role: "Android QA", session: true }
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `developer-${index + 1}`,
+        name: `Developer ${index + 1}`,
+        role: "Developer",
+        session: true
+      }))
     ]
   }
 ];
@@ -96,6 +99,9 @@ const API_ORIGIN = VITE_ENV.VITE_LCC_API_ORIGIN || window.location.origin;
 const WS_ORIGIN =
   VITE_ENV.VITE_LCC_WS_ORIGIN ||
   API_ORIGIN.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+const TERMINAL_SCROLLBACK_LINES = 300;
+const activeTerminalComposerKeys = new Set<string>();
+const terminalComposerSubscribers = new Set<() => void>();
 
 function apiUrl(path: string) {
   if (/^https?:\/\//i.test(path)) return path;
@@ -114,6 +120,31 @@ function closeWebSocket(socket: WebSocket) {
   if (socket.readyState === WebSocket.OPEN) {
     socket.close();
   }
+}
+
+function setTerminalComposerActive(key: string, active: boolean) {
+  const sizeBefore = activeTerminalComposerKeys.size;
+  if (active) activeTerminalComposerKeys.add(key);
+  else activeTerminalComposerKeys.delete(key);
+  if (activeTerminalComposerKeys.size !== sizeBefore) {
+    terminalComposerSubscribers.forEach((listener) => listener());
+  }
+}
+
+function hasActiveTerminalComposer() {
+  return activeTerminalComposerKeys.size > 0;
+}
+
+function subscribeTerminalComposerActivity(listener: () => void) {
+  terminalComposerSubscribers.add(listener);
+  return () => terminalComposerSubscribers.delete(listener);
+}
+
+function useTerminalComposerActivity(key: string, active: boolean) {
+  useEffect(() => {
+    setTerminalComposerActive(key, active);
+    return () => setTerminalComposerActive(key, false);
+  }, [active, key]);
 }
 
 type CanvasSection = {
@@ -143,6 +174,67 @@ type Canvas = {
   created_at: string;
   updated_at: string;
 };
+
+function sessionsMatch(prev: Session[], next: Session[]) {
+  if (prev === next) return true;
+  if (prev.length !== next.length) return false;
+  for (let index = 0; index < prev.length; index += 1) {
+    const a = prev[index];
+    const b = next[index];
+    if (
+      a.id !== b.id ||
+      a.name !== b.name ||
+      a.team !== b.team ||
+      a.cwd !== b.cwd ||
+      a.cmd !== b.cmd ||
+      a.model !== b.model ||
+      a.status !== b.status ||
+      a.pid !== b.pid ||
+      a.created_at !== b.created_at ||
+      a.updated_at !== b.updated_at ||
+      a.exit_code !== b.exit_code ||
+      a.preview !== b.preview ||
+      a.preview_text !== b.preview_text ||
+      a.args.length !== b.args.length
+    ) {
+      return false;
+    }
+    for (let argIndex = 0; argIndex < a.args.length; argIndex += 1) {
+      if (a.args[argIndex] !== b.args[argIndex]) return false;
+    }
+  }
+  return true;
+}
+
+function canvasesMatch(prev: Canvas[], next: Canvas[]) {
+  return JSON.stringify(prev) === JSON.stringify(next);
+}
+
+type MeetingChannelStatus = "active" | "paused" | "closed";
+type MeetingMessageKind = "message" | "decision" | "action-item";
+
+type MeetingChannel = {
+  id: string;
+  title: string;
+  status: MeetingChannelStatus;
+  participants: string[];
+  updated_at: string;
+  unread?: number;
+  linked_ledger_task_ids: string[];
+};
+
+type MeetingMessage = {
+  id: string;
+  channel_id: string;
+  author: string;
+  body: string;
+  kind: MeetingMessageKind;
+  created_at: string;
+  ledger_task_id?: string;
+  thread_id?: string;
+};
+
+type LedgerLabelMap = Record<string, string>;
 
 type PeerStatus = {
   role?: string;
@@ -223,6 +315,107 @@ const fallbackLedgerTasks: WorkLedgerTask[] = [
     reminder_minutes: 60
   }
 ];
+
+const mockMeetingChannels: MeetingChannel[] = [
+  {
+    id: "meeting-first",
+    title: "Meeting First MVP",
+    status: "active",
+    participants: ["max", "developer-2", "developer-5", "developer-4"],
+    updated_at: "2026-06-01T02:00:00+09:00",
+    unread: 3,
+    linked_ledger_task_ids: ["meeting-first", "terminal-scrollback"]
+  },
+  {
+    id: "design-review",
+    title: "Design Review",
+    status: "paused",
+    participants: ["lucas", "max", "developer-8"],
+    updated_at: "2026-06-01T01:20:00+09:00",
+    unread: 1,
+    linked_ledger_task_ids: ["responsive-layout"]
+  },
+  {
+    id: "ops-sync",
+    title: "Ops Sync",
+    status: "closed",
+    participants: ["max", "developer-4", "seo-security"],
+    updated_at: "2026-05-31T22:45:00+09:00",
+    unread: 0,
+    linked_ledger_task_ids: ["agent-status-on-9100"]
+  }
+];
+
+const mockMeetingMessages: MeetingMessage[] = [
+  {
+    id: "msg-1",
+    channel_id: "meeting-first",
+    author: "max",
+    body: "오늘 안에 보이는 첫 미팅 화면이 필요하다. 채널 목록, 메시지, 결정사항, 액션아이템까지 우선 넣는다.",
+    kind: "message",
+    created_at: "09:10"
+  },
+  {
+    id: "msg-2",
+    channel_id: "meeting-first",
+    author: "developer-2",
+    body: "HQ 비교 기준은 Slack형 채널 + meeting thread이지만 로컬 MVP는 thread depth를 줄여도 된다.",
+    kind: "message",
+    created_at: "09:14"
+  },
+  {
+    id: "msg-3",
+    channel_id: "meeting-first",
+    author: "max",
+    body: "1차 화면은 apps/web main.tsx와 styles.css 안에서 static shell로 먼저 만든다.",
+    kind: "decision",
+    created_at: "09:18",
+    ledger_task_id: "meeting-first"
+  },
+  {
+    id: "msg-4",
+    channel_id: "meeting-first",
+    author: "developer-5",
+    body: "채널 목록, 메시지 타임라인, 결정사항 요약, 액션아이템 요약, ledger label/link를 한 화면에 배치한다.",
+    kind: "action-item",
+    created_at: "09:21",
+    ledger_task_id: "meeting-first"
+  },
+  {
+    id: "msg-5",
+    channel_id: "meeting-first",
+    author: "developer-4",
+    body: "완료 처리는 CDP 스크린샷과 콘솔 확인 이후로 제한한다.",
+    kind: "decision",
+    created_at: "09:25",
+    ledger_task_id: "terminal-scrollback"
+  },
+  {
+    id: "msg-6",
+    channel_id: "design-review",
+    author: "developer-8",
+    body: "9000/9100 레이아웃 broad restyle은 보류하고 좁은 패치만 유지한다.",
+    kind: "message",
+    created_at: "08:40",
+    ledger_task_id: "responsive-layout"
+  },
+  {
+    id: "msg-7",
+    channel_id: "ops-sync",
+    author: "seo-security",
+    body: "9100 상태 패널은 heartbeat와 blocker를 먼저 보이게 한다.",
+    kind: "action-item",
+    created_at: "어제",
+    ledger_task_id: "agent-status-on-9100"
+  }
+];
+
+const mockLedgerLabels: LedgerLabelMap = {
+  "meeting-first": "meeting-first / 미팅 기능 우선 구현",
+  "terminal-scrollback": "terminal scrollback / 300 lines review",
+  "responsive-layout": "responsive command-center layout",
+  "agent-status-on-9100": "9100 agent status panel"
+};
 
 const api = {
   async get<T>(path: string): Promise<T> {
@@ -449,6 +642,20 @@ function terminalLayoutStorageKey(scope: string) {
   return `${TERMINAL_LAYOUT_STORAGE_KEY}:${scope || "all"}`;
 }
 
+function readTerminalTabState(key: string) {
+  try {
+    return sessionStorage.getItem(key) || localStorage.getItem(key) || "";
+  } catch {
+    return "";
+  }
+}
+
+function writeTerminalTabState(key: string, value: string) {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {}
+}
+
 function readShellUrlState() {
   const params = new URLSearchParams(window.location.search);
   const hashParams = parseShellHashState();
@@ -460,32 +667,33 @@ function readShellUrlState() {
   return { view, filter, layout, sessionId } as ShellUrlState;
 }
 
-function readStoredShellView(): "terminals" | "canvas" {
+function readStoredShellView(urlState: ShellUrlState = readShellUrlState()): "terminals" | "canvas" | "meetings" {
   try {
-    const { view } = readShellUrlState();
-    if (view === "canvas" || view === "terminals") return view;
-    return localStorage.getItem(TERMINAL_VIEW_STORAGE_KEY) === "canvas" ? "canvas" : "terminals";
+    const { view } = urlState;
+    if (view === "canvas" || view === "terminals" || view === "meetings") return view;
+    const stored = readTerminalTabState(TERMINAL_VIEW_STORAGE_KEY);
+    return stored === "canvas" || stored === "meetings" ? stored : "terminals";
   } catch {
     return "terminals";
   }
 }
 
-function readStoredTerminalFilter() {
+function readStoredTerminalFilter(urlState: ShellUrlState = readShellUrlState()) {
   try {
-    const { filter } = readShellUrlState();
+    const { filter } = urlState;
     if (filter) return filter;
-    return localStorage.getItem(TERMINAL_FILTER_STORAGE_KEY) || "all";
+    return readTerminalTabState(TERMINAL_FILTER_STORAGE_KEY) || "all";
   } catch {
     return "all";
   }
 }
 
-function readStoredTerminalLayout(): TerminalLayout {
+function readStoredTerminalLayout(urlState: ShellUrlState = readShellUrlState()): TerminalLayout {
   try {
-    const { layout } = readShellUrlState();
+    const { layout } = urlState;
     const aliased = normalizeLayoutAlias(layout);
     if (aliased) return aliased;
-    const scope = readStoredTerminalFilter();
+    const scope = readStoredTerminalFilter(urlState);
     const stored = sessionStorage.getItem(terminalLayoutStorageKey(scope));
     return stored === "stack" || stored === "columns" || stored === "fit" ? stored : "grid";
   } catch {
@@ -493,14 +701,30 @@ function readStoredTerminalLayout(): TerminalLayout {
   }
 }
 
-function readStoredRecentSessionId() {
+function readStoredRecentSessionId(urlState: ShellUrlState = readShellUrlState()) {
   try {
-    const { sessionId } = readShellUrlState();
+    const { sessionId } = urlState;
     if (sessionId) return sessionId;
     return sessionStorage.getItem(TERMINAL_RECENT_SESSION_STORAGE_KEY) || "";
   } catch {
     return "";
   }
+}
+
+function writeShellUrlState(next: Partial<ShellUrlState>) {
+  const url = new URL(window.location.href);
+  const state = { ...readShellUrlState(), ...next };
+  const setOrDelete = (key: string, value?: string | null) => {
+    if (value) url.searchParams.set(key, value);
+    else url.searchParams.delete(key);
+  };
+  setOrDelete("view", state.view);
+  setOrDelete("filter", state.filter);
+  setOrDelete("layout", state.layout);
+  setOrDelete("session", state.sessionId);
+  url.searchParams.delete("team");
+  url.searchParams.delete("selected");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 function readTerminalPopoutSessionId() {
@@ -519,15 +743,44 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
   const [prompt, setPrompt] = useState("");
   const [target, setTarget] = useState(sessionId);
   const [error, setError] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [composerFocused, setComposerFocused] = useState(false);
   const promptRef = useRef("");
   const sendingRef = useRef(false);
+  const pendingRefreshRef = useRef(false);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const targetRef = useRef(sessionId);
+  const composerActiveRef = useRef(false);
   const session = sessions.find((item) => item.id === sessionId);
+  const composerActive = composerFocused || isSending || prompt.trim().length > 0;
 
-  async function refresh() {
-    const nextSessions = await api.get<Session[]>("/api/sessions");
-    setSessions(nextSessions);
-    if (!nextSessions.some((item) => item.id === target)) setTarget(sessionId);
-  }
+  useEffect(() => {
+    targetRef.current = target;
+  }, [target]);
+
+  useEffect(() => {
+    composerActiveRef.current = composerActive;
+  }, [composerActive]);
+
+  const refresh = useCallback(async (options?: { force?: boolean }) => {
+    if (!options?.force && composerActiveRef.current) {
+      pendingRefreshRef.current = true;
+      return;
+    }
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    const task = (async () => {
+      const nextSessions = await api.get<Session[]>("/api/sessions");
+      pendingRefreshRef.current = false;
+      setSessions((current) => (sessionsMatch(current, nextSessions) ? current : nextSessions));
+      if (!nextSessions.some((item) => item.id === targetRef.current)) setTarget(sessionId);
+    })();
+    refreshInFlightRef.current = task;
+    try {
+      await task;
+    } finally {
+      if (refreshInFlightRef.current === task) refreshInFlightRef.current = null;
+    }
+  }, [sessionId]);
 
   useEffect(() => {
     document.body.classList.add("terminal-popout-mode");
@@ -537,25 +790,32 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
       document.body.classList.remove("terminal-popout-mode");
       window.clearInterval(timer);
     };
-  }, [sessionId]);
+  }, [refresh, sessionId]);
+
+  useEffect(() => {
+    if (composerActive || !pendingRefreshRef.current) return;
+    refresh({ force: true }).catch((err) => setError(String(err)));
+  }, [composerActive, refresh]);
 
   async function send() {
     const nextPrompt = normalizePromptForSubmit(promptRef.current);
     if (!nextPrompt.trim() || sendingRef.current) return;
     sendingRef.current = true;
+    setIsSending(true);
     const payload = target === sessionId ? nextPrompt : `[FROM ${sessionId} TO ${target}] ${nextPrompt}`;
     try {
       await sendTerminalPrompt(target, payload);
       promptRef.current = "";
       setPrompt("");
-      await refresh();
+      await refresh({ force: true });
     } finally {
       sendingRef.current = false;
+      setIsSending(false);
     }
   }
 
   return (
-    <main className="terminal-popout-page">
+    <main className={`terminal-popout-page ${composerActive ? "composer-dirty" : ""}`}>
       <header>
         <div>
           <span className="status-dot" />
@@ -580,19 +840,20 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
         <textarea
           rows={1}
           value={prompt}
+          onFocus={() => setComposerFocused(true)}
+          onBlur={() => setComposerFocused(false)}
           onChange={(event) => {
             promptRef.current = event.target.value;
             setPrompt(event.target.value);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault();
+            if (shouldSubmitTerminalTileComposer(event)) {
               send().catch(console.error);
             }
           }}
           placeholder="지시 입력"
         />
-        <button className="primary icon" onClick={send} title="전송">
+        <button className="primary icon" onClick={send} title="전송" disabled={isSending || !prompt.trim()}>
           <Send size={15} />
         </button>
       </footer>
@@ -602,28 +863,53 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
 }
 
 function ShellApp() {
+  const initialUrlStateRef = useRef<ShellUrlState | null>(null);
+  if (initialUrlStateRef.current === null) initialUrlStateRef.current = readShellUrlState();
+  const initialUrlState = initialUrlStateRef.current;
   const [sessions, setSessions] = useState<Session[]>([]);
   const [canvases, setCanvases] = useState<Canvas[]>([]);
   const [selectedCanvasId, setSelectedCanvasId] = useState<string>("");
-  const [view, setView] = useState<"terminals" | "canvas">(() => readStoredShellView());
-  const [filter, setFilter] = useState(() => readStoredTerminalFilter());
-  const [terminalLayout, setTerminalLayout] = useState<TerminalLayout>(() => readStoredTerminalLayout());
-  const [selectedSessionId, setSelectedSessionId] = useState(() => readStoredRecentSessionId());
+  const [view, setView] = useState<"terminals" | "canvas" | "meetings">(() => readStoredShellView(initialUrlState));
+  const [filter, setFilter] = useState(() => readStoredTerminalFilter(initialUrlState));
+  const [terminalLayout, setTerminalLayout] = useState<TerminalLayout>(() => readStoredTerminalLayout(initialUrlState));
+  const [selectedSessionId, setSelectedSessionId] = useState(() => readStoredRecentSessionId(initialUrlState));
+  const [selectedMeetingId, setSelectedMeetingId] = useState(() => mockMeetingChannels[0]?.id ?? "");
   const [error, setError] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [topbarCollapsed, setTopbarCollapsed] = useState(false);
+  const [composerActivityVersion, setComposerActivityVersion] = useState(0);
+  const pendingRefreshRef = useRef(false);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const skipInitialFilterLayoutSyncRef = useRef(Boolean(normalizeLayoutAlias(initialUrlState.layout)));
 
   const selectedCanvas = canvases.find((canvas) => canvas.id === selectedCanvasId) ?? canvases[0];
+  const selectedMeeting = mockMeetingChannels.find((channel) => channel.id === selectedMeetingId) ?? mockMeetingChannels[0];
 
-  async function refresh() {
-    const [nextSessions, nextCanvases] = await Promise.all([
-      api.get<Session[]>("/api/sessions"),
-      api.get<Canvas[]>("/api/canvases")
-    ]);
-    setSessions(nextSessions);
-    setCanvases(nextCanvases);
-    if (!selectedCanvasId && nextCanvases[0]) setSelectedCanvasId(nextCanvases[0].id);
-  }
+  const refresh = useCallback(async (options?: { force?: boolean }) => {
+    if (!options?.force && hasActiveTerminalComposer()) {
+      pendingRefreshRef.current = true;
+      return;
+    }
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    const task = (async () => {
+      const [nextSessions, nextCanvases] = await Promise.all([
+        api.get<Session[]>("/api/sessions"),
+        api.get<Canvas[]>("/api/canvases")
+      ]);
+      pendingRefreshRef.current = false;
+      startTransition(() => {
+        setSessions((current) => (sessionsMatch(current, nextSessions) ? current : nextSessions));
+        setCanvases((current) => (canvasesMatch(current, nextCanvases) ? current : nextCanvases));
+        setSelectedCanvasId((current) => current || nextCanvases[0]?.id || "");
+      });
+    })();
+    refreshInFlightRef.current = task;
+    try {
+      await task;
+    } finally {
+      if (refreshInFlightRef.current === task) refreshInFlightRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     refresh().catch((err) => setError(String(err)));
@@ -639,18 +925,21 @@ function ShellApp() {
       window.clearInterval(timer);
       closeWebSocket(socket);
     };
-  }, []);
+  }, [refresh]);
+
+  useEffect(() => subscribeTerminalComposerActivity(() => setComposerActivityVersion((value) => value + 1)), []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(TERMINAL_VIEW_STORAGE_KEY, view);
-    } catch {}
+    if (hasActiveTerminalComposer() || !pendingRefreshRef.current) return;
+    refresh({ force: true }).catch((err) => setError(String(err)));
+  }, [composerActivityVersion, refresh]);
+
+  useEffect(() => {
+    writeTerminalTabState(TERMINAL_VIEW_STORAGE_KEY, view);
   }, [view]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(TERMINAL_FILTER_STORAGE_KEY, filter);
-    } catch {}
+    writeTerminalTabState(TERMINAL_FILTER_STORAGE_KEY, filter);
   }, [filter]);
 
   useEffect(() => {
@@ -669,16 +958,21 @@ function ShellApp() {
           : sessions.filter((session) => session.team === filter || session.status === filter);
     return [...filtered].sort((a, b) => agentRank(a.id) - agentRank(b.id) || a.name.localeCompare(b.name));
   }, [filter, sessions]);
+  const deferredVisibleSessions = useDeferredValue(visibleSessions);
 
   const teams = useMemo(() => [...new Set(sessions.map((session) => session.team).filter(Boolean))], [sessions]);
   const sessionIds = useMemo(() => new Set(sessions.map((session) => session.id)), [sessions]);
+  const selectTerminalFilter = useCallback((nextFilter: string) => {
+    setView("terminals");
+    setFilter(nextFilter);
+  }, []);
 
   useEffect(() => {
     if (view !== "terminals") return;
-    if (selectedSessionId && visibleSessions.some((session) => session.id === selectedSessionId)) return;
-    const fallback = visibleSessions.find((session) => session.status === "active") ?? visibleSessions[0];
+    if (selectedSessionId && deferredVisibleSessions.some((session) => session.id === selectedSessionId)) return;
+    const fallback = deferredVisibleSessions.find((session) => session.status === "active") ?? deferredVisibleSessions[0];
     if (fallback && fallback.id !== selectedSessionId) setSelectedSessionId(fallback.id);
-  }, [selectedSessionId, view, visibleSessions]);
+  }, [deferredVisibleSessions, selectedSessionId, view]);
 
   useEffect(() => {
     try {
@@ -688,12 +982,25 @@ function ShellApp() {
   }, [selectedSessionId]);
 
   useEffect(() => {
+    if (skipInitialFilterLayoutSyncRef.current) {
+      skipInitialFilterLayoutSyncRef.current = false;
+      return;
+    }
     try {
       const stored = sessionStorage.getItem(terminalLayoutStorageKey(filter));
       const nextLayout = stored === "stack" || stored === "columns" || stored === "fit" ? stored : "grid";
       if (nextLayout !== terminalLayout) setTerminalLayout(nextLayout);
     } catch {}
-  }, [filter]);
+  }, [filter, terminalLayout]);
+
+  useEffect(() => {
+    writeShellUrlState({
+      view,
+      filter,
+      layout: terminalLayout,
+      sessionId: selectedSessionId
+    });
+  }, [filter, selectedSessionId, terminalLayout, view]);
 
   return (
     <main className={`shell ${sidebarCollapsed ? "sidebar-collapsed" : ""} ${topbarCollapsed ? "topbar-collapsed" : ""}`}>
@@ -713,7 +1020,6 @@ function ShellApp() {
           {topbarCollapsed ? <PanelTopOpen size={16} /> : <PanelTopClose size={16} />}
         </button>
       </div>
-      <PeerDock />
       <WorkLedgerDock />
       <aside className="sidebar">
         <div className="brand">
@@ -727,6 +1033,9 @@ function ShellApp() {
           <button className={view === "terminals" ? "active" : ""} onClick={() => setView("terminals")} title="Terminals">
             <Terminal size={19} />
           </button>
+          <button className={view === "meetings" ? "active" : ""} onClick={() => setView("meetings")} title="Meetings">
+            <MessageSquare size={19} />
+          </button>
           <button className={view === "canvas" ? "active" : ""} onClick={() => setView("canvas")} title="Canvas">
             <FileText size={19} />
           </button>
@@ -736,10 +1045,10 @@ function ShellApp() {
             <span>Sessions</span>
             <strong>{sessions.length}</strong>
           </header>
-          <button className={`filter ${filter === "all" ? "active" : ""}`} onClick={() => setFilter("all")}>
+          <button className={`filter ${filter === "all" ? "active" : ""}`} onClick={() => selectTerminalFilter("all")}>
             <Activity size={14} /> All
           </button>
-          <button className={`filter ${filter === "active" ? "active" : ""}`} onClick={() => setFilter("active")}>
+          <button className={`filter ${filter === "active" ? "active" : ""}`} onClick={() => selectTerminalFilter("active")}>
             <span className="dot green" /> Active
           </button>
           {SESSION_GROUPS.map((group) => {
@@ -747,7 +1056,7 @@ function ShellApp() {
             const sessionCount = group.members.filter((member) => member.session).length;
             return (
               <div className="session-group" key={group.filter}>
-                <button className={`filter group-filter ${filter === group.filter ? "active" : ""}`} onClick={() => setFilter(group.filter)}>
+                <button className={`filter group-filter ${filter === group.filter ? "active" : ""}`} onClick={() => selectTerminalFilter(group.filter)}>
                   <Users size={14} /> {group.label} <strong>{liveCount}/{sessionCount}</strong>
                 </button>
                 <div className="group-members" aria-label={`${group.label} members`}>
@@ -761,8 +1070,26 @@ function ShellApp() {
             );
           })}
           {teams.map((team) => (
-            <button className={`filter ${filter === team ? "active" : ""}`} key={team} onClick={() => setFilter(team)}>
+            <button className={`filter ${filter === team ? "active" : ""}`} key={team} onClick={() => selectTerminalFilter(team)}>
               <span className="dot" /> {team}
+            </button>
+          ))}
+        </section>
+        <section className="side-section">
+          <header>
+            <span>Meetings</span>
+            <strong>{mockMeetingChannels.length}</strong>
+          </header>
+          {mockMeetingChannels.map((channel) => (
+            <button
+              className={`canvas-link ${selectedMeeting?.id === channel.id ? "active" : ""}`}
+              key={channel.id}
+              onClick={() => {
+                setSelectedMeetingId(channel.id);
+                setView("meetings");
+              }}
+            >
+              {channel.title}
             </button>
           ))}
         </section>
@@ -789,19 +1116,22 @@ function ShellApp() {
       <section className="workspace">
         <header className="topbar">
           <div>
-            <h1>{view === "terminals" ? "Terminal Fleet" : "Canvas Workspace"}</h1>
+            <h1>{view === "terminals" ? "Terminal Fleet" : view === "meetings" ? "Meeting Workspace" : "Canvas Workspace"}</h1>
             <p>
-              {sessions.filter((session) => session.status === "active").length} active sessions · {canvases.length} canvases ·
-              local control plane
+              {sessions.filter((session) => session.status === "active").length} active sessions · {mockMeetingChannels.length} meetings · {canvases.length} canvases · local control plane
             </p>
           </div>
           <div className="top-actions">
             <button onClick={() => setView("terminals")} className={view === "terminals" ? "primary" : ""}>
               <LayoutGrid size={16} /> Grid
             </button>
-            <button onClick={() => setView("canvas")} className={view === "canvas" ? "primary" : ""}>
-              <MessageSquare size={16} /> Canvas
+            <button onClick={() => setView("meetings")} className={view === "meetings" ? "primary" : ""}>
+              <MessageSquare size={16} /> Meetings
             </button>
+            <button onClick={() => setView("canvas")} className={view === "canvas" ? "primary" : ""}>
+              <FileText size={16} /> Canvas
+            </button>
+            <PeerDock />
             {view === "terminals" && (
               <div className="terminal-layout-toggle" role="group" aria-label="터미널 배치">
                 <button onClick={() => setTerminalLayout("grid")} className={terminalLayout === "grid" ? "primary" : ""} type="button">
@@ -825,9 +1155,9 @@ function ShellApp() {
 
         {view === "terminals" ? (
           <>
-            <CreateSession sessions={sessions} onCreated={refresh} />
+            <CreateSession sessions={sessions} onCreated={refresh} onShowDevTeam={() => selectTerminalFilter("development-team")} />
             <TerminalGrid
-              sessions={visibleSessions}
+              sessions={deferredVisibleSessions}
               allSessions={sessions}
               onChanged={refresh}
               layout={terminalLayout}
@@ -835,6 +1165,14 @@ function ShellApp() {
               onSelectSession={setSelectedSessionId}
             />
           </>
+        ) : view === "meetings" ? (
+          <MeetingWorkspace
+            channel={selectedMeeting}
+            channels={mockMeetingChannels}
+            messages={mockMeetingMessages}
+            ledgerLabels={mockLedgerLabels}
+            onSelectChannel={setSelectedMeetingId}
+          />
         ) : (
           <CanvasWorkspace
             canvas={selectedCanvas}
@@ -1397,7 +1735,15 @@ function formatEventTime(event: WorkLedgerEvent) {
   return formatDueAt(event.at ?? event.created_at);
 }
 
-function CreateSession({ sessions, onCreated }: { sessions: Session[]; onCreated: () => Promise<void> }) {
+function CreateSession({
+  sessions,
+  onCreated,
+  onShowDevTeam
+}: {
+  sessions: Session[];
+  onCreated: () => Promise<void>;
+  onShowDevTeam: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ id: "", name: "", team: "lcc", cwd: ".", cmd: defaultShell(), args: "" });
 
@@ -1421,8 +1767,10 @@ function CreateSession({ sessions, onCreated }: { sessions: Session[]; onCreated
 
     for (const agent of agents) {
       await api.send("/api/sessions", "POST", agent);
+      await sendCodexStartupPolicy(agent.id);
     }
     await onCreated();
+    onShowDevTeam();
   }
 
   if (!open) {
@@ -1434,7 +1782,7 @@ function CreateSession({ sessions, onCreated }: { sessions: Session[]; onCreated
         <button onClick={spawnDevTeam}>
           <Bot size={16} /> Dev Team
         </button>
-        <span>Spawn one dev lead and four GPT-5.5 Codex developers in isolated workspaces.</span>
+        <span>Spawn one dev lead and three GPT-5.5 Codex developers in isolated workspaces.</span>
       </div>
     );
   }
@@ -1502,9 +1850,149 @@ function TerminalGrid({
           onChanged={onChanged}
           selected={selectedSessionId === session.id}
           onSelectSession={onSelectSession}
+          livePreview={selectedSessionId === session.id}
         />
       ))}
     </div>
+  );
+}
+
+function MeetingWorkspace({
+  channel,
+  channels,
+  messages,
+  ledgerLabels,
+  onSelectChannel
+}: {
+  channel?: MeetingChannel;
+  channels: MeetingChannel[];
+  messages: MeetingMessage[];
+  ledgerLabels: LedgerLabelMap;
+  onSelectChannel: (channelId: string) => void;
+}) {
+  const [draftBody, setDraftBody] = useState("");
+  const [draftKind, setDraftKind] = useState<MeetingMessageKind>("message");
+  const activeChannel = channel ?? channels[0];
+  const channelMessages = messages.filter((message) => message.channel_id === activeChannel?.id);
+  const decisions = channelMessages.filter((message) => message.kind === "decision");
+  const actionItems = channelMessages.filter((message) => message.kind === "action-item");
+
+  if (!activeChannel) {
+    return (
+      <section className="meeting-workspace meeting-workspace-empty">
+        <div className="empty">
+          <MessageSquare size={28} />
+          <h2>No meeting</h2>
+          <p>채널 데이터가 아직 없습니다.</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="meeting-workspace">
+      <aside className="meeting-channel-list">
+        <header className="meeting-panel-header">
+          <div>
+            <span className="meeting-panel-kicker">Meetings</span>
+            <h2>Channels</h2>
+          </div>
+          <strong>{channels.length}</strong>
+        </header>
+        <div className="meeting-channel-items">
+          {channels.map((item) => (
+            <button
+              key={item.id}
+              className={`meeting-channel-item ${item.id === activeChannel.id ? "active" : ""}`}
+              onClick={() => onSelectChannel(item.id)}
+              type="button"
+            >
+              <div className="meeting-channel-main">
+                <strong>{item.title}</strong>
+                <span className={`meeting-status-pill ${item.status}`}>{item.status}</span>
+              </div>
+              <div className="meeting-channel-meta">
+                <span>{item.participants.length} participants</span>
+                <span>{item.unread ?? 0} unread</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      <main className="meeting-timeline">
+        <header className="meeting-panel-header">
+          <div>
+            <span className="meeting-panel-kicker">Meeting</span>
+            <h2>{activeChannel.title}</h2>
+            <p>{activeChannel.participants.join(", ")}</p>
+          </div>
+          <strong>{channelMessages.length} msgs</strong>
+        </header>
+        <div className="meeting-message-list">
+          {channelMessages.map((message) => (
+            <article key={message.id} className={`meeting-message kind-${message.kind}`}>
+              <div className="meeting-message-head">
+                <strong>{message.author}</strong>
+                <span>{message.created_at}</span>
+                <em className={`meeting-kind-badge ${message.kind}`}>{message.kind}</em>
+              </div>
+              <p>{message.body}</p>
+              {message.ledger_task_id && (
+                <span className="meeting-ledger-link">{ledgerLabels[message.ledger_task_id] ?? message.ledger_task_id}</span>
+              )}
+            </article>
+          ))}
+        </div>
+        <form
+          className="meeting-composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setDraftBody("");
+          }}
+        >
+          <select value={draftKind} onChange={(event) => setDraftKind(event.target.value as MeetingMessageKind)}>
+            <option value="message">message</option>
+            <option value="decision">decision</option>
+            <option value="action-item">action-item</option>
+          </select>
+          <input value={draftBody} onChange={(event) => setDraftBody(event.target.value)} placeholder="메시지 입력 (static shell)" />
+          <button className="primary" type="submit" disabled={!draftBody.trim()}>
+            <Send size={15} /> Send
+          </button>
+        </form>
+      </main>
+
+      <aside className="meeting-summary-panel">
+        <section className="meeting-summary-card">
+          <h3>Decisions</h3>
+          {decisions.length === 0 ? <p className="meeting-summary-empty">아직 결정사항이 없습니다.</p> : decisions.map((item) => <div key={item.id} className="meeting-summary-item">{item.body}</div>)}
+        </section>
+        <section className="meeting-summary-card">
+          <h3>Action Items</h3>
+          {actionItems.length === 0 ? (
+            <p className="meeting-summary-empty">아직 액션아이템이 없습니다.</p>
+          ) : (
+            actionItems.map((item) => (
+              <div key={item.id} className="meeting-summary-item">
+                <strong>{item.author}</strong>
+                <p>{item.body}</p>
+              </div>
+            ))
+          )}
+        </section>
+        <section className="meeting-summary-card">
+          <h3>Ledger Labels</h3>
+          <div className="meeting-ledger-links">
+            {activeChannel.linked_ledger_task_ids.map((item) => (
+              <span key={item} className="meeting-ledger-link">
+                {ledgerLabels[item] ?? item}
+              </span>
+            ))}
+          </div>
+        </section>
+      </aside>
+    </section>
   );
 }
 
@@ -1513,13 +2001,15 @@ function TerminalCard({
   sessions,
   onChanged,
   selected,
-  onSelectSession
+  onSelectSession,
+  livePreview
 }: {
   session: Session;
   sessions: Session[];
   onChanged: () => Promise<void>;
   selected: boolean;
   onSelectSession: (sessionId: string) => void;
+  livePreview: boolean;
 }) {
   const [prompt, setPrompt] = useState("");
   const [target, setTarget] = useState(session.id);
@@ -1527,8 +2017,11 @@ function TerminalCard({
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const [logText, setLogText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [composerFocused, setComposerFocused] = useState(false);
   const promptRef = useRef("");
   const sendingRef = useRef(false);
+  const composerDirty = composerFocused || isSending || prompt.trim().length > 0;
+  useTerminalComposerActivity(`card:${session.id}`, composerDirty);
 
   function handlePromptChange(value: string) {
     promptRef.current = value;
@@ -1553,7 +2046,7 @@ function TerminalCard({
   }
 
   async function openLog() {
-    const response = await fetch(`/api/sessions/${session.id}/log`);
+    const response = await fetch(apiUrl(`/api/sessions/${session.id}/log`));
     setLogText(await response.text());
     setLogOpen(true);
   }
@@ -1580,38 +2073,46 @@ function TerminalCard({
   }
 
   return (
-    <article className={`terminal-card ${session.status} ${selected ? "selected" : ""}`} onMouseDown={() => onSelectSession(session.id)}>
+    <article
+      className={`terminal-card ${session.status} ${selected ? "selected" : ""} ${composerDirty ? "composer-dirty" : ""}`}
+      onMouseDown={() => onSelectSession(session.id)}
+    >
       <header>
         <div>
           <span className="status-dot" />
           <strong>{session.name}</strong>
           <em>{session.team}</em>
           {session.model && <em>{session.model}</em>}
+          {composerDirty && <span className="composer-state">Editing</span>}
         </div>
         <div className="card-actions">
-          <button title="터미널 크게 보기" onClick={() => setFullscreenOpen(true)}>
+          <button title="터미널 크게 보기" onMouseDown={stopTerminalTileFooterMouseDown} onClick={() => setFullscreenOpen(true)}>
             <Maximize2 size={13} />
           </button>
-          <button title="화면 안에서 크게 보기" onClick={() => setFullscreenOpen(true)}>
+          <button title="화면 안에서 크게 보기" onMouseDown={stopTerminalTileFooterMouseDown} onClick={() => setFullscreenOpen(true)}>
             <PanelTopOpen size={13} />
           </button>
-          <button title="팝업으로 보기" onClick={openPopout}>
+          <button title="팝업으로 보기" onMouseDown={stopTerminalTileFooterMouseDown} onClick={openPopout}>
             <Maximize2 size={13} />
           </button>
-          <button title="터미널 로그" onClick={openLog}>
+          <button title="터미널 로그" onMouseDown={stopTerminalTileFooterMouseDown} onClick={openLog}>
             <ScrollText size={13} />
           </button>
-          <button title="중지" onClick={stop}>
+          <button title="중지" onMouseDown={stopTerminalTileFooterMouseDown} onClick={stop}>
             <Square size={13} />
           </button>
-          <button title="삭제" onClick={stop}>
+          <button title="삭제" onMouseDown={stopTerminalTileFooterMouseDown} onClick={stop}>
             <Trash2 size={13} />
           </button>
         </div>
       </header>
-      <XtermPreview sessionId={session.id} status={session.status} />
-      <footer aria-busy={isSending}>
-        <select value={target} onChange={(event) => setTarget(event.target.value)}>
+      {selected || livePreview ? (
+        <XtermPreview sessionId={session.id} status={session.status} />
+      ) : (
+        <StaticTerminalPreview session={session} />
+      )}
+      <footer aria-busy={isSending} onMouseDown={stopTerminalTileFooterMouseDown}>
+        <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
           {sessions.map((item) => (
             <option key={item.id} value={item.id}>
               {item.name}
@@ -1621,17 +2122,17 @@ function TerminalCard({
         <textarea
           rows={1}
           value={prompt}
+          onFocus={() => setComposerFocused(true)}
+          onBlur={() => setComposerFocused(false)}
           onChange={(event) => handlePromptChange(event.target.value)}
           onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault();
+            if (shouldSubmitTerminalTileComposer(event)) {
               send().catch(console.error);
             }
           }}
           placeholder="지시 입력"
         />
-        <button className="primary icon" onClick={send} title="전송">
+        <button className="primary icon" onMouseDown={stopTerminalTileFooterMouseDown} onClick={send} title="전송" disabled={isSending || !prompt.trim()}>
           <Send size={15} />
         </button>
       </footer>
@@ -1654,6 +2155,17 @@ function TerminalCard({
   );
 }
 
+function StaticTerminalPreview({ session }: { session: Session }) {
+  const preview = sanitizeTerminalPreviewForSummary(session.preview_text || session.preview || "");
+  const text = tailTerminalLines(preview || "아직 표시할 터미널 출력이 없습니다.\r\n", 20);
+
+  return (
+    <pre className="static-terminal-preview" aria-label={`${session.name} terminal preview`}>
+      {text}
+    </pre>
+  );
+}
+
 function FullscreenTerminalModal({
   session,
   sessions,
@@ -1667,9 +2179,13 @@ function FullscreenTerminalModal({
 }) {
   const [prompt, setPrompt] = useState("");
   const [target, setTarget] = useState(session.id);
+  const [isSending, setIsSending] = useState(false);
+  const [composerFocused, setComposerFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const promptRef = useRef("");
   const sendingRef = useRef(false);
+  const composerDirty = composerFocused || isSending || prompt.trim().length > 0;
+  useTerminalComposerActivity(`fullscreen:${session.id}`, composerDirty);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1684,6 +2200,7 @@ function FullscreenTerminalModal({
     const nextPrompt = normalizePromptForSubmit(promptRef.current);
     if (!nextPrompt.trim() || sendingRef.current) return;
     sendingRef.current = true;
+    setIsSending(true);
     const payload = target === session.id ? nextPrompt : `[FROM ${session.id} TO ${target}] ${nextPrompt}`;
     try {
       await sendTerminalPrompt(target, payload);
@@ -1692,22 +2209,22 @@ function FullscreenTerminalModal({
       await onChanged();
     } finally {
       sendingRef.current = false;
+      setIsSending(false);
     }
   }
 
   function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    event.stopPropagation();
-    if (event.key !== "Enter") return;
-    if (event.nativeEvent.isComposing) return;
-    if (event.shiftKey) return;
-
-    event.preventDefault();
-    send().catch(console.error);
+    if (shouldSubmitTerminalTileComposer(event)) {
+      send().catch(console.error);
+    }
   }
 
   return (
     <div className="terminal-fullscreen-modal" role="dialog" aria-modal="true" onMouseDown={onClose}>
-      <section className={`terminal-fullscreen-panel ${session.status}`} onMouseDown={(event) => event.stopPropagation()}>
+      <section
+        className={`terminal-fullscreen-panel ${session.status} ${composerDirty ? "composer-dirty" : ""}`}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         <header>
           <div>
             <span className="status-dot" />
@@ -1715,14 +2232,15 @@ function FullscreenTerminalModal({
             <em>{session.status}</em>
             <em>{session.team}</em>
             {session.model && <em>{session.model}</em>}
+            {composerDirty && <span className="composer-state">Editing</span>}
           </div>
           <button className="icon" onClick={onClose} title="크게 보기 닫기">
             <X size={16} />
           </button>
         </header>
         <XtermPreview sessionId={session.id} status={session.status} variant="fullscreen" />
-        <footer>
-          <select value={target} onChange={(event) => setTarget(event.target.value)}>
+        <footer onMouseDown={stopTerminalTileFooterMouseDown}>
+          <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
             {sessions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
@@ -1733,6 +2251,8 @@ function FullscreenTerminalModal({
             ref={textareaRef}
             rows={1}
             value={prompt}
+            onFocus={() => setComposerFocused(true)}
+            onBlur={() => setComposerFocused(false)}
             onChange={(event) => {
               promptRef.current = event.target.value;
               setPrompt(event.target.value);
@@ -1740,7 +2260,7 @@ function FullscreenTerminalModal({
             onKeyDown={handleComposerKeyDown}
             placeholder="지시 입력"
           />
-          <button className="primary icon" onClick={send} title="전송">
+          <button className="primary icon" onMouseDown={stopTerminalTileFooterMouseDown} onClick={send} title="전송" disabled={isSending || !prompt.trim()}>
             <Send size={15} />
           </button>
         </footer>
@@ -1803,7 +2323,7 @@ function XtermPreview({
       fontWeightBold: 700,
       drawBoldTextInBrightColors: false,
       cursorBlink: status === "active",
-      scrollback: 100,
+      scrollback: TERMINAL_SCROLLBACK_LINES,
       convertEol: true,
       allowProposedApi: true,
       theme: {
@@ -1854,6 +2374,62 @@ function XtermPreview({
     const isNearBottom = () => {
       const buffer = term.buffer.active;
       return buffer.baseY - buffer.viewportY <= 1;
+    };
+    let disposed = false;
+    let queuedWriteBytes = 0;
+    let writingTerminal = false;
+    let drainScheduled = false;
+    let writeQueue: TerminalWriteItem[] = [];
+    const scheduleDrainWriteQueue = () => {
+      if (disposed || drainScheduled) return;
+      drainScheduled = true;
+      requestAnimationFrame(() => {
+        drainScheduled = false;
+        drainWriteQueue();
+      });
+    };
+    const drainWriteQueue = () => {
+      if (disposed || writingTerminal) return;
+      const shifted = shiftTerminalWriteItem(writeQueue, queuedWriteBytes);
+      const item = shifted.item;
+      if (!item) return;
+      writeQueue = shifted.queue;
+      writingTerminal = true;
+      queuedWriteBytes = shifted.queuedBytes;
+      term.write(item.data, () => {
+        if (item.stickToBottom) term.scrollToBottom();
+        item.onDrained?.();
+        writingTerminal = false;
+        if (writeQueue.length > 0) scheduleDrainWriteQueue();
+      });
+    };
+    const enqueueTerminalWrite = (
+      data: string,
+      options: { kind: TerminalWriteItem["kind"]; stickToBottom?: boolean; resetBefore?: boolean; onDrained?: () => void }
+    ) => {
+      if (!data || disposed) return;
+      if (options.resetBefore) {
+        writeQueue = [];
+        queuedWriteBytes = 0;
+        term.reset();
+      }
+      const queued = enqueueTerminalWriteItems(writeQueue, queuedWriteBytes, data, options, {
+        chunkBytes: XTERM_WRITE_CHUNK_BYTES,
+        maxQueuedBytes: XTERM_MAX_QUEUED_BYTES
+      });
+      writeQueue = queued.queue;
+      queuedWriteBytes = queued.queuedBytes;
+      for (const dropped of queued.dropped) {
+        writeTerminalDiagnostic("terminal_write_queue_drop", {
+          sessionId,
+          variant,
+          kind: dropped.kind,
+          droppedBytes: dropped.data.length,
+          queuedWriteBytes,
+          queueLength: writeQueue.length
+        });
+      }
+      scheduleDrainWriteQueue();
     };
     const sendSocket = (payload: unknown) => {
       const text = JSON.stringify(payload);
@@ -1940,19 +2516,22 @@ function XtermPreview({
           bytes: data.length,
           totalReplayBytes: lifecycleRef.current.replayBytes
         });
-        term.reset();
-        term.write(data, () => {
-          term.scrollToBottom();
-          writeTerminalDiagnostic("terminal_replay_written", {
-            sessionId,
-            variant,
-            bytes: data.length,
-            cols: term.cols,
-            rows: term.rows,
-            bufferBaseY: term.buffer.active.baseY,
-            viewportY: term.buffer.active.viewportY,
-            rect: terminalRectSnapshot(container)
-          });
+        enqueueTerminalWrite(data, {
+          kind: "replay",
+          stickToBottom: true,
+          resetBefore: true,
+          onDrained: () => {
+            writeTerminalDiagnostic("terminal_replay_written", {
+              sessionId,
+              variant,
+              bytes: data.length,
+              cols: term.cols,
+              rows: term.rows,
+              bufferBaseY: term.buffer.active.baseY,
+              viewportY: term.buffer.active.viewportY,
+              rect: terminalRectSnapshot(container)
+            });
+          }
         });
       }
       if (message.type === "output") {
@@ -1969,12 +2548,10 @@ function XtermPreview({
           });
         }
         const stickToBottom = isNearBottom();
-        term.write(data, () => {
-          if (stickToBottom) term.scrollToBottom();
-        });
+        enqueueTerminalWrite(data, { kind: "output", stickToBottom });
       }
       if (message.type === "exit") {
-        term.write(`\r\n\x1b[31m[Process exited]\x1b[0m\r\n`);
+        enqueueTerminalWrite(`\r\n\x1b[31m[Process exited]\x1b[0m\r\n`, { kind: "system", stickToBottom: true });
       }
     });
     const dataDisposable = term.onData((data) => {
@@ -2082,6 +2659,10 @@ function XtermPreview({
     );
 
     return () => {
+      disposed = true;
+      drainScheduled = false;
+      writeQueue = [];
+      queuedWriteBytes = 0;
       for (const timer of blankCheckTimers) window.clearTimeout(timer);
       writeTerminalDiagnostic("xterm_dispose", {
         sessionId,
@@ -2119,7 +2700,7 @@ function TerminalLogView({ text }: { text: string }) {
     const term = new XTerm({
       fontSize: 12,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace",
-      scrollback: 100,
+      scrollback: TERMINAL_SCROLLBACK_LINES,
       convertEol: true,
       cursorBlink: false,
       theme: {
@@ -2277,14 +2858,40 @@ function defaultShell() {
   return navigator.userAgent.includes("Windows") ? "powershell.exe" : "bash";
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function codexYoloArgs(model: string) {
   return ["--model", model, "--cd", ".", "--no-alt-screen", "--dangerously-bypass-approvals-and-sandbox"];
+}
+
+function codexStartupPolicyPrompt(agentId: string) {
+  return [
+    "[LCC BOOT POLICY - MUST READ BEFORE WORK]",
+    `agent=${agentId}`,
+    "1. Read AGENTS.md at repo root.",
+    "2. Read data/branch-boot-context.md.",
+    "3. Read docs/command-chain-policy-20260531.md.",
+    "4. Read docs/agent-state-management-policy-20260531.md.",
+    "5. Read data/ceo-command-ledger.json and data/work-ledger.json before selecting or accepting work.",
+    "6. Read data/agent-boot-prompts.json and follow your own role entry.",
+    "Rules: 9001 startup begins with Caesar and Max. Caesar/Max inspect the ledger before spawning workers. Workers are spawned only for needed active ledger items. Preserve 9001 singleton context. UI work needs CDP/screenshot evidence. Do not code before POLICY_ACK unless Lucas gives a direct emergency instruction.",
+    "Reply first with: POLICY_ACK agent=<id> role=<role> read=<files> mode=<normal|lucas-direct|emergency> ledger_item=<id|none> next=<first action> blocker=<none|...>"
+  ].join("\n");
+}
+
+async function sendCodexStartupPolicy(agentId: string) {
+  await sleep(2200);
+  await api.send(`/api/sessions/${agentId}/write`, "POST", { data: "\r" }).catch(() => undefined);
+  await sleep(3200);
+  await api.send(`/api/sessions/${agentId}/write`, "POST", { data: `${codexStartupPolicyPrompt(agentId)}\r` }).catch(() => undefined);
 }
 
 function standardDevAgents(cmd: string, model: string) {
   return [
     { id: "dev-lead", name: "Dev Lead", team: "development", cwd: "workspaces/dev-lead/repo", cmd, args: codexYoloArgs(model), model },
-    ...Array.from({ length: 4 }, (_, index) => {
+    ...Array.from({ length: 8 }, (_, index) => {
       const n = index + 1;
       return {
         id: `developer-${n}`,
