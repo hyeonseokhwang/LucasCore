@@ -899,7 +899,7 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
       {error ? (
         <div className="error">{error}</div>
       ) : session ? (
-        <HqTerminalPreview sessionId={session.id} status={session.status} />
+        <HqTerminalPreview sessionId={session.id} status={session.status} ownsSessionResize={false} />
       ) : (
         <pre className="terminal-snapshot-preview fullscreen" aria-label="Loading terminal output">
           Loading terminal output...
@@ -2536,12 +2536,14 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   sessionId,
   status,
   variant = "card",
-  isVisible = true
+  isVisible = true,
+  ownsSessionResize = true
 }: {
   sessionId: string;
   status: SessionStatus;
   variant?: "card" | "fullscreen";
   isVisible?: boolean;
+  ownsSessionResize?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<XTerm | null>(null);
@@ -2625,7 +2627,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       if (dims.cols !== last.cols || dims.rows !== last.rows) {
         lastDimsRef.current = dims;
         const socket = socketRef.current;
-        if (socket?.readyState === WebSocket.OPEN) {
+        if (ownsSessionResize && socket?.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: "resize", sessionId, cols: dims.cols, rows: dims.rows }));
         }
       }
@@ -2789,7 +2791,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       writeDrainScheduledRef.current = false;
       writeDrainRafRef.current = null;
     };
-  }, [sessionId, status, variant]);
+  }, [sessionId, status, variant, ownsSessionResize]);
 
   useEffect(() => {
     isVisibleRef.current = isVisible;

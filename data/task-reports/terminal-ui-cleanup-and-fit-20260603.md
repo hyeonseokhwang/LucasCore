@@ -34,6 +34,7 @@ Lucas confirmed the terminal card view mostly returned to normal and requested:
 - [x] Restart only 9000 if needed; preserve 9001.
 - [x] Capture 9000 screenshot evidence.
 - [x] Fix popout replay stalling and parent card refresh coupling.
+- [x] Stop popout viewer from resizing the shared PTY session.
 - [ ] Ask Lucas for OK or return-for-fix.
 
 ## Changes
@@ -45,6 +46,7 @@ Lucas confirmed the terminal card view mostly returned to normal and requested:
   - Changed popout terminal preview to use the same card variant; only the container size differs.
   - Added bounded xterm write-queue draining for replay/output so large replay text does not stop mid-render.
   - Excluded volatile `preview`, `preview_text`, and `updated_at` changes from session-array equality so API polling does not remount terminal cards just because tail text changed.
+  - Added `ownsSessionResize=false` for popout terminal viewers so popup fit does not send shared PTY resize events that disturb card/fullscreen views.
 - `apps/web/src/styles.css`
   - Added popout attachment row layout.
 
@@ -59,6 +61,7 @@ Lucas confirmed the terminal card view mostly returned to normal and requested:
 - Popout CDP metrics: `isPopout=true`, `popoutFooterVisible=true`, `popoutTextareaVisible=true`.
 - Popout write-queue/fresh-code screenshot evidence: `data/system-logs/terminal-9000-cdp/terminal-popout-write-queue-20260603.png`.
 - Popout write-queue CDP metrics: `isPopout=true`, `terminalCards=0`, `popoutFooterVisible=true`; screenshot shows footer input visible.
+- Popout resize isolation: 9000 restarted on strict port after change, listener PID 856; 9001 preserved.
 - Areum/Audit Officer model alignment: both recreated on 9001 as `gpt-5.4`; Audit Officer active after second recreation.
 - Areum/Audit task cards sent for ledger organization and governance supervision.
 
