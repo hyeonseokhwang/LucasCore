@@ -158,6 +158,8 @@ REPORT terminal-cardview-snapshot-recovery state=<reported|blocked|completed> ch
 - 2026-06-03: Stability recheck after the fallback patch passed. `terminal-snapshot-stability-recheck-3-20260603-tail.json` showed card 54 lines / 0 fragments and fullscreen 58 lines / 0 fragments. `terminal-snapshot-popout-stability-recheck-2-20260603-tail.json` showed popout 60 lines / 0 fragments.
 - 2026-06-03: The `lcc-terminal-screen-reader` skill was corrected to classify from the same cursor-aware snapshot model and to use raw marker scanning only for queued/pasted input detection. Current reads: Max pending=none meaningfulLineCount=53, Developer 1 pending=none, Developer 8 pending=none.
 - 2026-06-03: Final current-state audit after reconnect: 9001 PID remains 14540, Max pending=none meaningfulLineCount=73, Developer 1 pending=none, Developer 8 pending=none. Latest 9000 CDP evidence shows card/fullscreen/popout all have 54 visible lines, 0 spinner fragments, and the same Max tail. Reports: `terminal-snapshot-final-audit-card-fullscreen-20260603-tail.json`, `terminal-snapshot-final-audit-popout-20260603-tail.json`.
+- 2026-06-03T13:41:39+09:00: Network reconnect continuation. Commit `b9625d3` was pushed to `origin/backup/current-ui-state-20260531-2315`. Runtime log/state files remain intentionally uncommitted. 9001 is still preserved on PID 14540.
+- 2026-06-03T13:42:42+09:00: Reconnect CDP audit passed. Card and fullscreen report: `data/system-logs/terminal-9000-cdp/terminal-snapshot-reconnect-audit-20260603-tail.json`. Popout report: `data/system-logs/terminal-9000-cdp/terminal-snapshot-reconnect-audit-popout-20260603-tail.json`. Max card, Max fullscreen, and Max popout all use `terminal-snapshot-preview`, show 54 meaningful lines, and have 0 fragment-only lines. Console had 6 dev/info events and 0 relevant errors.
 
 ## Active Stop Rules
 
@@ -212,6 +214,10 @@ UNDERSTANDING_APPROVED terminal-cardview-snapshot-recovery manager=<session-id> 
   - `data/system-logs/terminal-9000-cdp/terminal-snapshot-final-audit-popout-20260603-card.png`
   - `data/system-logs/terminal-9000-cdp/terminal-snapshot-final-audit-popout-20260603-tail.json`
 
+## Current Status
+
+Recovered and pushed. The display contract now matches Lucas intent in the live 9000 web layer: card/fullscreen/popout are passive surfaces of the same current terminal snapshot and do not attach/replay on view creation. The 9001 backend snapshot implementation is committed for the next approved 9001 reload, but 9001 was not restarted during this recovery.
+
 ## Next Action
 
-Max must now collect practitioner understanding checks and report them. After valid understanding checks are accepted, development should start immediately.
+Continue monitoring with `lcc-terminal-screen-reader` and CDP only if Lucas reports another visible drift. Do not reopen source changes without a new understanding check and explicit permission.
