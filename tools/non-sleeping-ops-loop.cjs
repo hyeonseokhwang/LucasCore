@@ -9,6 +9,7 @@ const workLedgerPath = path.join(dataDir, "work-ledger.json");
 const statePath = path.join(dataDir, "non-sleeping-ops-loop-state.json");
 const snapshotDir = path.join(dataDir, "session-context-snapshots");
 const logDir = path.join(dataDir, "system-logs", "non-sleeping-ops-loop-20260602");
+const ledgerReferenceDisabledPath = path.join(dataDir, "ledger-reference-disabled.json");
 
 const args = new Set(process.argv.slice(2));
 const once = args.has("--once") || args.has("--simulate");
@@ -35,6 +36,25 @@ function writeJson(file, value) {
 function appendEvent(event) {
   fs.mkdirSync(path.dirname(eventsPath), { recursive: true });
   fs.appendFileSync(eventsPath, `${JSON.stringify({ at: new Date().toISOString(), ...event })}\n`, "utf8");
+}
+
+function isLedgerReferenceDisabled() {
+  if (process.env.LCC_LEDGER_REFERENCE_DISABLED === "1") return true;
+  try {
+    return JSON.parse(fs.readFileSync(ledgerReferenceDisabledPath, "utf8")).disabled === true;
+  } catch {
+    return false;
+  }
+}
+
+if (isLedgerReferenceDisabled()) {
+  appendEvent({
+    type: "ledger_reference_disabled",
+    source: "non-sleeping-ops-loop",
+    action: "exit_without_ledger_reference"
+  });
+  console.log("Ledger reference disabled; non-sleeping ops loop exits.");
+  process.exit(0);
 }
 
 function cleanText(value) {

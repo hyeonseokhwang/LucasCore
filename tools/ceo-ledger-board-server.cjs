@@ -5,6 +5,7 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const executionBoardPath = path.join(root, "data", "execution-board.json");
 const workLedgerPath = path.join(root, "data", "work-ledger.json");
+const ledgerReferenceDisabledPath = path.join(root, "data", "ledger-reference-disabled.json");
 const port = Number(process.env.CEO_LEDGER_PORT || 9100);
 
 function readJson(file, fallback = {}) {
@@ -12,6 +13,15 @@ function readJson(file, fallback = {}) {
     return JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
   } catch {
     return fallback;
+  }
+}
+
+function isLedgerReferenceDisabled() {
+  if (process.env.LCC_LEDGER_REFERENCE_DISABLED === "1") return true;
+  try {
+    return JSON.parse(fs.readFileSync(ledgerReferenceDisabledPath, "utf8")).disabled === true;
+  } catch {
+    return false;
   }
 }
 
@@ -475,9 +485,26 @@ function renderPage(board, workLedger) {
 }
 
 const server = http.createServer((request, response) => {
+  const url = new URL(request.url || "/", `http://127.0.0.1:${port}`);
+  if (isLedgerReferenceDisabled()) {
+    const disabled = {
+      ok: false,
+      disabled: true,
+      reason: "ledger-reference-disabled",
+      next: "Do not read or execute ledger items until Lucas restores ledger reference."
+    };
+    if (url.pathname === "/health" || url.pathname.startsWith("/api/")) {
+      response.writeHead(503, { "content-type": "application/json; charset=utf-8" });
+      response.end(JSON.stringify(disabled));
+      return;
+    }
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    response.end(`<!doctype html><html><head><meta charset="utf-8"><title>Ledger Disabled</title></head><body><h1>Ledger reference disabled</h1><p>${esc(disabled.next)}</p></body></html>`);
+    return;
+  }
+
   const board = readJson(executionBoardPath, {});
   const workLedger = readJson(workLedgerPath, { tasks: [], events: [] });
-  const url = new URL(request.url || "/", `http://127.0.0.1:${port}`);
 
   if (url.pathname === "/health") {
     response.writeHead(200, { "content-type": "application/json; charset=utf-8" });

@@ -8,11 +8,14 @@ Scope: branch operating state for 9002 live agents, Work Ledger events, and PTY-
 
 Every assigned task follows this flow:
 
+0. `task-context`: owner creates or updates one integrated markdown task file containing objective, intent, permissions, protected contracts, current state, evidence, and next action.
 1. `assigned`: Chief Min or owner issues the task.
 2. `acknowledged`: assignee confirms receipt with `ACK`.
-3. `doing`: assignee starts work or states the concrete first action.
-4. `heartbeat`: assignee reports progress at least every 3 minutes while active.
-5. `reported`: assignee reports outcome with evidence.
+3. `understanding-check`: assignee restates objective, Lucas intent, forbidden actions, protected contracts, files, acceptance checks, and clarification questions.
+4. `understanding-approved`: manager approves the restatement or issues a correction.
+5. `doing`: assignee starts work or states the concrete first action after understanding approval.
+6. `heartbeat`: assignee reports progress at least every 3 minutes while active.
+7. `reported`: assignee reports outcome with evidence.
 6. Terminal states:
    - `completed`: work is done and evidence is sufficient.
    - `blocked`: assignee cannot progress without named external input or state change.
@@ -33,6 +36,7 @@ Rules:
 - ACK is due within 30 seconds of assignment.
 - HEARTBEAT is due every 3 minutes while work is active.
 - REPORT is mandatory on completion, block, stop, or handoff.
+- The assigning manager must monitor these deadlines. Missing ACK or HEARTBEAT is a manager action item, not passive background noise.
 - Blocked/stopped reports must include `reason`, `last_evidence`, and `next`.
 - File-only, markdown-only, or log-only status is not counted until it is visible in PTY or routed to Chief Min/HQ.
 - Secrets must never appear in PTY, ledger body, docs, screenshots, or commit messages.
@@ -109,6 +113,27 @@ issued_order
 owner
 next_action
 evidence
+```
+
+## Manager Monitoring Contract
+
+Assigned work must be actively supervised until it reaches a terminal state.
+
+Manager obligations:
+
+- Maintain one integrated markdown task file as the restart-safe memory and final report for the task.
+- Treat that file as stale if live state, assignment, blocker, evidence, or next action changes without being reflected there.
+- Require and approve an understanding check before implementation. Do not treat ACK as comprehension.
+- After assignment, check for ACK within 30 seconds.
+- While active, check heartbeat/progress at least every 3 minutes.
+- Inspect the assignee terminal/session output and evidence before reporting status upward.
+- If no visible work is observed, issue a direct follow-up, reassign, stop the task, or escalate to the next authority.
+- Do not report a task as healthy solely because it was assigned.
+
+Required manager report format:
+
+```text
+MANAGER_CHECK <task-id> manager=<session-id> assignee=<session-id> state=<ack|doing|heartbeat-missing|blocked|reported|stopped> evidence=<session|file|test> next=<action>
 ```
 
 ## QA Gate

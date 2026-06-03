@@ -36,6 +36,7 @@ use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
 struct AppState {
     sessions: Arc<RwLock<HashMap<String, Arc<Mutex<TerminalSession>>>>>,
     terminal_buffers: Arc<StdMutex<HashMap<String, TerminalRingBuffer>>>,
+    terminal_display_snapshots: Arc<StdMutex<HashMap<String, TerminalDisplaySnapshot>>>,
     tx: broadcast::Sender<ServerEvent>,
     canvas_store: CanvasStore,
     peer_store: PeerStore,
@@ -97,6 +98,192 @@ impl TerminalRingBuffer {
             self.data = tail_string_by_bytes(&self.data, self.max_bytes);
         }
     }
+}
+
+#[derive(Debug, Clone)]
+struct TerminalDisplaySnapshot {
+    lines: Vec<String>,
+    cursor_row: usize,
+    cursor_col: usize,
+    max_rows: usize,
+}
+
+impl TerminalDisplaySnapshot {
+    fn new(max_rows: usize) -> Self {
+        Self {
+            lines: vec![String::new()],
+            cursor_row: 0,
+            cursor_col: 0,
+            max_rows,
+        }
+    }
+
+    fn push(&mut self, value: &str) {
+        let chars: Vec<char> = value.chars().collect();
+        let mut index = 0;
+        while index < chars.len() {
+            match chars[index] {
+                '\x1b' => {
+                    index = self.consume_escape(&chars, index);
+                }
+                '\r' => {
+                    self.cursor_col = 0;
+                    index += 1;
+                }
+                '\n' => {
+                    self.cursor_row += 1;
+                    self.cursor_col = 0;
+                    self.ensure_cursor_row();
+                    index += 1;
+                }
+                '\x08' => {
+                    self.cursor_col = self.cursor_col.saturating_sub(1);
+                    index += 1;
+                }
+                '\t' => {
+                    let spaces = 4 - (self.cursor_col % 4);
+                    for _ in 0..spaces {
+                        self.put_char(' ');
+                    }
+                    index += 1;
+                }
+                ch if ch.is_control() => {
+                    index += 1;
+                }
+                ch => {
+                    self.put_char(ch);
+                    index += 1;
+                }
+            }
+        }
+    }
+
+    fn text(&self) -> String {
+        self.lines
+            .iter()
+            .map(|line| line.trim_end())
+            .collect::<Vec<_>>()
+            .join("\r\n")
+            .trim()
+            .to_string()
+    }
+
+    fn consume_escape(&mut self, chars: &[char], start: usize) -> usize {
+        let Some(next) = chars.get(start + 1).copied() else {
+            return start + 1;
+        };
+        if next == '[' {
+            let mut cursor = start + 2;
+            while cursor < chars.len() {
+                let ch = chars[cursor];
+                if ('@'..='~').contains(&ch) {
+                    let params = chars[start + 2..cursor].iter().collect::<String>();
+                    self.apply_csi(&params, ch);
+                    return cursor + 1;
+                }
+                cursor += 1;
+            }
+            return chars.len();
+        }
+        if next == ']' {
+            let mut cursor = start + 2;
+            while cursor < chars.len() {
+                if chars[cursor] == '\x07' {
+                    return cursor + 1;
+                }
+                if chars[cursor] == '\x1b' && chars.get(cursor + 1) == Some(&'\\') {
+                    return cursor + 2;
+                }
+                cursor += 1;
+            }
+            return chars.len();
+        }
+        start + 2
+    }
+
+    fn apply_csi(&mut self, params: &str, command: char) {
+        let values = parse_csi_params(params);
+        match command {
+            'H' | 'f' => {
+                self.cursor_row = values.first().copied().unwrap_or(1).saturating_sub(1);
+                self.cursor_col = values.get(1).copied().unwrap_or(1).saturating_sub(1);
+                self.ensure_cursor_row();
+            }
+            'A' => self.cursor_row = self.cursor_row.saturating_sub(values.first().copied().unwrap_or(1)),
+            'B' => {
+                self.cursor_row += values.first().copied().unwrap_or(1);
+                self.ensure_cursor_row();
+            }
+            'C' => self.cursor_col += values.first().copied().unwrap_or(1),
+            'D' => self.cursor_col = self.cursor_col.saturating_sub(values.first().copied().unwrap_or(1)),
+            'K' => self.erase_line(values.first().copied().unwrap_or(0)),
+            'J' => self.erase_display(values.first().copied().unwrap_or(0)),
+            _ => {}
+        }
+    }
+
+    fn erase_line(&mut self, mode: usize) {
+        self.ensure_cursor_row();
+        let line = &mut self.lines[self.cursor_row];
+        match mode {
+            1 => {
+                let suffix = line.chars().skip(self.cursor_col).collect::<String>();
+                *line = format!("{}{}", " ".repeat(self.cursor_col), suffix);
+            }
+            2 => line.clear(),
+            _ => {
+                let prefix = line.chars().take(self.cursor_col).collect::<String>();
+                *line = prefix;
+            }
+        }
+    }
+
+    fn erase_display(&mut self, mode: usize) {
+        match mode {
+            2 => {
+                self.lines.clear();
+                self.lines.push(String::new());
+                self.cursor_row = 0;
+                self.cursor_col = 0;
+            }
+            _ => self.erase_line(0),
+        }
+    }
+
+    fn put_char(&mut self, ch: char) {
+        self.ensure_cursor_row();
+        let line = &mut self.lines[self.cursor_row];
+        let mut chars = line.chars().collect::<Vec<_>>();
+        while chars.len() < self.cursor_col {
+            chars.push(' ');
+        }
+        if self.cursor_col < chars.len() {
+            chars[self.cursor_col] = ch;
+        } else {
+            chars.push(ch);
+        }
+        *line = chars.into_iter().collect();
+        self.cursor_col += 1;
+    }
+
+    fn ensure_cursor_row(&mut self) {
+        while self.lines.len() <= self.cursor_row {
+            self.lines.push(String::new());
+        }
+        if self.lines.len() > self.max_rows {
+            let overflow = self.lines.len() - self.max_rows;
+            self.lines.drain(0..overflow);
+            self.cursor_row = self.cursor_row.saturating_sub(overflow);
+        }
+    }
+}
+
+fn parse_csi_params(params: &str) -> Vec<usize> {
+    params
+        .trim_start_matches('?')
+        .split(';')
+        .map(|part| part.trim().parse::<usize>().unwrap_or(0))
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -835,6 +1022,7 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         sessions: Arc::new(RwLock::new(HashMap::new())),
         terminal_buffers: Arc::new(StdMutex::new(HashMap::new())),
+        terminal_display_snapshots: Arc::new(StdMutex::new(HashMap::new())),
         tx,
         canvas_store,
         peer_store,
@@ -1646,6 +1834,21 @@ mod tests {
         assert_eq!(strip_ansi_for_ui("Working"), "Working");
     }
 
+    #[test]
+    fn terminal_display_snapshot_tracks_current_visible_text() {
+        let mut snapshot = super::TerminalDisplaySnapshot::new(10);
+        snapshot.push("ready\r\n");
+        snapshot.push("\x1b[3;1HWorking");
+        snapshot.push("\x1b[3;1HW");
+        snapshot.push("\x1b[3;1HWo");
+        snapshot.push("\x1b[3;1HWorking");
+        let text = snapshot.text();
+        assert!(text.contains("ready"));
+        assert!(text.contains("Working"));
+        assert!(!text.contains("\x1b[3;1H"));
+        assert!(!text.contains("\r\nW\r\nWo"));
+    }
+
     #[tokio::test]
     async fn read_tail_lossy_returns_only_the_requested_tail_window() {
         let path = temp_test_file("read-tail-window.log");
@@ -1759,7 +1962,9 @@ async fn resolve_terminal_replay(state: &AppState, id: &str, limit_bytes: u64) -
 async fn build_internal_session_view(state: &AppState, meta: SessionMeta) -> Result<SessionView, ApiError> {
     let log_path = terminal_log_path(&meta.id);
     let runtime_config = terminal_runtime_config();
-    let preview = terminal_buffer_tail(state, &meta.id, runtime_config.preview_bytes).unwrap_or_default();
+    let preview = terminal_display_snapshot_text(state, &meta.id)
+        .or_else(|| terminal_buffer_tail(state, &meta.id, runtime_config.preview_bytes))
+        .unwrap_or_default();
     Ok(build_session_view(
         meta,
         tail_string_by_bytes(&preview, runtime_config.preview_bytes),
@@ -1777,6 +1982,15 @@ fn terminal_buffer_tail(state: &AppState, id: &str, max_bytes: usize) -> Option<
         .lock()
         .ok()
         .and_then(|buffers| buffers.get(id).map(|buffer| buffer.tail(max_bytes)))
+}
+
+fn terminal_display_snapshot_text(state: &AppState, id: &str) -> Option<String> {
+    state
+        .terminal_display_snapshots
+        .lock()
+        .ok()
+        .and_then(|snapshots| snapshots.get(id).map(TerminalDisplaySnapshot::text))
+        .filter(|text| !text.is_empty())
 }
 
 async fn write_raw_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
@@ -1818,6 +2032,9 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
         if let Ok(mut buffers) = state.terminal_buffers.lock() {
             buffers.insert(id.clone(), TerminalRingBuffer::new(terminal_runtime_config().ring_buffer_bytes));
         }
+        if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
+            snapshots.insert(id.clone(), TerminalDisplaySnapshot::new(150));
+        }
         let mut log_writer = TerminalLogWriter::new(log_path, id.clone());
         log_writer.write_session_banner();
         let mut buf = [0_u8; 4096];
@@ -1839,6 +2056,12 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
                 buffers
                     .entry(id.clone())
                     .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
+                    .push(&data);
+            }
+            if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
+                snapshots
+                    .entry(id.clone())
+                    .or_insert_with(|| TerminalDisplaySnapshot::new(150))
                     .push(&data);
             }
             let _ = state.tx.send(ServerEvent::Output {

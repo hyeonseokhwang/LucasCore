@@ -34,7 +34,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import React, { FormEvent, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { normalizePromptForSubmit } from "./terminalPrompt";
-import { TERMINAL_RENDER_LINE_LIMIT, repairTerminalStreamForXterm, sanitizeTerminalPreviewForSummary, tailTerminalLines } from "./terminalReplay";
+import { TERMINAL_RENDER_LINE_LIMIT, repairTerminalStreamForXterm, tailTerminalLines, terminalPreviewTextForSnapshot } from "./terminalReplay";
 import { clipboardItemsContainImage } from "./terminalCardComposer";
 import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
 import {
@@ -853,7 +853,15 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
           <X size={16} />
         </button>
       </header>
-      {error ? <div className="error">{error}</div> : <XtermPreview sessionId={sessionId} status={session?.status ?? "active"} variant="fullscreen" />}
+      {error ? (
+        <div className="error">{error}</div>
+      ) : session ? (
+        <TerminalSnapshotPreview session={session} variant="fullscreen" />
+      ) : (
+        <pre className="terminal-snapshot-preview fullscreen" aria-label="Loading terminal output">
+          Loading terminal output...
+        </pre>
+      )}
       <footer>
         <select value={target} onChange={(event) => setTarget(event.target.value)}>
           {(sessions.length ? sessions : [{ id: sessionId, name: sessionId } as Session]).map((item) => (
@@ -2236,7 +2244,7 @@ const TerminalCard = React.memo(function TerminalCard({
           </button>
         </div>
       </header>
-      <StaticTerminalPreview session={session} />
+      <TerminalSnapshotPreview session={session} />
       {attachments.length > 0 && (
         <div className="terminal-attachment-strip" onMouseDown={stopTerminalTileFooterMouseDown}>
           {attachments.map((attachment) => (
@@ -2326,20 +2334,6 @@ const TerminalCard = React.memo(function TerminalCard({
   );
 });
 
-function StaticTerminalPreview({ session, variant = "card" }: { session: Session; variant?: "card" | "fullscreen" }) {
-  const rawText = tailTerminalLines(
-    session.preview_text || session.preview || "아직 표시할 터미널 출력이 없습니다.\r\n",
-    TERMINAL_RENDER_LINE_LIMIT
-  );
-  const text = sanitizeTerminalPreviewForSummary(rawText) || "아직 표시할 터미널 출력이 없습니다.";
-
-  return (
-    <pre className={`static-terminal-preview ${variant}`} aria-label={`${session.name} terminal preview`}>
-      {text}
-    </pre>
-  );
-}
-
 type TerminalImageAttachment = {
   id: string;
   name: string;
@@ -2419,7 +2413,7 @@ function FullscreenTerminalModal({
             <X size={16} />
           </button>
         </header>
-        <StaticTerminalPreview session={session} variant="fullscreen" />
+        <TerminalSnapshotPreview session={session} variant="fullscreen" />
         <footer onMouseDown={stopTerminalTileFooterMouseDown}>
           <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
             {sessions.map((item) => (
@@ -2992,6 +2986,28 @@ const XtermPreview = React.memo(function XtermPreview({
   }, [isVisible]);
 
   return <div className={`xterm-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} ref={containerRef} />;
+});
+
+const TerminalSnapshotPreview = React.memo(function TerminalSnapshotPreview({
+  session,
+  variant = "card"
+}: {
+  session: Session;
+  variant?: "card" | "fullscreen";
+}) {
+  const snapshot = useMemo(() => {
+    const raw = session.preview || session.preview_text || "아직 표시할 터미널 출력이 없습니다.\r\n";
+    return terminalPreviewTextForSnapshot(raw, session.preview_text || "", TERMINAL_RENDER_LINE_LIMIT) || "아직 표시할 터미널 출력이 없습니다.";
+  }, [session.preview, session.preview_text]);
+
+  return (
+    <pre
+      className={`terminal-snapshot-preview ${variant === "fullscreen" ? "fullscreen" : ""}`}
+      aria-label={`${session.name} terminal preview`}
+    >
+      {snapshot}
+    </pre>
+  );
 });
 
 function TerminalLogView({ text }: { text: string }) {

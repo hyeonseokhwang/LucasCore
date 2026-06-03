@@ -14,6 +14,22 @@ $Root = Resolve-Path "$PSScriptRoot\.."
 if (-not $LogPath) {
   $LogPath = Join-Path $Root "data\system-logs\agent-ops.jsonl"
 }
+$LedgerReferenceDisabledPath = Join-Path $Root "data\ledger-reference-disabled.json"
+
+function Test-LedgerReferenceDisabled {
+  if ($env:LCC_LEDGER_REFERENCE_DISABLED -eq "1") {
+    return $true
+  }
+  if (-not (Test-Path -LiteralPath $LedgerReferenceDisabledPath)) {
+    return $false
+  }
+  try {
+    $state = Get-Content -LiteralPath $LedgerReferenceDisabledPath -Raw | ConvertFrom-Json
+    return [bool]$state.disabled
+  } catch {
+    return $true
+  }
+}
 
 function Write-AgentOpsLog {
   param(
@@ -96,11 +112,11 @@ function Get-AgentBootPrompt {
     "2. Read data/branch-boot-context.md."
     "3. Read docs/command-chain-policy-20260531.md."
     "4. Read docs/agent-state-management-policy-20260531.md if present."
-    "5. Read data/ceo-command-ledger.json and data/work-ledger.json."
-    "6. Read data/agent-boot-prompts.json and follow your own role entry."
+    "5. Ledger reference is currently disabled by Lucas. Do not read data/ceo-command-ledger.json, data/work-ledger.json, execution-board, or 9100 until Lucas restores ledger reference."
+    "6. Read data/agent-boot-prompts.json only for role identity; ignore any ledger-read instructions while ledger reference is disabled."
     "Role entry path: $roleEntry"
-    "Rules: 9001 startup begins with Caesar and Max. Caesar/Max inspect the ledger before spawning workers. Workers are spawned only for needed active ledger items. Do not code before POLICY_ACK unless Lucas gives a direct emergency instruction."
-    "Reply first with: POLICY_ACK agent=<id> role=<role> read=<files> mode=<normal|lucas-direct|emergency> ledger_item=<id|none> next=<first action> blocker=<none|...>"
+    "Rules: 9001 startup begins with Caesar and Max. Do not inspect, execute, or assign ledger items. Do not code before an explicit task card states permission=edit."
+    "Reply first with: POLICY_ACK agent=<id> role=<role> read=<files> mode=<normal|lucas-direct|emergency> ledger_reference=disabled next=<first action> blocker=<none|...>"
   ) -join "`n"
 }
 

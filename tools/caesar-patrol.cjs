@@ -8,6 +8,7 @@ const idleLedgerPath = path.join(root, "data", "agent-idle-ledger.json");
 const opsEventLogPath = path.join(root, "data", "agent-ops-events.jsonl");
 const patrolLogPath = path.join(root, "data", "caesar-patrol-events.jsonl");
 const patrolLatestPath = path.join(root, "data", "caesar-patrol-latest.json");
+const ledgerReferenceDisabledPath = path.join(root, "data", "ledger-reference-disabled.json");
 
 function readJson(file, fallback) {
   try {
@@ -25,6 +26,29 @@ function appendJsonl(file, value) {
 function writeJson(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(value, null, 2), "utf8");
+}
+
+function isLedgerReferenceDisabled() {
+  if (process.env.LCC_LEDGER_REFERENCE_DISABLED === "1") return true;
+  try {
+    return JSON.parse(fs.readFileSync(ledgerReferenceDisabledPath, "utf8")).disabled === true;
+  } catch {
+    return false;
+  }
+}
+
+if (isLedgerReferenceDisabled()) {
+  const event = {
+    at: new Date().toISOString(),
+    kind: "caesar_patrol_disabled",
+    reason: "ledger-reference-disabled",
+    status: "disabled",
+    next: "Do not inspect ledger files until Lucas restores ledger reference."
+  };
+  appendJsonl(patrolLogPath, event);
+  writeJson(patrolLatestPath, event);
+  console.log("Ledger reference disabled; Caesar patrol exits without ledger inspection.");
+  process.exit(0);
 }
 
 function tailLines(file, count) {

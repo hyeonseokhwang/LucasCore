@@ -1461,26 +1461,28 @@ textarea {
   opacity: 0;
 }
 
-.static-terminal-preview {
+.terminal-snapshot-preview {
   min-width: 0;
   min-height: 0;
   height: 100%;
   margin: 0;
-  padding: 10px;
+  padding: 8px 9px;
   overflow: auto;
   white-space: pre;
   word-break: normal;
   background: #070c15;
-  color: #cbd7ea;
-  font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
-  font-size: 11px;
-  line-height: 1.35;
+  color: #dbe7f6;
+  font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Segoe UI Symbol", "Noto Sans Symbols 2", monospace;
+  font-size: 12px;
+  line-height: 1.25;
+  scrollbar-gutter: stable;
+  scrollbar-color: #4d6386 #0b1321;
+  scrollbar-width: auto;
 }
 
-.static-terminal-preview.fullscreen {
-  padding: 12px 14px;
+.terminal-snapshot-preview.fullscreen {
+  padding: 10px 12px;
   font-size: 13px;
-  line-height: 1.32;
 }
 
 .xterm-preview .xterm-viewport,
@@ -1834,6 +1836,13 @@ textarea {
   min-height: 0;
   height: auto;
   overflow: hidden;
+}
+
+.terminal-popout-page > .terminal-snapshot-preview {
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  overflow: auto;
 }
 
 .terminal-popout-page header,

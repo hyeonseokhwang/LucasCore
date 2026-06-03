@@ -7,12 +7,34 @@ This convention is mandatory before any agent changes source code.
 Before editing source, the developer must report:
 
 - task id and owner
+- integrated task markdown path
+- understanding check approved by Max/Caesar
 - files or modules expected to change
 - protected contract impact, if any
 - regression checks that will be run
 - whether the change is implementation, QA, refactor, or emergency recovery
 
 If the impacted area is unclear, stop and ask Dev Lead/Caesar before editing.
+
+## Understanding Check Before Edits
+
+ACK only means the task was received. It does not mean the task was understood.
+
+The assignee must read the integrated task file as the complete context packet. If that file is too terse to explain Lucas intent, visible symptoms, forbidden paths, and acceptance evidence, the assignee must request a better task file instead of filling gaps from assumption.
+
+Before source edits, the assignee must restate:
+
+- the objective in their own words
+- Lucas's intent and non-negotiable behavior
+- forbidden implementation paths
+- files/modules they believe are in scope
+- protected contracts touched
+- acceptance checks they will use
+- clarification questions, or `questions=none`
+
+The manager must approve or correct that restatement before edits begin. If the manager is unavailable, the assignee remains in inspect mode.
+
+Do not implement from a short ledger label. Implementation starts only from a task file that explains both what to do and what not to do.
 
 ## Protected Contract Check
 
@@ -66,9 +88,11 @@ Prefer feature-owned helpers and tests. A later MSA extraction should be possibl
 Use this report shape before and after implementation:
 
 ```text
-DEV_CHANGE_CHECK agent=<id> task=<ledger-id> files=<paths> protected=<none|contract> approval=<who|pending> regressions=<planned>
-DEV_CHANGE_REPORT agent=<id> task=<ledger-id> changed=<paths> regressions=<pass/fail> evidence=<ledger/file> risk=<none|...> next=<...>
+DEV_CHANGE_CHECK agent=<id> task=<task-id> task_md=<path> understanding=<approved-by|pending> files=<paths> protected=<none|contract> approval=<who|pending> regressions=<planned>
+DEV_CHANGE_REPORT agent=<id> task=<task-id> task_md=<path> changed=<paths> regressions=<pass/fail> evidence=<ledger/file> risk=<none|...> next=<...>
 ```
+
+The task markdown file is the durable task report. Keep it updated as the work changes so a restarted owner can continue from the latest verified state without reinterpreting chat history.
 
 ## Completion Reporting Chain
 

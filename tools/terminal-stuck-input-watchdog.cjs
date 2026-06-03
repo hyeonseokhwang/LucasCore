@@ -18,6 +18,7 @@ const promptTailLines = Math.max(6, Number(process.env.TERMINAL_STUCK_INPUT_TAIL
 const sampleTailChars = Math.max(120, Number(process.env.TERMINAL_TAIL_SAMPLE_CHARS || 500));
 const anomalyThresholdMs = Math.max(2000, Number(process.env.TERMINAL_TAIL_ANOMALY_THRESHOLD_MS || 5000));
 const anomalyCooldownMs = Math.max(5000, Number(process.env.TERMINAL_TAIL_ANOMALY_COOLDOWN_MS || 30000));
+const autoSubmitSentinel = "LCC_AUTO_SUBMIT_ON_STABLE_TAIL_V1";
 
 function readJson(file, fallback) {
   try {
@@ -75,9 +76,36 @@ async function getSessions() {
   return unwrapSessions(await response.json());
 }
 
+async function getSession(sessionId) {
+  const sessions = await getSessions();
+  return sessions.find((session) => session.id === sessionId) || null;
+}
+
 function isIdleTemplate(text) {
   return /Write tests for @filename|Find and fix a bug in @filename|Summarize recent commits|Improve documentation|Explain this codebase|Implement \{feature\}|Use \/skills to list available skills|Run \/review on my current changes/i.test(
     text
+  );
+}
+
+function isSystemInjectedPrompt(text) {
+  return /\[(?:CAESAR|MAX|LUCAS|SYSTEM|OPS|LCC)(?:->[A-Z0-9_-]+)?\]|\[(?:CAESAR|MAX|LUCAS|SYSTEM|OPS|LCC)->ALL\]|\bENTERPRISE-LEDGER-REFERENCE-OFF\b|\bledger_reference\s*=\s*disabled\b|\bpermission_default\s*=\s*inspect\b|\bParallel development permission contract\b|\bLucas ordered\b|\bEffective immediately\b|\bReply ACK\b/i.test(
+    text
+  );
+}
+
+function hasTailSubmitDirective(text) {
+  const tail = String(text || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-6)
+    .join("\n");
+  if (new RegExp(`\\b${autoSubmitSentinel}\\b`).test(tail)) return true;
+  if (/\bReply\b|\bReply first\b|\bPOLICY_ACK\b|\bACK\b.*\bblocker\b|\bsubmit\b|prompt-submit|press\s+enter|\bEnter\b/i.test(tail)) {
+    return true;
+  }
+  return /\bReply\b|\bReply first\b|\bPOLICY_ACK\b|\bACK\b.*\bblocker\b|\bsubmit\b|prompt-submit|press\s+enter|\bEnter\b|응답|회신|대답|제출|엔터/i.test(
+    tail
   );
 }
 
@@ -92,6 +120,10 @@ function tailFromPreview(session) {
   const lines = text.split("\n");
   let promptIndex = -1;
   for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (/^\s*(?:>|›|âº|\?\?)\s*/.test(lines[index])) {
+      promptIndex = index;
+      break;
+    }
     if (/^\s*(?:[>›]|[?？]{2})\s*/.test(lines[index])) {
       promptIndex = index;
       break;
@@ -115,9 +147,12 @@ function tailFromPreview(session) {
 function classifyPreview(session) {
   const tail = tailFromPreview(session);
   const working = /Working \(/i.test(tail.text);
-  const protectedAgent = protectedAgents.has(session.id);
   const idleTemplate = isIdleTemplate(tail.normalized);
-  const operationalPrompt = isOperationalPrompt(tail.normalized);
+  const systemInjectedPrompt = isSystemInjectedPrompt(tail.normalized);
+  const tailSubmitDirective = hasTailSubmitDirective(tail.normalized);
+  const autoSubmittableSystemPrompt = systemInjectedPrompt && tailSubmitDirective;
+  const protectedAgent = protectedAgents.has(session.id) && !autoSubmittableSystemPrompt;
+  const operationalPrompt = autoSubmittableSystemPrompt || (!systemInjectedPrompt && isOperationalPrompt(tail.normalized));
   let tailState = "ignored";
 
   if (session.status !== "active") tailState = "inactive";
@@ -133,10 +168,62 @@ function classifyPreview(session) {
     working,
     protectedAgent,
     idleTemplate,
+    systemInjectedPrompt,
+    tailSubmitDirective,
     operationalPrompt,
     tailState,
     fingerprint: tail.normalized ? hash(tail.normalized) : null
   };
+}
+
+function runSelfTest() {
+  const systemPrompt = `[CAESAR->ALL][ENTERPRISE-LEDGER-REFERENCE-OFF]
+Lucas ordered enterprise-wide ledger reference OFF until the current issue is fixed.
+Reply ACK ledger_reference=disabled permission_default=inspect blocker=none.`;
+  const classified = classifyPreview({
+    id: "ceo",
+    status: "active",
+    preview_text: `› ${systemPrompt}`
+  });
+  if (classified.tailState !== "candidate") {
+    throw new Error(`system injected prompt should be candidate, got ${classified.tailState}`);
+  }
+  if (!classified.systemInjectedPrompt) {
+    throw new Error("system injected prompt marker was not detected");
+  }
+  if (!classified.tailSubmitDirective) {
+    throw new Error("tail submit directive was not detected");
+  }
+  const noSubmitDirective = classifyPreview({
+    id: "ceo",
+    status: "active",
+    preview_text: "› [CAESAR->ALL][INFO]\nThis is a system notice only."
+  });
+  if (noSubmitDirective.tailState === "candidate") {
+    throw new Error("system notice without tail submit directive should not auto-submit");
+  }
+  const sentinelPrompt = classifyPreview({
+    id: "ceo",
+    status: "active",
+    preview_text: `âº [SYSTEM->ALL][INFO]\nSystem notice.\n${autoSubmitSentinel}`
+  });
+  if (sentinelPrompt.tailState !== "candidate") {
+    throw new Error(`sentinel prompt should be candidate, got ${sentinelPrompt.tailState}`);
+  }
+  const idle = classifyPreview({
+    id: "developer-1",
+    status: "active",
+    preview_text: "› Implement {feature}"
+  });
+  if (idle.tailState !== "idle-template") {
+    throw new Error(`idle template should remain idle-template, got ${idle.tailState}`);
+  }
+  console.log("terminal-stuck-input-watchdog self-test passed");
+}
+
+if (process.argv.includes("--self-test")) {
+  runSelfTest();
+  process.exit(0);
 }
 
 function candidateFromPreview(session) {
@@ -152,12 +239,31 @@ function candidateFromPreview(session) {
 }
 
 async function submitEnter(sessionId) {
+  const before = await getSession(sessionId);
+  const beforeCandidate = before ? candidateFromPreview(before) : null;
   const splitResponse = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(sessionId)}/prompt-submit`, {
     method: "POST",
     headers: { "content-type": "application/json; charset=utf-8" },
     body: JSON.stringify({ repeat: 1 })
   });
-  if (splitResponse.ok) return { method: "prompt-submit" };
+  if (splitResponse.ok) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const after = await getSession(sessionId);
+    const afterCandidate = after ? candidateFromPreview(after) : null;
+    if (!beforeCandidate || !afterCandidate || afterCandidate.fingerprint !== beforeCandidate.fingerprint) {
+      return { method: "prompt-submit" };
+    }
+
+    const rawEnterResponse = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(sessionId)}/write`, {
+      method: "POST",
+      headers: { "content-type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ data: "\r" })
+    });
+    if (!rawEnterResponse.ok) {
+      throw new Error(`${sessionId} write-cr fallback failed: ${rawEnterResponse.status} ${await rawEnterResponse.text()}`);
+    }
+    return { method: "prompt-submit+write-cr-fallback" };
+  }
   if (splitResponse.status !== 404 && splitResponse.status !== 405) {
     throw new Error(`${sessionId} prompt-submit failed: ${splitResponse.status} ${await splitResponse.text()}`);
   }

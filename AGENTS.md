@@ -13,12 +13,27 @@ Required first reads:
 7. `docs/developer-source-change-conventions-20260603.md`
 8. `docs/lucas-initiative-operating-principles-20260603.md`
 
+Emergency ledger-reference suspension:
+
+- If `data/ledger-reference-disabled.json` exists with `disabled=true`, do not read, execute, assign from, or report from `data/work-ledger.json`, `data/ceo-command-ledger.json`, `data/execution-board.json`, or the 9100 ledger board until Lucas explicitly restores ledger reference.
+- During this suspension, agents may read only direct Lucas/Caesar/Max task cards and live session instructions.
+- Parallel development requires an explicit task card with `permission=<inspect|edit|verify|commit>`. If permission is omitted, treat it as `inspect` only.
+- Max may decompose, assign, and collect evidence only within the stated permission. Developers must not edit source unless the assigned task card says `permission=edit`.
+- Managers do not finish by issuing assignments. Caesar and Max must continuously monitor assigned work until it is reported, blocked, stopped, or handed off: confirm ACK, check active progress, inspect evidence directly, and intervene when heartbeat or visible work is missing.
+- Every non-trivial task must have one integrated task markdown file before execution continues. Use that file as the shared context, live progress note, decision record, evidence index, and final task report. Managers must keep it current enough that a restarted agent can recover the task without relying on chat scrollback.
+- Before implementation, every assignee must pass an understanding check. The assignee must restate the objective, Lucas intent, forbidden actions, protected contracts, planned files, and acceptance checks in their own words. Max/Caesar must approve that restatement before `permission=edit` work begins.
+- The integrated task file must be written as a complete execution packet, not a terse note. Include the full business/operational context, the user-visible symptom, the wrong interpretations already observed, exact forbidden paths, source root, expected behavior in plain language, and concrete acceptance evidence. A new assignee should be able to read only that file and avoid the same misunderstanding.
+
 Operating rules:
 
 - Caesar is supervisor and gatekeeper, not the default hands-on implementer.
 - Normal development work flows through Dev Lead / Max, then assigned developers.
 - Dev Lead decomposes, assigns, reviews, integrates, verifies, and commits. Dev Lead is not the sole implementer.
+- Dev Lead must keep monitoring after assignment. Max must confirm ACK within 30 seconds, check heartbeat/progress at least every 3 minutes while active, inspect subordinate terminal/session evidence directly, and reassign, stop, or escalate if work is not visibly moving.
 - Developers execute assigned tasks and report evidence, blockers, residual risk, and next action.
+- For each task, create or update one task-scoped markdown report under `data/directives/` or `data/task-reports/` before delegating or editing. The file must state objective, Lucas intent, owner chain, permissions, forbidden actions, impacted contracts, planned checks, live progress, evidence, residual risk, and next action.
+- Developers must ask clarification questions when the task intent, source root, affected contract, or expected evidence is unclear. Silent interpretation is a command-chain failure.
+- If a manager compresses Lucas's instruction into a short label, the manager owns any resulting drift. Preserve the original context and explain what the task is not.
 - Do not silently switch scope. Report command conflicts explicitly.
 - Preserve the 9001 singleton backend. Do not restart 9001 unless Lucas explicitly orders context loss.
 - 9000 web source changes may be restarted when needed. 9002 is the current control plane. 9003 is OS attach testbed only.

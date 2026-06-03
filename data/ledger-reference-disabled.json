@@ -1,0 +1,8 @@
+{
+  "disabled": true,
+  "mode": "enterprise-ledger-reference-off",
+  "reason": "Lucas ordered enterprise-wide ledger reference suspension until the current issue is fixed.",
+  "owner": "Lucas",
+  "set_at": "2026-06-03T00:00:00+09:00",
+  "restore": "Remove this file or set disabled=false only after Lucas explicitly restores ledger reference."
+}

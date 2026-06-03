@@ -7,11 +7,37 @@ const workLedgerPath = path.join(root, "data", "work-ledger.json");
 const statePath = path.join(root, "data", "agent-work-dispatch-state.json");
 const idleLedgerPath = path.join(root, "data", "agent-idle-ledger.json");
 const opsEventLogPath = path.join(root, "data", "agent-ops-events.jsonl");
+const ledgerReferenceDisabledPath = path.join(root, "data", "ledger-reference-disabled.json");
 const apiBase = process.env.LCC_API_BASE || "http://127.0.0.1:9001";
 const minDispatchMinutes = Number(process.env.DISPATCH_MIN_MINUTES || 10);
 const staleLogMinutes = Number(process.env.STALE_LOG_MINUTES || 5);
 const alertCooldownMinutes = Number(process.env.ALERT_COOLDOWN_MINUTES || 2);
 const now = Date.now();
+
+function isLedgerReferenceDisabled() {
+  if (process.env.LCC_LEDGER_REFERENCE_DISABLED === "1") return true;
+  try {
+    return JSON.parse(fs.readFileSync(ledgerReferenceDisabledPath, "utf8")).disabled === true;
+  } catch {
+    return false;
+  }
+}
+
+if (isLedgerReferenceDisabled()) {
+  fs.mkdirSync(path.dirname(opsEventLogPath), { recursive: true });
+  fs.appendFileSync(
+    opsEventLogPath,
+    `${JSON.stringify({
+      at: new Date(now).toISOString(),
+      type: "ledger_reference_disabled",
+      source: "agent-work-dispatcher",
+      action: "exit_without_dispatch"
+    })}\n`,
+    "utf8"
+  );
+  console.log("Ledger reference disabled; agent-work-dispatcher exits without dispatch.");
+  process.exit(0);
+}
 
 const rolePlan = {
   "dev-lead": {

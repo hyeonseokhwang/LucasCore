@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { repairTerminalReplayForXterm, repairTerminalStreamForXterm, sanitizeTerminalPreviewForSummary, tailTerminalLines } from "./terminalReplay.ts";
+import { repairTerminalReplayForXterm, repairTerminalStreamForXterm, sanitizeTerminalPreviewForSummary, tailTerminalLines, terminalDisplaySnapshotForPreview, terminalPreviewTextForSnapshot } from "./terminalReplay.ts";
 
 test("tailTerminalLines leaves short output unchanged", () => {
   assert.equal(tailTerminalLines("a\r\nb\r\nc", 5), "a\r\nb\r\nc");
@@ -33,6 +33,25 @@ test("sanitizeTerminalPreviewForSummary strips OSC title sequences", () => {
 
 test("sanitizeTerminalPreviewForSummary preserves readable lines", () => {
   assert.equal(sanitizeTerminalPreviewForSummary("alpha\r\nbeta\tgamma\n"), "alpha\r\nbeta\tgamma");
+});
+
+test("terminalDisplaySnapshotForPreview keeps the current cursor-overwritten text", () => {
+  const input = "ready\r\n\u001b[3;1HWorking\u001b[3;1HW\u001b[3;1HWo\u001b[3;1HWorking";
+  const output = terminalDisplaySnapshotForPreview(input, 10);
+  assert.match(output, /ready/);
+  assert.match(output, /Working/);
+  assert.doesNotMatch(output, /\r\nW\r\nWo/);
+});
+
+test("terminalDisplaySnapshotForPreview does not accumulate spinner fragments as lines", () => {
+  const input = "\u001b[10;1HW\u001b[10;1HWo\u001b[10;1Hor\u001b[10;1Hrk\u001b[10;1HWorking";
+  assert.equal(terminalDisplaySnapshotForPreview(input, 20), "Working");
+});
+
+test("terminalPreviewTextForSnapshot uses raw cursor snapshot when raw has terminal controls", () => {
+  const raw = "\u001b[70;1HW\u001b[70;1HWo\u001b[70;1HWorking";
+  const text = "MANAGER_CHECK terminal-cardview-snapshot-recovery state=doing\r\nnext=verify\r\n› Run /review on my current changes";
+  assert.equal(terminalPreviewTextForSnapshot(raw, text, 20), "Working");
 });
 
 test("repairTerminalReplayForXterm preserves valid ANSI and removes broken CSI tails", () => {

@@ -47,6 +47,7 @@ Dev Lead:
 - prevents duplicate or conflicting work
 - reviews reports and verifies whether evidence meets acceptance criteria
 - is not the default implementer
+- remains accountable after issuing an assignment; Dev Lead must monitor ACK, heartbeat, live session output, blockers, and evidence until the task is completed, blocked, stopped, or cleanly handed off
 
 Developers:
 
@@ -138,6 +139,85 @@ Minimum evidence:
 - affected session/process/file/API
 - verification output
 - residual risk
+
+## Manager Monitoring Duty
+
+Managers must treat assignment as the start of supervision, not the end of the task.
+
+Every active task must have one integrated markdown task file. This file is the command-chain context pack, progress note, evidence index, and final report for that task. It prevents restart context loss and command drift between Caesar, Max, and developers.
+
+The file must be self-contained enough for a new assignee to execute without chat history. A terse backlog-style note is not sufficient for development work where intent can be misread.
+
+Required checks:
+
+- create or update the integrated task file before assignment or source edits
+- preserve Lucas's original intent and visible symptom in plain language
+- list wrong interpretations already seen and explicitly forbid them
+- name the source root and files only after verifying where real source lives
+- ensure assignees read that file before acting
+- require assignees to restate the task in their own words before implementation
+- approve, correct, or reject the restatement before allowing edits
+- confirm assignee ACK within 30 seconds
+- verify visible progress or heartbeat at least every 3 minutes while work is active
+- inspect live terminal/session output and evidence directly before accepting a report
+- intervene when a task has no visible work, no heartbeat, unclear owner, missing evidence, or stale blocker
+- record or report the intervention as reassign, stop, escalate, unblock, or accept
+
+Max owns this duty for developer work. Caesar owns this duty for Max and for emergency command-chain coherence. A manager may delegate execution, but not monitoring accountability.
+
+## Understanding Check Gate
+
+Parallel development must not proceed from instruction directly to implementation.
+
+Before edit permission is exercised, the assignee must report:
+
+```text
+UNDERSTANDING_CHECK <task-id> owner=<session-id> objective=<own words> lucas_intent=<own words> forbidden=<list> files=<paths> protected=<contracts> acceptance=<checks> questions=<none|...>
+```
+
+Manager response:
+
+```text
+UNDERSTANDING_APPROVED <task-id> manager=<session-id> assignee=<session-id> permission=edit
+UNDERSTANDING_CORRECTION <task-id> manager=<session-id> assignee=<session-id> correction=<what was misunderstood> next=<revise|ask|stop>
+```
+
+Rules:
+
+- If the assignee cannot restate the task, they must ask questions before editing.
+- If the restatement misses Lucas intent or forbidden actions, the manager must stop implementation and correct it.
+- Tests passing does not satisfy this gate. The question is whether the intended behavior was understood before code changed.
+- Repeated failure to pass the understanding check means the manager must reassign or take direct recovery action.
+
+## Integrated Task File Quality Gate
+
+Managers must write task files as operational packets, not ledger shorthand.
+
+Required sections for non-trivial work:
+
+```text
+Objective
+Lucas Intent
+Current Symptom / Evidence
+Why This Matters
+Known Wrong Interpretations
+Forbidden Actions
+Source Root / Files
+Protected Contracts
+Implementation Direction
+Understanding Check Questions
+Acceptance Evidence
+Live Progress
+Open Decisions / Blockers
+```
+
+Rules:
+
+- Include enough context that the next agent does not need to infer from the task title.
+- Quote or paraphrase the key Lucas instruction in behavior terms, not just technical labels.
+- Record previous failed interpretations so they are not repeated.
+- Do not say only "fix terminal replay" when the user's intent is "do not replay on view creation."
+- If the task file cannot answer what success looks like, it is not ready for assignment.
 
 Runtime actions require:
 

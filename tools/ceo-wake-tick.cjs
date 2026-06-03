@@ -10,6 +10,7 @@ const latestPath = path.join(root, "data", "ceo-wake-latest.json");
 const eventsPath = path.join(root, "data", "ceo-wake-events.jsonl");
 const workLedgerPath = path.join(root, "data", "work-ledger.json");
 const pauseContextPath = path.join(root, "data", "ops-loop-pause-context.json");
+const ledgerReferenceDisabledPath = path.join(root, "data", "ledger-reference-disabled.json");
 const protectedAgentIds = new Set(["developer-7"]);
 
 const fallbackOwners = {
@@ -39,6 +40,29 @@ function writeJson(file, value) {
 function appendJsonl(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.appendFileSync(file, `${JSON.stringify(value)}\n`, "utf8");
+}
+
+function isLedgerReferenceDisabled() {
+  if (process.env.LCC_LEDGER_REFERENCE_DISABLED === "1") return true;
+  try {
+    return JSON.parse(fs.readFileSync(ledgerReferenceDisabledPath, "utf8")).disabled === true;
+  } catch {
+    return false;
+  }
+}
+
+if (isLedgerReferenceDisabled()) {
+  const event = {
+    at: new Date().toISOString(),
+    kind: "ceo_wake_tick_disabled",
+    reason: "ledger-reference-disabled",
+    changed: false,
+    next: "Do not read or dispatch ledger items until Lucas restores ledger reference."
+  };
+  appendJsonl(eventsPath, event);
+  writeJson(latestPath, event);
+  console.log("Ledger reference disabled; ceo-wake-tick exits without reading ledger.");
+  process.exit(0);
 }
 
 function minutesSince(value, now) {
