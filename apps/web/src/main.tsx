@@ -34,7 +34,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import React, { FormEvent, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { normalizePromptForSubmit } from "./terminalPrompt";
-import { sanitizeTerminalPreviewForSummary, tailTerminalLines } from "./terminalReplay";
+import { repairTerminalStreamForXterm, tailTerminalLines } from "./terminalReplay";
 import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
 import {
   enqueueTerminalWriteItems,
@@ -101,7 +101,7 @@ const WS_ORIGIN =
   VITE_ENV.VITE_LCC_WS_ORIGIN ||
   API_ORIGIN.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
 const TERMINAL_SCROLLBACK_LINES = 500;
-const TERMINAL_FOCUSED_REPLAY_BYTES = 1024;
+const TERMINAL_FOCUSED_REPLAY_BYTES = 32 * 1024;
 const activeTerminalComposerKeys = new Set<string>();
 const terminalComposerSubscribers = new Set<() => void>();
 
@@ -906,12 +906,14 @@ function ShellApp() {
   const [topbarCollapsed, setTopbarCollapsed] = useState(false);
   const [terminalsLayerMounted, setTerminalsLayerMounted] = useState(() => view === "terminals");
   const [composerActivityVersion, setComposerActivityVersion] = useState(0);
+  const [fullscreenSessionId, setFullscreenSessionId] = useState(() => readTerminalFullscreenSessionId());
   const pendingRefreshRef = useRef(false);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const skipInitialFilterLayoutSyncRef = useRef(Boolean(normalizeLayoutAlias(initialUrlState.layout)));
 
   const selectedCanvas = canvases.find((canvas) => canvas.id === selectedCanvasId) ?? canvases[0];
   const selectedMeeting = mockMeetingChannels.find((channel) => channel.id === selectedMeetingId) ?? mockMeetingChannels[0];
+  const fullscreenSession = sessions.find((session) => session.id === fullscreenSessionId);
 
   const refresh = useCallback(async (options?: { force?: boolean }) => {
     if (!options?.force && hasActiveTerminalComposer()) {
@@ -993,6 +995,17 @@ function ShellApp() {
   const selectTerminalFilter = useCallback((nextFilter: string) => {
     setView("terminals");
     setFilter(nextFilter);
+  }, []);
+
+  const openFullscreenSession = useCallback((sessionId: string) => {
+    writeTerminalFullscreenSessionId(sessionId);
+    setFullscreenSessionId(sessionId);
+    setView("terminals");
+  }, []);
+
+  const closeFullscreenSession = useCallback(() => {
+    writeTerminalFullscreenSessionId(null);
+    setFullscreenSessionId("");
   }, []);
 
   useEffect(() => {
@@ -1196,17 +1209,36 @@ function ShellApp() {
                 minHeight: 0
               }}
             >
-              <CreateSession sessions={sessions} onCreated={refresh} onShowDevTeam={() => selectTerminalFilter("development-team")} />
-              <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-                <TerminalGrid
-                  sessions={deferredVisibleSessions}
-                  allSessions={sessions}
-                  onChanged={refresh}
-                  layout={terminalLayout}
-                  selectedSessionId={selectedSessionId}
-                  onSelectSession={setSelectedSessionId}
-                />
-              </div>
+              {fullscreenSessionId ? (
+                fullscreenSession ? (
+                  <FullscreenTerminalModal
+                    session={fullscreenSession}
+                    sessions={sessions}
+                    onClose={closeFullscreenSession}
+                    onChanged={refresh}
+                  />
+                ) : (
+                  <div className="empty">
+                    <Terminal size={28} />
+                    <h2>Loading terminal</h2>
+                  </div>
+                )
+              ) : (
+                <>
+                  <CreateSession sessions={sessions} onCreated={refresh} onShowDevTeam={() => selectTerminalFilter("development-team")} />
+                  <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+                    <TerminalGrid
+                      sessions={deferredVisibleSessions}
+                      allSessions={sessions}
+                      onChanged={refresh}
+                      layout={terminalLayout}
+                      selectedSessionId={selectedSessionId}
+                      onSelectSession={setSelectedSessionId}
+                      onOpenFullscreen={openFullscreenSession}
+                    />
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -1857,7 +1889,8 @@ const TerminalGrid = React.memo(function TerminalGrid({
   onChanged,
   layout,
   selectedSessionId,
-  onSelectSession
+  onSelectSession,
+  onOpenFullscreen
 }: {
   sessions: Session[];
   allSessions: Session[];
@@ -1865,6 +1898,7 @@ const TerminalGrid = React.memo(function TerminalGrid({
   layout: TerminalLayout;
   selectedSessionId: string;
   onSelectSession: (sessionId: string) => void;
+  onOpenFullscreen: (sessionId: string) => void;
 }) {
   const fitColumns =
     sessions.length <= 1 ? 1 : sessions.length <= 4 ? 2 : sessions.length <= 9 ? 3 : sessions.length <= 16 ? 5 : 6;
@@ -1896,6 +1930,7 @@ const TerminalGrid = React.memo(function TerminalGrid({
           onChanged={onChanged}
           selected={selectedSessionId === session.id}
           onSelectSession={onSelectSession}
+          onOpenFullscreen={onOpenFullscreen}
         />
       ))}
     </div>
@@ -2046,18 +2081,19 @@ const TerminalCard = React.memo(function TerminalCard({
   sessions,
   onChanged,
   selected,
-  onSelectSession
+  onSelectSession,
+  onOpenFullscreen
 }: {
   session: Session;
   sessions: Session[];
   onChanged: () => Promise<void>;
   selected: boolean;
   onSelectSession: (sessionId: string) => void;
+  onOpenFullscreen: (sessionId: string) => void;
 }) {
   const [prompt, setPrompt] = useState("");
   const [target, setTarget] = useState(session.id);
   const [logOpen, setLogOpen] = useState(false);
-  const [fullscreenOpen, setFullscreenOpen] = useState(() => readTerminalFullscreenSessionId() === session.id);
   const [logText, setLogText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [composerFocused, setComposerFocused] = useState(false);
@@ -2116,13 +2152,7 @@ const TerminalCard = React.memo(function TerminalCard({
   }
 
   function openFullscreen() {
-    writeTerminalFullscreenSessionId(session.id);
-    setFullscreenOpen(true);
-  }
-
-  function closeFullscreen() {
-    writeTerminalFullscreenSessionId(null);
-    setFullscreenOpen(false);
+    onOpenFullscreen(session.id);
   }
 
   return (
@@ -2159,7 +2189,7 @@ const TerminalCard = React.memo(function TerminalCard({
           </button>
         </div>
       </header>
-      <StaticTerminalPreview session={session} />
+      <XtermPreview sessionId={session.id} status={session.status} variant="card" isVisible={true} />
       <footer aria-busy={isSending} onMouseDown={stopTerminalTileFooterMouseDown}>
         <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
           {sessions.map((item) => (
@@ -2189,9 +2219,6 @@ const TerminalCard = React.memo(function TerminalCard({
         </button>
       </footer>
       <div className="workspace-path">{session.cwd}</div>
-      {fullscreenOpen && (
-        <FullscreenTerminalModal session={session} sessions={sessions} onClose={closeFullscreen} onChanged={onChanged} />
-      )}
       {logOpen && (
         <div className="log-modal" role="dialog" aria-modal="true">
           <div className="log-panel">
@@ -2371,7 +2398,6 @@ function FullscreenTerminalModal({
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
-    requestAnimationFrame(() => textareaRef.current?.focus());
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
@@ -2472,6 +2498,7 @@ const XtermPreview = React.memo(function XtermPreview({
   const lastDimsRef = useRef({ cols: 0, rows: 0 });
   const isVisibleRef = useRef(isVisible);
   const hiddenOutputBufferRef = useRef("");
+  const pendingTerminalControlRef = useRef("");
   const hiddenFlushTimerRef = useRef<number | null>(null);
   const fitNowRef = useRef<(() => void) | null>(null);
   const userScrolledUpRef = useRef(false);
@@ -2546,6 +2573,9 @@ const XtermPreview = React.memo(function XtermPreview({
     term.loadAddon(unicode11);
     term.unicode.activeVersion = "11";
     term.open(container);
+    if (variant === "fullscreen") {
+      requestAnimationFrame(() => term.focus());
+    }
     termRef.current = term;
     fitRef.current = fit;
     writeTerminalDiagnostic("xterm_opened", {
@@ -2639,11 +2669,16 @@ const XtermPreview = React.memo(function XtermPreview({
       }
       scheduleDrainWriteQueue();
     };
+    const repairTerminalWrite = (data: string) => {
+      const repaired = repairTerminalStreamForXterm(data, pendingTerminalControlRef.current);
+      pendingTerminalControlRef.current = repaired.pending;
+      return repaired.text;
+    };
     const flushHiddenOutput = () => {
       if (!hiddenOutputBufferRef.current) return;
       const buffered = hiddenOutputBufferRef.current;
       hiddenOutputBufferRef.current = "";
-      enqueueTerminalWrite(buffered, { kind: "output", stickToBottom: !userScrolledUpRef.current && isNearBottom() });
+      enqueueTerminalWrite(repairTerminalWrite(buffered), { kind: "output", stickToBottom: !userScrolledUpRef.current && isNearBottom() });
     };
     const scheduleHiddenFlush = () => {
       if (hiddenFlushTimerRef.current !== null || disposed) return;
@@ -2753,7 +2788,8 @@ const XtermPreview = React.memo(function XtermPreview({
       }
       if (message.type === "replay") {
         const rawData = String(message.data ?? "");
-        const data = sanitizeTerminalPreviewForSummary(rawData);
+        pendingTerminalControlRef.current = "";
+        const data = repairTerminalWrite(rawData);
         lifecycleRef.current.replayBytes += rawData.length;
         writeTerminalDiagnostic("terminal_replay_received", {
           sessionId,
@@ -2765,6 +2801,7 @@ const XtermPreview = React.memo(function XtermPreview({
         enqueueTerminalWrite(data, {
           kind: "replay",
           stickToBottom: true,
+          resetBefore: true,
           onDrained: () => {
             scrollToBottomIfAllowed();
             writeTerminalDiagnostic("terminal_replay_written", {
@@ -2781,14 +2818,15 @@ const XtermPreview = React.memo(function XtermPreview({
         });
       }
       if (message.type === "output") {
-        const data = String(message.data ?? "");
-        lifecycleRef.current.outputBytes += data.length;
-        if (lifecycleRef.current.outputEventsLogged < 10 || lifecycleRef.current.outputBytes % 50000 < data.length) {
+        const rawOutput = String(message.data ?? "");
+        const data = repairTerminalWrite(rawOutput);
+        lifecycleRef.current.outputBytes += rawOutput.length;
+        if (lifecycleRef.current.outputEventsLogged < 10 || lifecycleRef.current.outputBytes % 50000 < rawOutput.length) {
           lifecycleRef.current.outputEventsLogged += 1;
           writeTerminalDiagnostic("terminal_output_received", {
             sessionId,
             variant,
-            bytes: data.length,
+            bytes: rawOutput.length,
             totalOutputBytes: lifecycleRef.current.outputBytes,
             loggedCount: lifecycleRef.current.outputEventsLogged
           });
@@ -2831,9 +2869,7 @@ const XtermPreview = React.memo(function XtermPreview({
       }
       sendSocket({ type: "input", sessionId, data: processed });
     });
-    if (variant === "fullscreen") {
-      term.element?.addEventListener("mousedown", () => term.focus());
-    }
+    term.element?.addEventListener("mousedown", () => term.focus());
 
     document.fonts.ready
       .then(() => {
@@ -2880,6 +2916,7 @@ const XtermPreview = React.memo(function XtermPreview({
             rows: dims.rows,
             rect
           });
+          sendSocket({ type: "resize", sessionId, cols: dims.cols, rows: dims.rows });
         }
       } catch {
         writeTerminalDiagnostic("terminal_fit_error", {
@@ -2890,7 +2927,7 @@ const XtermPreview = React.memo(function XtermPreview({
       }
     };
     fitNowRef.current = fitNow;
-    requestAnimationFrame(() => requestAnimationFrame(fitDisplayOnly));
+    requestAnimationFrame(() => requestAnimationFrame(fitNow));
     let resizeTimer: number | null = null;
     const resizeObserver = new ResizeObserver(() => {
       if (!isVisibleRef.current) return;
@@ -2898,7 +2935,7 @@ const XtermPreview = React.memo(function XtermPreview({
       resizeTimer = window.setTimeout(() => {
         resizeTimer = null;
         if (!isVisibleRef.current) return;
-        requestAnimationFrame(fitDisplayOnly);
+        requestAnimationFrame(fitNow);
       }, 150);
     });
     resizeObserver.observe(container);
@@ -2935,6 +2972,7 @@ const XtermPreview = React.memo(function XtermPreview({
         hiddenFlushTimerRef.current = null;
       }
       hiddenOutputBufferRef.current = "";
+      pendingTerminalControlRef.current = "";
       fitNowRef.current = null;
       viewport?.removeEventListener("scroll", handleViewportScroll);
       writeTerminalDiagnostic("xterm_dispose", {

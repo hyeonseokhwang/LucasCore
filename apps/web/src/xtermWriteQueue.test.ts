@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import {
   chunkTerminalWrite,
   enqueueTerminalWriteItems,
+  isTerminalControlResponse,
   shiftTerminalWriteItem,
   XTERM_MAX_QUEUED_BYTES,
   XTERM_WRITE_CHUNK_BYTES
 } from "./xtermWriteQueue.ts";
 
-test("chunkTerminalWrite splits writes into 4KB chunks", () => {
+test("chunkTerminalWrite splits writes into 1KB chunks", () => {
   const chunks = chunkTerminalWrite("a".repeat(XTERM_WRITE_CHUNK_BYTES * 2 + 17));
   assert.equal(chunks.length, 3);
   assert.equal(chunks[0].length, XTERM_WRITE_CHUNK_BYTES);
@@ -16,7 +17,7 @@ test("chunkTerminalWrite splits writes into 4KB chunks", () => {
   assert.equal(chunks[2].length, 17);
 });
 
-test("enqueueTerminalWriteItems bounds the queue to 128KB by dropping oldest chunks", () => {
+test("enqueueTerminalWriteItems bounds the transient queue to 32KB by dropping oldest chunks", () => {
   const result = enqueueTerminalWriteItems([], 0, "a".repeat(XTERM_MAX_QUEUED_BYTES + XTERM_WRITE_CHUNK_BYTES), {
     kind: "output"
   });
@@ -60,6 +61,14 @@ test("output and system writes are both backpressured by the same bounded queue"
   assert.equal(combined.dropped.length, 1);
   assert.equal(combined.dropped[0]?.kind, "output");
   assert.equal(combined.queue.at(-1)?.kind, "system");
+});
+
+test("isTerminalControlResponse detects terminal-generated CSI responses", () => {
+  assert.equal(isTerminalControlResponse("\x1b[35;1R"), true);
+  assert.equal(isTerminalControlResponse("\x1b[0n"), true);
+  assert.equal(isTerminalControlResponse("\x1b[?1;2c"), true);
+  assert.equal(isTerminalControlResponse("\x1b[A"), false);
+  assert.equal(isTerminalControlResponse("Summarize recent commits"), false);
 });
 
 test("shiftTerminalWriteItem decrements queued bytes as the RAF drain advances", () => {

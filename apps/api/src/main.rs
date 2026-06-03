@@ -49,7 +49,7 @@ struct TerminalSession {
     writer: Box<dyn Write + Send>,
 }
 
-const TERMINAL_SCREEN_BUFFER_BYTES: usize = 1024;
+const TERMINAL_SCREEN_BUFFER_BYTES: usize = 32 * 1024;
 const SESSION_PREVIEW_LIMIT_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
 const TERMINAL_VOLATILE_BUFFER_MAX_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
 const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
@@ -1414,7 +1414,7 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
                 Ok(replay) => replay,
                 Err(err) => return Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
             };
-            Some(json!({ "type": "replay", "sessionId": session_id, "data": strip_ansi_for_ui(&replay) }))
+            Some(json!({ "type": "replay", "sessionId": session_id, "data": replay }))
         }
         "input" => {
             let data = value.get("data").and_then(Value::as_str).unwrap_or_default().to_string();
@@ -1615,15 +1615,15 @@ mod tests {
 
     #[test]
     fn terminal_replay_limit_matches_hq_tail_policy() {
-        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 1024);
-        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 1024);
-        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 1024);
-        assert_eq!(super::SESSION_LOG_VIEW_LIMIT_BYTES, 1024);
-        assert_eq!(super::SESSION_LOG_MAX_TAIL_BYTES, 1024);
+        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 32 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 32 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 32 * 1024);
+        assert_eq!(super::SESSION_LOG_VIEW_LIMIT_BYTES, 32 * 1024);
+        assert_eq!(super::SESSION_LOG_MAX_TAIL_BYTES, 32 * 1024);
         assert_eq!(super::TERMINAL_LOG_ROTATE_BYTES, 512 * 1024);
         assert_eq!(super::TERMINAL_LOG_FLUSH_INTERVAL_MS, 50);
         assert_eq!(super::TERMINAL_LOG_FLUSH_CHUNK_BYTES, 50 * 1024);
-        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 1024);
+        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 32 * 1024);
     }
 
     #[test]

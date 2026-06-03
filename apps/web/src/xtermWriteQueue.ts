@@ -7,8 +7,14 @@ export type TerminalWriteItem = {
   onDrained?: () => void;
 };
 
-export const XTERM_WRITE_CHUNK_BYTES = 4096;
-export const XTERM_MAX_QUEUED_BYTES = 128 * 1024;
+export const XTERM_WRITE_CHUNK_BYTES = 1024;
+export const XTERM_MAX_QUEUED_BYTES = 32 * 1024;
+
+export function isTerminalControlResponse(data: string) {
+  if (!data) return false;
+  const normalized = data.replace(/\r?\n/g, "");
+  return /^(?:\x1b\[[0-?]*[ -/]*[Rcn])+$/.test(normalized);
+}
 
 export function chunkTerminalWrite(data: string, chunkBytes = XTERM_WRITE_CHUNK_BYTES) {
   if (!data || chunkBytes <= 0) return [];

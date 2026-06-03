@@ -1437,13 +1437,24 @@ textarea {
   min-height: 0;
   overflow: hidden;
   background: #070c15;
-  contain: layout;
-  will-change: transform;
+  position: relative;
 }
 
 .xterm-preview .xterm {
   height: 100%;
   padding: 8px 9px;
+}
+
+.terminal-card > .xterm-preview {
+  grid-row: 2;
+}
+
+.terminal-card > .xterm-preview .xterm {
+  height: 100%;
+}
+
+.terminal-card > .xterm-preview .xterm-helper-textarea {
+  opacity: 0;
 }
 
 .static-terminal-preview {
@@ -1568,10 +1579,6 @@ textarea {
   background: #6882ad;
 }
 
-.xterm-preview [aria-hidden="true"] {
-  display: revert !important;
-}
-
 .terminal-card footer {
   border-top: 1px solid #283851;
   min-width: 0;
@@ -1672,24 +1679,23 @@ textarea {
   position: fixed;
   inset: 0;
   z-index: 55;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: rgba(3, 7, 18, 0.78);
+  display: flex;
+  padding: 0;
+  background: #070c15;
 }
 
 .terminal-fullscreen-panel {
-  width: min(1500px, 98vw);
-  height: min(940px, 94vh);
+  width: 100vw;
+  height: 100vh;
   display: grid;
   grid-template-rows: 44px minmax(0, 1fr) 40px 26px;
   min-width: 0;
   min-height: 0;
-  border: 1px solid #31435f;
-  border-radius: 8px;
+  border: 0;
+  border-radius: 0;
   overflow: hidden;
   background: #070c15;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+  box-shadow: none;
 }
 
 .terminal-fullscreen-panel header,
@@ -1752,7 +1758,7 @@ textarea {
 
 .xterm-preview.fullscreen .xterm {
   height: 100%;
-  padding: 12px 14px;
+  padding: 10px 12px;
 }
 
 .terminal-popout-page {
