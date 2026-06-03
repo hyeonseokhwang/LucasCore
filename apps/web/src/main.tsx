@@ -34,16 +34,9 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import React, { FormEvent, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { normalizePromptForSubmit } from "./terminalPrompt";
-import { TERMINAL_RENDER_LINE_LIMIT, repairTerminalStreamForXterm, tailTerminalLines, terminalPreviewTextForSnapshot } from "./terminalReplay";
+import { tailTerminalLines } from "./terminalReplay";
 import { clipboardItemsContainImage } from "./terminalCardComposer";
 import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
-import {
-  enqueueTerminalWriteItems,
-  shiftTerminalWriteItem,
-  type TerminalWriteItem,
-  XTERM_MAX_QUEUED_BYTES,
-  XTERM_WRITE_CHUNK_BYTES
-} from "./xtermWriteQueue";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
@@ -102,10 +95,9 @@ const WS_ORIGIN =
   VITE_ENV.VITE_LCC_WS_ORIGIN ||
   API_ORIGIN.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
 const TERMINAL_SCROLLBACK_LINES = 500;
-const TERMINAL_VIEW_REPLAY_BYTES = 8 * 1024;
+const TERMINAL_VIEW_REPLAY_BYTES = 32 * 1024;
 const activeTerminalComposerKeys = new Set<string>();
 const terminalComposerSubscribers = new Set<() => void>();
-
 function apiUrl(path: string) {
   if (/^https?:\/\//i.test(path)) return path;
   return `${API_ORIGIN}${path.startsWith("/") ? path : `/${path}`}`;
@@ -856,7 +848,7 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
       {error ? (
         <div className="error">{error}</div>
       ) : session ? (
-        <TerminalSnapshotPreview session={session} variant="fullscreen" />
+        <HqTerminalPreview sessionId={session.id} status={session.status} variant="fullscreen" />
       ) : (
         <pre className="terminal-snapshot-preview fullscreen" aria-label="Loading terminal output">
           Loading terminal output...
@@ -1074,7 +1066,6 @@ function ShellApp() {
           {topbarCollapsed ? <PanelTopOpen size={16} /> : <PanelTopClose size={16} />}
         </button>
       </div>
-      <WorkLedgerDock />
       <aside className="sidebar">
         <div className="brand">
           <Boxes size={26} />
@@ -2244,7 +2235,7 @@ const TerminalCard = React.memo(function TerminalCard({
           </button>
         </div>
       </header>
-      <TerminalSnapshotPreview session={session} />
+      <HqTerminalPreview sessionId={session.id} status={session.status} />
       {attachments.length > 0 && (
         <div className="terminal-attachment-strip" onMouseDown={stopTerminalTileFooterMouseDown}>
           {attachments.map((attachment) => (
@@ -2413,7 +2404,7 @@ function FullscreenTerminalModal({
             <X size={16} />
           </button>
         </header>
-        <TerminalSnapshotPreview session={session} variant="fullscreen" />
+        <HqTerminalPreview sessionId={session.id} status={session.status} variant="fullscreen" />
         <footer onMouseDown={stopTerminalTileFooterMouseDown}>
           <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
             {sessions.map((item) => (
@@ -2448,7 +2439,7 @@ function FullscreenTerminalModal({
   );
 }
 
-const XtermPreview = React.memo(function XtermPreview({
+const HqTerminalPreview = React.memo(function HqTerminalPreview({
   sessionId,
   status,
   variant = "card",
@@ -2465,47 +2456,18 @@ const XtermPreview = React.memo(function XtermPreview({
   const socketRef = useRef<WebSocket | null>(null);
   const attachedRef = useRef(false);
   const inputQueueRef = useRef<string[]>([]);
-  const lastDimsRef = useRef({ cols: 0, rows: 0 });
-  const isVisibleRef = useRef(isVisible);
-  const hiddenOutputBufferRef = useRef("");
-  const pendingTerminalControlRef = useRef("");
-  const hiddenFlushTimerRef = useRef<number | null>(null);
-  const fitNowRef = useRef<(() => void) | null>(null);
   const userScrolledUpRef = useRef(false);
   const programmaticScrollRef = useRef(false);
-  const lifecycleRef = useRef({
-    replayBytes: 0,
-    outputBytes: 0,
-    inputBytes: 0,
-    messageCount: 0,
-    outputEventsLogged: 0,
-    inputEventsLogged: 0,
-    openedAt: 0
-  });
+  const isVisibleRef = useRef(isVisible);
+  const lastDimsRef = useRef({ cols: 0, rows: 0 });
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    lifecycleRef.current = {
-      replayBytes: 0,
-      outputBytes: 0,
-      inputBytes: 0,
-      messageCount: 0,
-      outputEventsLogged: 0,
-      inputEventsLogged: 0,
-      openedAt: Date.now()
-    };
-    writeTerminalDiagnostic("xterm_mount_start", {
-      sessionId,
-      status,
-      variant,
-      rect: terminalRectSnapshot(container)
-    });
 
     const term = new XTerm({
       fontSize: variant === "fullscreen" ? 13 : 12,
-      fontFamily:
-        "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace",
+      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace",
       fontWeight: 400,
       fontWeightBold: 700,
       drawBoldTextInBrightColors: false,
@@ -2543,164 +2505,70 @@ const XtermPreview = React.memo(function XtermPreview({
     term.loadAddon(unicode11);
     term.unicode.activeVersion = "11";
     term.open(container);
-    if (variant === "fullscreen") {
-      requestAnimationFrame(() => term.focus());
-    }
     termRef.current = term;
     fitRef.current = fit;
-    writeTerminalDiagnostic("xterm_opened", {
-      sessionId,
-      variant,
-      cols: term.cols,
-      rows: term.rows,
-      rect: terminalRectSnapshot(container)
-    });
 
-    const socket = new WebSocket(terminalWsUrl());
-    socketRef.current = socket;
-    writeTerminalDiagnostic("terminal_ws_created", {
-      sessionId,
-      variant,
-      url: terminalWsUrl()
-    });
-    const isNearBottom = () => {
-      const buffer = term.buffer.active;
-      return buffer.baseY - buffer.viewportY <= 1;
-    };
-    const scrollToBottomIfAllowed = () => {
+    const scrollToBottom = () => {
       if (userScrolledUpRef.current) return;
       programmaticScrollRef.current = true;
-      term.scrollToBottom();
-      window.setTimeout(() => {
-        programmaticScrollRef.current = false;
-      }, 100);
-    };
-    const viewport = container.querySelector(".xterm-viewport") as HTMLElement | null;
-    const handleViewportScroll = () => {
-      if (programmaticScrollRef.current || !viewport) return;
-      const distance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-      userScrolledUpRef.current = distance > 50;
-    };
-    viewport?.addEventListener("scroll", handleViewportScroll, { passive: true });
-    let disposed = false;
-    let queuedWriteBytes = 0;
-    let writingTerminal = false;
-    let drainScheduled = false;
-    let writeQueue: TerminalWriteItem[] = [];
-    const stableFitTimers: number[] = [];
-    const scheduleDrainWriteQueue = () => {
-      if (disposed || drainScheduled) return;
-      drainScheduled = true;
       requestAnimationFrame(() => {
-        drainScheduled = false;
-        drainWriteQueue();
+        term.scrollToBottom();
+        window.setTimeout(() => {
+          programmaticScrollRef.current = false;
+        }, 100);
       });
     };
-    const drainWriteQueue = () => {
-      if (disposed || writingTerminal) return;
-      const shifted = shiftTerminalWriteItem(writeQueue, queuedWriteBytes);
-      const item = shifted.item;
-      if (!item) return;
-      writeQueue = shifted.queue;
-      writingTerminal = true;
-      queuedWriteBytes = shifted.queuedBytes;
-      term.write(item.data, () => {
-        if (item.stickToBottom) term.scrollToBottom();
-        item.onDrained?.();
-        writingTerminal = false;
-        if (writeQueue.length > 0) scheduleDrainWriteQueue();
-      });
-    };
-    const enqueueTerminalWrite = (
-      data: string,
-      options: { kind: TerminalWriteItem["kind"]; stickToBottom?: boolean; resetBefore?: boolean; onDrained?: () => void }
-    ) => {
-      if (!data || disposed) return;
-      if (options.resetBefore) {
-        writeQueue = [];
-        queuedWriteBytes = 0;
-        term.reset();
-      }
-      const queued = enqueueTerminalWriteItems(writeQueue, queuedWriteBytes, data, options, {
-        chunkBytes: XTERM_WRITE_CHUNK_BYTES,
-        maxQueuedBytes: XTERM_MAX_QUEUED_BYTES
-      });
-      writeQueue = queued.queue;
-      queuedWriteBytes = queued.queuedBytes;
-      for (const dropped of queued.dropped) {
-        writeTerminalDiagnostic("terminal_write_queue_drop", {
-          sessionId,
-          variant,
-          kind: dropped.kind,
-          droppedBytes: dropped.data.length,
-          queuedWriteBytes,
-          queueLength: writeQueue.length
-        });
-      }
-      scheduleDrainWriteQueue();
-    };
-    const repairTerminalWrite = (data: string) => {
-      const repaired = repairTerminalStreamForXterm(data, pendingTerminalControlRef.current);
-      pendingTerminalControlRef.current = repaired.pending;
-      return repaired.text;
-    };
-    const flushHiddenOutput = () => {
-      if (!hiddenOutputBufferRef.current) return;
-      const buffered = hiddenOutputBufferRef.current;
-      hiddenOutputBufferRef.current = "";
-      enqueueTerminalWrite(repairTerminalWrite(buffered), { kind: "output", stickToBottom: !userScrolledUpRef.current && isNearBottom() });
-    };
-    const scheduleHiddenFlush = () => {
-      if (hiddenFlushTimerRef.current !== null || disposed) return;
-      hiddenFlushTimerRef.current = window.setTimeout(() => {
-        hiddenFlushTimerRef.current = null;
-        if (!isVisibleRef.current) return;
-        flushHiddenOutput();
-      }, 200);
-    };
-    const sendSocket = (payload: unknown) => {
-      const text = JSON.stringify(payload);
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(text);
-      } else if (socket.readyState === WebSocket.CONNECTING) {
-        socket.addEventListener(
-          "open",
-          () => {
-            if (socket.readyState === WebSocket.OPEN) socket.send(text);
-          },
-          { once: true }
-        );
-      }
-    };
-    const fitDisplayOnly = () => {
+    const fitAndResize = () => {
       if (!isVisibleRef.current) return;
       try {
         fit.fit();
       } catch {}
-    };
-    const scheduleStableFits = () => {
-      for (const delayMs of [700]) {
-        stableFitTimers.push(
-          window.setTimeout(() => {
-            if (!disposed) fitDisplayOnly();
-          }, delayMs)
-        );
+      const dims = { cols: term.cols, rows: term.rows };
+      const last = lastDimsRef.current;
+      if (dims.cols !== last.cols || dims.rows !== last.rows) {
+        lastDimsRef.current = dims;
+        const socket = socketRef.current;
+        if (socket?.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "resize", sessionId, cols: dims.cols, rows: dims.rows }));
+        }
       }
     };
+    const scheduleFit = (delays = [0, 120, 360, 700]) => {
+      const timers = delays.map((delay) =>
+        window.setTimeout(() => {
+          requestAnimationFrame(fitAndResize);
+        }, delay)
+      );
+      return () => {
+        for (const timer of timers) window.clearTimeout(timer);
+      };
+    };
+
+    const viewport = container.querySelector(".xterm-viewport") as HTMLElement | null;
+    const handleViewportScroll = () => {
+      if (programmaticScrollRef.current || !viewport) return;
+      userScrolledUpRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight > 50;
+    };
+    viewport?.addEventListener("scroll", handleViewportScroll, { passive: true });
+
+    const sendSocket = (payload: unknown) => {
+      const socket = socketRef.current;
+      const text = JSON.stringify(payload);
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(text);
+      } else if (socket?.readyState === WebSocket.CONNECTING) {
+        socket.addEventListener("open", () => socket.send(text), { once: true });
+      }
+    };
+
+    const socket = new WebSocket(terminalWsUrl());
+    socketRef.current = socket;
     socket.addEventListener("open", () => {
       attachedRef.current = false;
       inputQueueRef.current = [];
       userScrolledUpRef.current = false;
       term.reset();
-      fitDisplayOnly();
-      lastDimsRef.current = { cols: term.cols, rows: term.rows };
-      writeTerminalDiagnostic("terminal_ws_open", {
-        sessionId,
-        variant,
-        cols: term.cols,
-        rows: term.rows,
-        rect: terminalRectSnapshot(container)
-      });
+      fitAndResize();
       sendSocket({
         type: "attach",
         sessionId,
@@ -2709,253 +2577,68 @@ const XtermPreview = React.memo(function XtermPreview({
         cols: term.cols,
         rows: term.rows
       });
-      scheduleStableFits();
-    });
-    socket.addEventListener("error", () => {
-      writeTerminalDiagnostic("terminal_ws_error", {
-        sessionId,
-        variant,
-        readyState: socket.readyState,
-        rect: terminalRectSnapshot(container)
-      });
-    });
-    socket.addEventListener("close", (event) => {
-      writeTerminalDiagnostic("terminal_ws_close", {
-        sessionId,
-        variant,
-        code: event.code,
-        reason: event.reason,
-        wasClean: event.wasClean,
-        replayBytes: lifecycleRef.current.replayBytes,
-        outputBytes: lifecycleRef.current.outputBytes,
-        messageCount: lifecycleRef.current.messageCount
-      });
+      scheduleFit([0, 120, 360, 700, 1200]);
+      window.setTimeout(scrollToBottom, 1000);
     });
     socket.addEventListener("message", (event) => {
       let message: Record<string, unknown>;
       try {
         message = JSON.parse(event.data);
       } catch {
-        writeTerminalDiagnostic("terminal_ws_parse_error", {
-          sessionId,
-          variant,
-          dataPreview: String(event.data).slice(0, 500)
-        });
         return;
       }
-      lifecycleRef.current.messageCount += 1;
       const messageSessionId = message.sessionId ?? message.session_id;
       if (messageSessionId && messageSessionId !== sessionId) return;
       if (message.type === "attached") {
         attachedRef.current = true;
-        writeTerminalDiagnostic("terminal_attached", {
-          sessionId,
-          variant,
-          queuedInputs: inputQueueRef.current.length
-        });
         const queue = inputQueueRef.current.splice(0);
         for (const data of queue) sendSocket({ type: "input", sessionId, data });
-      }
-      if (message.type === "replay") {
-        const rawData = String(message.data ?? "");
-        pendingTerminalControlRef.current = "";
-        const data = repairTerminalWrite(rawData);
-        lifecycleRef.current.replayBytes += rawData.length;
-        writeTerminalDiagnostic("terminal_replay_received", {
-          sessionId,
-          variant,
-          bytes: rawData.length,
-          sanitizedBytes: data.length,
-          totalReplayBytes: lifecycleRef.current.replayBytes
-        });
-        enqueueTerminalWrite(data, {
-          kind: "replay",
-          stickToBottom: true,
-          resetBefore: true,
-          onDrained: () => {
-            scrollToBottomIfAllowed();
-            writeTerminalDiagnostic("terminal_replay_written", {
-              sessionId,
-              variant,
-              bytes: data.length,
-              cols: term.cols,
-              rows: term.rows,
-              bufferBaseY: term.buffer.active.baseY,
-              viewportY: term.buffer.active.viewportY,
-              rect: terminalRectSnapshot(container)
-            });
-          }
-        });
-      }
-      if (message.type === "output") {
-        const rawOutput = String(message.data ?? "");
-        const data = repairTerminalWrite(rawOutput);
-        lifecycleRef.current.outputBytes += rawOutput.length;
-        if (lifecycleRef.current.outputEventsLogged < 10 || lifecycleRef.current.outputBytes % 50000 < rawOutput.length) {
-          lifecycleRef.current.outputEventsLogged += 1;
-          writeTerminalDiagnostic("terminal_output_received", {
-            sessionId,
-            variant,
-            bytes: rawOutput.length,
-            totalOutputBytes: lifecycleRef.current.outputBytes,
-            loggedCount: lifecycleRef.current.outputEventsLogged
-          });
-        }
-        if (!isVisibleRef.current) {
-          hiddenOutputBufferRef.current += data;
-          scheduleHiddenFlush();
-          return;
-        }
-        const stickToBottom = !userScrolledUpRef.current && isNearBottom();
-        enqueueTerminalWrite(data, { kind: "output", stickToBottom });
-      }
-      if (message.type === "exit") {
-        enqueueTerminalWrite(`\r\n\x1b[31m[Process exited]\x1b[0m\r\n`, { kind: "system", stickToBottom: true });
-      }
-    });
-    const dataDisposable = term.onData((data) => {
-      const processed = data.includes("\n") ? data.replace(/\n/g, "\r") : data;
-      lifecycleRef.current.inputBytes += processed.length;
-      if (!attachedRef.current) {
-        inputQueueRef.current.push(processed);
-        writeTerminalDiagnostic("terminal_input_queued_before_attach", {
-          sessionId,
-          variant,
-          bytes: processed.length,
-          queueLength: inputQueueRef.current.length
-        });
         return;
       }
-      if (lifecycleRef.current.inputEventsLogged < 20) {
-        lifecycleRef.current.inputEventsLogged += 1;
-        writeTerminalDiagnostic("terminal_direct_input_sent", {
-          sessionId,
-          variant,
-          bytes: processed.length,
-          hasNewline: /[\r\n]/.test(processed),
-          inputPreview: processed.slice(0, 80),
-          loggedCount: lifecycleRef.current.inputEventsLogged
-        });
+      if (message.type === "replay") {
+        term.reset();
+        term.write(String(message.data ?? ""));
+        scheduleFit([0, 120, 360]);
+        window.setTimeout(scrollToBottom, 300);
+        return;
+      }
+      if (message.type === "output") {
+        term.write(String(message.data ?? ""));
+        scrollToBottom();
+        return;
+      }
+      if (message.type === "exit") {
+        term.write("\r\n\x1b[31m[Process exited]\x1b[0m\r\n");
+        scrollToBottom();
+      }
+    });
+    socket.addEventListener("error", () => undefined);
+
+    const dataDisposable = term.onData((data) => {
+      const processed = data.includes("\n") ? data.replace(/\n/g, "\r") : data;
+      if (!attachedRef.current) {
+        inputQueueRef.current.push(processed);
+        return;
       }
       sendSocket({ type: "input", sessionId, data: processed });
     });
     term.element?.addEventListener("mousedown", () => term.focus());
 
-    document.fonts.ready
-      .then(() => {
-        term.options.fontFamily =
-          "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace";
-        requestAnimationFrame(() => {
-          try {
-            if (!isVisibleRef.current) return;
-            fitDisplayOnly();
-            writeTerminalDiagnostic("terminal_font_ready_fit", {
-              sessionId,
-              variant,
-              cols: term.cols,
-              rows: term.rows,
-              rect: terminalRectSnapshot(container)
-            });
-          } catch {}
-        });
-      })
-      .catch(() => undefined);
-
-    const fitNow = () => {
-      if (!isVisibleRef.current) return;
-      try {
-        fit.fit();
-        const dims = { cols: term.cols, rows: term.rows };
-        const rect = terminalRectSnapshot(container);
-        if (!rect?.width || !rect?.height || !dims.cols || !dims.rows) {
-          writeTerminalDiagnostic("terminal_fit_zero_size", {
-            sessionId,
-            variant,
-            cols: dims.cols,
-            rows: dims.rows,
-            rect
-          });
-        }
-        const last = lastDimsRef.current;
-        if (dims.cols !== last.cols || dims.rows !== last.rows) {
-          lastDimsRef.current = dims;
-          writeTerminalDiagnostic("terminal_resize_observed", {
-            sessionId,
-            variant,
-            cols: dims.cols,
-            rows: dims.rows,
-            rect
-          });
-          sendSocket({ type: "resize", sessionId, cols: dims.cols, rows: dims.rows });
-        }
-      } catch {
-        writeTerminalDiagnostic("terminal_fit_error", {
-          sessionId,
-          variant,
-          rect: terminalRectSnapshot(container)
-        });
-      }
-    };
-    fitNowRef.current = fitNow;
-    requestAnimationFrame(() => requestAnimationFrame(fitNow));
-    let resizeTimer: number | null = null;
+    document.fonts.ready.then(() => {
+      term.options.fontFamily = "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace";
+      scheduleFit([0, 120, 360]);
+    }).catch(() => undefined);
+    const cancelInitialFit = scheduleFit();
     const resizeObserver = new ResizeObserver(() => {
-      if (!isVisibleRef.current) return;
-      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(() => {
-        resizeTimer = null;
-        if (!isVisibleRef.current) return;
-        requestAnimationFrame(fitNow);
-      }, 150);
+      scheduleFit([0, 120]);
     });
     resizeObserver.observe(container);
-    const blankCheckTimers = [3000, 10000].map((delayMs) =>
-      window.setTimeout(() => {
-        const stats = lifecycleRef.current;
-        const rect = terminalRectSnapshot(container);
-        if ((rect?.width ?? 0) > 0 && (rect?.height ?? 0) > 0 && stats.replayBytes === 0 && stats.outputBytes === 0) {
-          writeTerminalDiagnostic("terminal_blank_suspect", {
-            sessionId,
-            variant,
-            delayMs,
-            cols: term.cols,
-            rows: term.rows,
-            rect,
-            readyState: socket.readyState,
-            attached: attachedRef.current,
-            messageCount: stats.messageCount
-          });
-        }
-      }, delayMs)
-    );
+    window.addEventListener("resize", fitAndResize);
 
     return () => {
-      disposed = true;
-      drainScheduled = false;
-      writeQueue = [];
-      queuedWriteBytes = 0;
-      for (const timer of stableFitTimers) window.clearTimeout(timer);
-      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
-      for (const timer of blankCheckTimers) window.clearTimeout(timer);
-      if (hiddenFlushTimerRef.current !== null) {
-        window.clearTimeout(hiddenFlushTimerRef.current);
-        hiddenFlushTimerRef.current = null;
-      }
-      hiddenOutputBufferRef.current = "";
-      pendingTerminalControlRef.current = "";
-      fitNowRef.current = null;
       viewport?.removeEventListener("scroll", handleViewportScroll);
-      writeTerminalDiagnostic("xterm_dispose", {
-        sessionId,
-        variant,
-        lifetimeMs: Date.now() - lifecycleRef.current.openedAt,
-        replayBytes: lifecycleRef.current.replayBytes,
-        outputBytes: lifecycleRef.current.outputBytes,
-        inputBytes: lifecycleRef.current.inputBytes,
-        messageCount: lifecycleRef.current.messageCount,
-        attached: attachedRef.current,
-        rect: terminalRectSnapshot(container)
-      });
+      window.removeEventListener("resize", fitAndResize);
+      cancelInitialFit();
       resizeObserver.disconnect();
       dataDisposable.dispose();
       closeWebSocket(socket);
@@ -2971,43 +2654,15 @@ const XtermPreview = React.memo(function XtermPreview({
   useEffect(() => {
     isVisibleRef.current = isVisible;
     if (!isVisible) return;
-    if (hiddenFlushTimerRef.current !== null) {
-      window.clearTimeout(hiddenFlushTimerRef.current);
-      hiddenFlushTimerRef.current = null;
-    }
-    if (hiddenOutputBufferRef.current && termRef.current) {
-      const buffered = hiddenOutputBufferRef.current;
-      hiddenOutputBufferRef.current = "";
-      termRef.current.write(buffered, () => {
-        if (!userScrolledUpRef.current) termRef.current?.scrollToBottom();
-      });
-    }
-    fitNowRef.current?.();
+    requestAnimationFrame(() => {
+      try {
+        fitRef.current?.fit();
+      } catch {}
+      if (!userScrolledUpRef.current) termRef.current?.scrollToBottom();
+    });
   }, [isVisible]);
 
   return <div className={`xterm-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} ref={containerRef} />;
-});
-
-const TerminalSnapshotPreview = React.memo(function TerminalSnapshotPreview({
-  session,
-  variant = "card"
-}: {
-  session: Session;
-  variant?: "card" | "fullscreen";
-}) {
-  const snapshot = useMemo(() => {
-    const raw = session.preview || session.preview_text || "아직 표시할 터미널 출력이 없습니다.\r\n";
-    return terminalPreviewTextForSnapshot(raw, session.preview_text || "", TERMINAL_RENDER_LINE_LIMIT) || "아직 표시할 터미널 출력이 없습니다.";
-  }, [session.preview, session.preview_text]);
-
-  return (
-    <pre
-      className={`terminal-snapshot-preview ${variant === "fullscreen" ? "fullscreen" : ""}`}
-      aria-label={`${session.name} terminal preview`}
-    >
-      {snapshot}
-    </pre>
-  );
 });
 
 function TerminalLogView({ text }: { text: string }) {

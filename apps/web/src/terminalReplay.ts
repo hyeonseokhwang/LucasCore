@@ -25,6 +25,45 @@ export function sanitizeTerminalPreviewForSummary(value: string) {
     .trim();
 }
 
+export function terminalRuntimeTailTextForDisplay(value: string, maxLines = TERMINAL_RENDER_LINE_LIMIT) {
+  const lines = String(value || "")
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
+    .replace(/\x1b[PX^_][\s\S]*?\x1b\\/g, "")
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\x1b\[[^\r\n]*/g, "")
+    .replace(/\x1b[()#%*+\-.\/][0-9A-Za-z]/g, "")
+    .replace(/\x1b[@-Z\\-_]/g, "")
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => !isSpinnerFragmentLine(line));
+  while (lines.length > 0 && isTrailingSpinnerFragment(lines[lines.length - 1])) {
+    lines.pop();
+  }
+  const printableTail = lines.join("\r\n");
+  return tailTerminalLines(printableTail, maxLines).trim();
+}
+
+function isTrailingSpinnerFragment(line: string) {
+  return isSpinnerFragmentLine(line);
+}
+
+function isSpinnerFragmentLine(line: string) {
+  const trimmed = normalizeVolatileTerminalFragment(line);
+  if (!trimmed) return true;
+  return /^(?:[◦•°]\s*)?(?:W|Wo|Wng|Wog|or|rk|ki|in|ng|g|in\d+|\d+)?$/.test(trimmed);
+}
+
+function normalizeVolatileTerminalFragment(line: string) {
+  return line
+    .trim()
+    .replace(/^\[?\?\d{1,6}[a-z]/i, "")
+    .replace(/^\[?\d{1,6}[;:]\d{1,6}[a-z]/i, "")
+    .trim();
+}
+
 type TerminalDisplaySnapshot = {
   lines: string[];
   row: number;
@@ -164,12 +203,29 @@ export function terminalDisplaySnapshotForPreview(value: string, maxRows = TERMI
 }
 
 export function terminalPreviewTextForSnapshot(rawPreview: string, textPreview: string, maxRows = TERMINAL_RENDER_LINE_LIMIT) {
-  if (/\x1b[\[\]]/.test(rawPreview)) {
-    return sanitizeTerminalPreviewForSummary(terminalDisplaySnapshotForPreview(rawPreview, maxRows));
-  }
   const textSnapshot = sanitizeTerminalPreviewForSummary(tailTerminalLines(textPreview || rawPreview, maxRows));
+  if (/\x1b[\[\]]/.test(rawPreview)) {
+    const rawSnapshot = sanitizeTerminalPreviewForSummary(terminalDisplaySnapshotForPreview(rawPreview, maxRows));
+    if (!rawSnapshot) return textSnapshot;
+    if (!textSnapshot) return rawSnapshot;
+    return scoreTerminalSnapshot(textSnapshot) > scoreTerminalSnapshot(rawSnapshot) ? textSnapshot : rawSnapshot;
+  }
   if (textSnapshot) return textSnapshot;
   return sanitizeTerminalPreviewForSummary(terminalDisplaySnapshotForPreview(rawPreview, maxRows));
+}
+
+function scoreTerminalSnapshot(value: string) {
+  const lines = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  let score = Math.min(lines.length, TERMINAL_RENDER_LINE_LIMIT);
+  for (const line of lines.slice(-40)) {
+    if (/^(?:[•›└│─]|gpt-|Working|Ran|Running|Edited|REPORT|MANAGER_CHECK|ACK|UNDERSTANDING|POLICY_ACK)/.test(line)) score += 3;
+    if (/^(?:[Ww]|Wo|or|rk|ki|in|ng|Wng|Wog|\d+)$/.test(line)) score -= 6;
+    if (line.length > 18) score += 1;
+  }
+  return score;
 }
 
 export function repairTerminalReplayForXterm(value: string) {
