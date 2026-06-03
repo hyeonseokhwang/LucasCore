@@ -1,0 +1,1 @@
+﻿860ab3a fix: simplify terminal views to shared tail preview

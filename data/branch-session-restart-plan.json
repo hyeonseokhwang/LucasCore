@@ -1,0 +1,53 @@
+{
+  "version": "2026-05-31.session-restart-plan.v1",
+  "updated_at": "2026-05-31T12:55:00+09:00",
+  "objective": "Rename and normalize the six active branch sessions without losing current work context.",
+  "rules": [
+    "Do not perform a full restart while current work is active.",
+    "Keep active agent count at or below six.",
+    "Replace one session at a time only after its current task reports or reaches a clean handoff point.",
+    "Before removing a session, capture its latest log tail and any changed files.",
+    "After creating the replacement session, submit the role prompt without Ctrl+C because the composer is empty.",
+    "Verify the replacement is active before deleting the old session.",
+    "Do not kill live control-plane ports 9002 or 9100."
+  ],
+  "target_sessions": [
+    {
+      "old_id": "dev-lead",
+      "new_id": "chief-min",
+      "call_sign": "Chief Min",
+      "role": "development lead"
+    },
+    {
+      "old_id": "infra-admin",
+      "new_id": "han-ops",
+      "call_sign": "Han Ops",
+      "role": "infrastructure admin"
+    },
+    {
+      "old_id": "developer-8",
+      "new_id": "caden-android",
+      "call_sign": "Caden Android",
+      "role": "Android implementation owner"
+    },
+    {
+      "old_id": "developer-3",
+      "new_id": "seo-security",
+      "call_sign": "Seo Security",
+      "role": "security and regression owner"
+    },
+    {
+      "old_id": "developer-5",
+      "new_id": "mira-ledger",
+      "call_sign": "Mira Ledger",
+      "role": "ledger and status visibility owner"
+    },
+    {
+      "old_id": "developer-9",
+      "new_id": "joon-msa",
+      "call_sign": "Joon MSA",
+      "role": "Spring MSA study owner"
+    }
+  ],
+  "current_decision": "Defer replacement until each current session reports. Continue using current IDs for active work."
+}

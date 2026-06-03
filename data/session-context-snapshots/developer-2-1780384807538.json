@@ -1,0 +1,9 @@
+{
+  "at": "2026-06-02T07:20:07.538Z",
+  "agentId": "developer-2",
+  "taskId": "session-health",
+  "reason": "idle",
+  "status": "active",
+  "preview": "Write tests for @filename",
+  "resumeCriteria": "resume after non-sleeping ops-loop dispatch/result event is resolved"
+}

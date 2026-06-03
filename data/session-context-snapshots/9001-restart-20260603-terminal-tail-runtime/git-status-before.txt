@@ -1,0 +1,77 @@
+﻿ M .gitignore
+ M AGENTS.md
+ M apps/web/src/terminalTileFooter.test.ts
+ M apps/web/src/terminalTileFooter.ts
+ M data/branch-boot-context.md
+ M data/terminal-runtime-config.json
+ M docs/portable-release-plan-20260602.md
+ M package.json
+ M scripts/start-lcc-agents.ps1
+ M scripts/start-lcc-core.ps1
+ M tools/agent-work-dispatcher.cjs
+ M tools/ceo-ledger-board-server.cjs
+?? 6
+?? data/agent-boot-prompts.json
+?? data/agent-idle-ledger.json
+?? data/agent-ops-events.jsonl
+?? data/agent-status-latest.json
+?? data/agent-work-dispatch-state.json
+?? data/branch-decisions.jsonl
+?? data/branch-org.json
+?? data/branch-session-restart-plan.json
+?? data/caesar-patrol-events.jsonl
+?? data/caesar-patrol-latest.json
+?? data/canvases.json
+?? data/ceo-command-ledger.json
+?? data/ceo-wake-events.jsonl
+?? data/ceo-wake-latest.json
+?? data/ceo-wake-state.json
+?? data/execution-board.json
+?? data/hq-communication-common.json
+?? data/hq-hotline-session.jsonl
+?? data/non-sleeping-ops-loop-state.json
+?? data/ops-loop-pause-context.json
+?? data/peer-bridge-inbound-test.jsonl
+?? data/peer-bridge.jsonl
+?? data/restart-resume-20260602-terminal-incident.md
+?? data/session-context-snapshots/
+?? data/terminal-context-ledger.jsonl
+?? data/terminal-quality-watch-events.jsonl
+?? data/terminal-quality-watch-latest.json
+?? data/terminal-stuck-input-watchdog-events.jsonl
+?? data/terminal-stuck-input-watchdog-state.json
+?? data/terminal-tail-samples.jsonl
+?? data/work-ledger-9004.json
+?? data/work-ledger.json
+?? developer-4
+?? docs/audit-officer-pause-context-terminal-p0-20260602.md
+?? docs/chatgpt-gui-mvp-shared-board-20260602.html
+?? docs/dev8-9100-design-support-20260602-ko.md
+?? docs/developer-source-change-conventions-20260603.md
+?? docs/development-architecture-policy-20260603.md
+?? docs/hkl-auth-manual-handover-support-notes-20260602-ko.md
+?? docs/hkl-auth-manual-handover-support-notes-20260602.md
+?? docs/hkl-auth-manual-outline-20260602.md
+?? docs/lucas-initiative-operating-principles-20260603.md
+?? docs/lucas-ledger-requirements-v0.1-20260602.md
+?? docs/portable-memory-ledger-migration-map-20260602.md
+?? docs/portable-release-card-input-hide-experiment-20260602.md
+?? docs/portable-release-second-pc-qa-matrix-20260602.md
+?? docs/portable-release-terminal-status-benchmark-dev2-20260602.md
+?? docs/restart-safe-memory-contract-20260602.md
+?? docs/terminal-composer-focus-hq-dev3-report-20260602.md
+?? docs/terminal-fleet-grid-hq-dev3-report-20260602.md
+?? docs/terminal-qa-audit-trail-20260602.md
+?? ecosystem.config.cjs
+?? scripts/install-pm2-startup.ps1
+?? scripts/pm2-startup.bat
+?? scripts/restart-lcc-visible-with-context.ps1
+?? scripts/start-9100-ledger-board.ps1
+?? scripts/start-lcc-pm2.ps1
+?? tools/caesar-hourly-report.cjs
+?? tools/ceo-nonstop-loop.ps1
+?? tools/ceo-wake-tick.cjs
+?? tools/check-9000-terminal-input-loss-cdp.cjs
+?? tools/non-sleeping-ops-loop.cjs
+?? tools/terminal-quality-screenshot-watch.cjs
+?? tools/terminal-stuck-input-watchdog.cjs

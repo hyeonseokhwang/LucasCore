@@ -73,6 +73,26 @@ Owner: Max, developer-8
   - Rust and web build outputs
 - Produce portable artifact checklist.
 
+Portable artifact checklist:
+
+- Keep:
+  - source under `apps/`, `scripts/`, `tools/`, and required policy/docs files
+  - tracked `data/*.json`, `data/*.md`, and restart-policy files needed for Caesar/Max boot
+  - `Cargo.toml`, `Cargo.lock`, `package.json`, `bun.lock`, `.env.example`, `README.md`
+- Exclude:
+  - `data/terminal-logs/`, `data/system-logs/`, `data/memory-ledger.jsonl`
+  - `tmp/`, `tmp-chrome-cdp*/`, `workspaces/`
+  - `target*/`, `apps/web/dist/`
+  - `*.log`, `*.png`, `*.pid`
+  - local secret files such as `.env`, `.env.local`, `.env.*.local`
+
+Commit boundaries:
+
+1. `.gitignore` hygiene changes only.
+2. Portable release docs/checklist updates only.
+3. Bootstrap/runtime script portability fixes only.
+4. Memory/runtime validation evidence only after QA and restart-risk review.
+
 ### 5. Second-PC Dry Run
 
 Owner: Max coordinates, developer-4 QA
@@ -97,3 +117,4 @@ Owner: Max coordinates, developer-4 QA
 - Live 9001 may not include newly compiled memory routes until restart/deploy; test on alternate port or second PC must prove the code path.
 - Current repo contains many runtime artifacts in the working tree; they must not enter release packaging.
 - Some scripts assume Windows and Codex CLI availability; prerequisites must be explicit.
+- Broad `data/*.json*` sweep ignores can hide required portable state files by accident; prefer explicit runtime-artifact exclusions.

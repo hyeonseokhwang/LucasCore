@@ -3,8 +3,17 @@ const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..");
-const ledgerPath = path.join(root, "data", "ceo-command-ledger.json");
+const executionBoardPath = path.join(root, "data", "execution-board.json");
+const workLedgerPath = path.join(root, "data", "work-ledger.json");
 const port = Number(process.env.CEO_LEDGER_PORT || 9100);
+
+function readJson(file, fallback = {}) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+  } catch {
+    return fallback;
+  }
+}
 
 function esc(value) {
   return String(value ?? "")
@@ -14,636 +23,499 @@ function esc(value) {
     .replace(/"/g, "&quot;");
 }
 
+function compact(value, fallback = "-") {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  return text || fallback;
+}
+
+function timeLabel(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toISOString().replace("T", " ").slice(0, 16);
+}
+
 function badgeClass(value) {
-  const normalized = String(value || "").toLowerCase();
-  if (normalized.includes("done")) return "done";
-  if (normalized.includes("active")) return "active";
-  if (normalized.includes("planned")) return "planned";
+  const text = String(value || "").toLowerCase();
+  if (/(stale|blocked|pending|missing)/.test(text)) return "danger";
+  if (/(review|qa|gate|hold|waiting)/.test(text)) return "warn";
+  if (/(active|assigned|approved|ok|pass|doing)/.test(text)) return "good";
   return "neutral";
 }
 
-async function fetchAgents() {
-  const response = await fetch("http://127.0.0.1:9001/api/sessions");
-  if (!response.ok) throw new Error(`9001 sessions failed: ${response.status}`);
-  const sessions = await response.json();
-  if (!Array.isArray(sessions)) return [];
-  const wanted = new Set([
-    "ceo",
-    "dev-lead",
-    "developer-1",
-    "developer-2",
-    "developer-3",
-    "developer-4",
-    "developer-5",
-    "developer-6",
-    "developer-7",
-    "developer-8",
-  ]);
-  return sessions
-    .filter((session) => wanted.has(session.id))
-    .sort((a, b) => String(a.id).localeCompare(String(b.id), "en"));
+function priorityClass(value) {
+  const text = String(value || "").toUpperCase();
+  if (text === "P0") return "danger";
+  if (text === "P1") return "warn";
+  return "neutral";
 }
 
-function cleanPreview(value) {
-  return String(value || "")
-    .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "")
-    .replace(/\x1b\][^\x07]*\x07/g, "")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .slice(-3)
-    .join(" / ");
+function taskKey(task) {
+  return task?.id || task?.task_id || "";
 }
 
-function cleanPreviewLines(value) {
-  return String(value || "")
-    .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "")
-    .replace(/\x1b\][^\x07]*\x07/g, "")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+function workTaskMap(workLedger) {
+  const tasks = Array.isArray(workLedger.tasks) ? workLedger.tasks : [];
+  return new Map(tasks.map((task) => [task.id, task]));
 }
 
-function normalizeStructuredField(value) {
-  const normalized = String(value || "").trim();
-  if (!normalized) return "";
-  if (/^none$/i.test(normalized)) return "";
-  if (/^<.+>$/.test(normalized)) return "";
-  return normalized;
+function workEventsForTask(workLedger, id) {
+  const events = Array.isArray(workLedger.events) ? workLedger.events : [];
+  return events.filter((event) => event.task_id === id);
 }
 
-function extractStructuredStatus(value) {
-  const lines = cleanPreviewLines(value);
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index];
-    if (!/^(HEARTBEAT|REPORT|ACK)\b/i.test(line)) continue;
-    const combined = lines.slice(index, Math.min(lines.length, index + 5)).join(" ");
-    const readField = (...names) => {
-      for (const name of names) {
-        const raw = combined.match(new RegExp(`\\b${name}=([^\\n]*?)(?=\\s+\\w+=|$)`, "i"))?.[1];
-        const normalized = normalizeStructuredField(raw);
-        if (normalized) return normalized;
-      }
-      return "";
-    };
-    return {
-      line: combined,
-      hasHeartbeat: /HEARTBEAT\s/i.test(combined),
-      task: readField("item", "task"),
-      status: readField("state", "status"),
-      progress: readField("doing_now", "progress"),
-      blocker: readField("blocker"),
-      nextAction: readField("next", "next_action"),
-    };
-  }
-  return { line: "", hasHeartbeat: false, task: "", status: "", progress: "", blocker: "", nextAction: "" };
-}
-
-function minutesSince(value) {
-  const ms = Date.parse(value || "");
-  if (Number.isNaN(ms)) return null;
-  return Math.max(0, Math.round((Date.now() - ms) / 60000));
-}
-
-function classifyAgent(session) {
-  const preview = session.preview_text || session.preview || "";
-  const structured = extractStructuredStatus(preview);
-  const previewSummary = cleanPreview(preview) || "no preview";
-  const ageMinutes = minutesSince(session.updated_at);
-  const isBlocked = Boolean(structured.blocker) || /\bblocked\b/i.test(structured.status) || /\bblocked\b/i.test(structured.line);
-  const isStale = ageMinutes !== null && ageMinutes > 10;
-  const hasTask = Boolean(structured.task);
-  const hasNextAction = Boolean(structured.nextAction);
-  let boardState = "idle";
-  if (isBlocked) boardState = "blocked";
-  else if (isStale) boardState = "stale";
-  else if (hasTask && !hasNextAction) boardState = "active-needs-next";
-  else if (hasTask || structured.hasHeartbeat) boardState = "active";
-  const rank = { blocked: 0, stale: 1, "active-needs-next": 2, active: 3, idle: 4 }[boardState] ?? 9;
+function recentEventSummary(events) {
+  if (!events.length) return { evidence: "-", blocker: "-", next: "-", lastAt: "-" };
+  const recent = [...events].reverse();
+  const pick = (pattern) => recent.find((event) => pattern.test(`${event.kind} ${event.body}`));
+  const evidence = pick(/evidence|qa|pass|commit|review/i);
+  const blocker = pick(/blocked|blocker|risk|fail/i);
+  const next = pick(/next|handoff|decision|doing|reported/i);
   return {
-    ...session,
-    boardState,
-    stateRank: rank,
-    ageMinutes,
-    task: structured.task || "task unknown",
-    progress: structured.progress || "-",
-    blocker: structured.blocker || "none",
-    nextAction: structured.nextAction || "heartbeat missing",
-    previewSummary,
-    hasHeartbeat: structured.hasHeartbeat,
+    evidence: evidence ? compact(evidence.body) : "-",
+    blocker: blocker ? compact(blocker.body) : "-",
+    next: next ? compact(next.body) : "-",
+    lastAt: timeLabel(recent[0].at)
   };
 }
 
-function summarizeAgents(agents) {
-  return agents.reduce((acc, agent) => {
-    if (agent.boardState === "blocked") acc.blocked += 1;
-    else if (agent.boardState === "stale") acc.stale += 1;
-    else if (agent.boardState === "active" || agent.boardState === "active-needs-next") acc.active += 1;
-    else acc.idle += 1;
-    if (!agent.hasHeartbeat) acc.missingHeartbeat += 1;
-    return acc;
-  }, { blocked: 0, stale: 0, active: 0, idle: 0, missingHeartbeat: 0 });
+function agentActivity(activeItems) {
+  const map = new Map();
+  for (const item of activeItems) {
+    const key = compact(item.owner || item.next_owner || "unassigned");
+    const row = map.get(key) || {
+      agent: key,
+      assigned: 0,
+      stale: 0,
+      decisionNeeded: 0,
+      reviewGate: 0,
+      topBand: "P2",
+      sample: []
+    };
+    if (item.assignment_state === "assigned") row.assigned += 1;
+    if (item.owner_status === "stale" || item.stale_reason) row.stale += 1;
+    if (item.decision_needed) row.decisionNeeded += 1;
+    if (/qa|commit|review/i.test(`${item.protected_contract || ""} ${item.title || ""}`)) row.reviewGate += 1;
+    if (item.priority_band === "P0") row.topBand = "P0";
+    else if (item.priority_band === "P1" && row.topBand !== "P0") row.topBand = "P1";
+    if (row.sample.length < 2) row.sample.push(item.id);
+    map.set(key, row);
+  }
+  return [...map.values()].sort((a, b) => {
+    return (b.stale - a.stale) || (b.decisionNeeded - a.decisionNeeded) || a.agent.localeCompare(b.agent, "en");
+  });
 }
 
-function renderDirective(item) {
-  const progress = Math.max(0, Math.min(100, Number(item.progress || 0)));
-  const reportFields = item.report_fields && typeof item.report_fields === "object" ? item.report_fields : null;
-  const refs = Array.isArray(item.references) && item.references.length
-    ? `<div class="refs">${item.references.map((ref) => `<code>${esc(ref)}</code>`).join("")}</div>`
-    : "";
-  const updates = Array.isArray(item.updates) && item.updates.length
-    ? `<ul class="updates">${item.updates.slice(-5).map((update) => `<li>${esc(update)}</li>`).join("")}</ul>`
-    : "";
-  const fieldOrder = ["item", "problem", "root_cause", "action", "doing_now", "next", "blocker", "evidence", "report_cadence"];
-  const fieldLabels = {
-    item: "Item",
-    problem: "Problem",
-    root_cause: "Root cause",
-    action: "Action",
-    doing_now: "Doing now",
-    next: "Next",
-    blocker: "Blocker",
-    evidence: "Evidence",
-    report_cadence: "Report cadence",
+function ownerMap(activeItems) {
+  const rows = activeItems.filter((item) => /P0|P1/.test(String(item.priority_band || "")));
+  const map = new Map();
+  for (const item of rows) {
+    const key = compact(item.owner || item.next_owner || "unassigned");
+    const row = map.get(key) || {
+      owner: key,
+      p0: 0,
+      p1: 0,
+      assigned: 0,
+      unassigned: 0,
+      stale: 0,
+      decisionNeeded: 0,
+      topBand: "P2",
+      nextOwners: new Set(),
+      items: []
+    };
+    if (item.priority_band === "P0") row.p0 += 1;
+    if (item.priority_band === "P1") row.p1 += 1;
+    if (item.assignment_state === "assigned") row.assigned += 1;
+    if (item.assignment_state === "unassigned") row.unassigned += 1;
+    if (item.owner_status === "stale" || item.stale_reason) row.stale += 1;
+    if (item.decision_needed) row.decisionNeeded += 1;
+    if (item.priority_band === "P0") row.topBand = "P0";
+    else if (item.priority_band === "P1" && row.topBand !== "P0") row.topBand = "P1";
+    row.nextOwners.add(compact(item.next_owner || "Max"));
+    if (row.items.length < 3) row.items.push(item.title || item.id);
+    map.set(key, row);
+  }
+  return [...map.values()]
+    .map((row) => ({
+      ...row,
+      nextOwners: [...row.nextOwners].slice(0, 2)
+    }))
+    .sort((a, b) => {
+      return (b.stale - a.stale) || (b.unassigned - a.unassigned) || (b.p0 - a.p0) || (b.p1 - a.p1) || a.owner.localeCompare(b.owner, "en");
+    });
+}
+
+function qaGates(board, workLedger) {
+  const activeItems = Array.isArray(board.active) ? board.active : [];
+  const taskMap = workTaskMap(workLedger);
+  const relevant = activeItems.filter((item) => {
+    return /qa|review|evidence|commit/i.test(`${item.protected_contract || ""} ${item.title || ""}`);
+  });
+  return relevant.slice(0, 8).map((item) => {
+    const events = workEventsForTask(workLedger, item.id);
+    const summary = recentEventSummary(events);
+    return {
+      id: item.id,
+      title: item.title,
+      owner: compact(item.owner || item.next_owner || "-"),
+      gate: compact(item.protected_contract || "none"),
+      approval: compact(item.approval_state || "none"),
+      evidenceCount: events.filter((event) => /evidence|qa|pass|commit|review/i.test(`${event.kind} ${event.body}`)).length,
+      lastAt: summary.lastAt,
+      workTaskStatus: compact(taskMap.get(item.id)?.status || "-")
+    };
+  });
+}
+
+function staleRisks(board) {
+  const activeItems = Array.isArray(board.active) ? board.active : [];
+  const blocked = Array.isArray(board.blocked) ? board.blocked : [];
+  const stale = activeItems.filter((item) => item.owner_status === "stale" || item.stale_reason || item.assignment_state === "unassigned");
+  return {
+    stale: stale.slice(0, 10),
+    blocked
   };
-  const reportGrid = reportFields
-    ? `<dl class="report-fields">${fieldOrder
-        .filter((key) => reportFields[key] !== undefined && reportFields[key] !== null && String(reportFields[key]).trim())
-        .map((key) => `<div><dt>${esc(fieldLabels[key] || key)}</dt><dd>${esc(reportFields[key])}</dd></div>`)
-        .join("")}</dl>`
-    : "";
-  return `<article class="card ${esc(item.priority).toLowerCase()}">
-    <div class="card-head">
-      <div>
-        <span class="priority">${esc(item.priority)}</span>
-        <h2>${esc(item.title)}</h2>
-      </div>
-      <span class="status ${badgeClass(item.status)}">${esc(item.status)}</span>
-    </div>
-    <div class="progress-row">
-      <div class="progress-bar"><span style="width:${progress}%"></span></div>
-      <strong>${progress}%</strong>
-    </div>
-    <p class="last-update">${esc(item.last_update || "진행상황 미기입")}</p>
-    <p class="directive">${esc(item.directive)}</p>
-    <dl>
-      <div><dt>담당</dt><dd>${esc(item.owner)}</dd></div>
-      <div><dt>다음</dt><dd>${esc(item.next_action)}</dd></div>
-      <div><dt>증거</dt><dd>${esc(item.evidence_required)}</dd></div>
-    </dl>
-    ${reportGrid}
-    ${updates}
-    ${refs}
-  </article>`;
 }
 
-function renderAgent(session) {
-  const name = session.id === "dev-lead" ? "Max" : (session.name || session.id);
-  const preview = cleanPreview(session.preview_text || session.preview);
-  return `<article class="agent-card">
-    <div class="agent-head">
-      <strong>${esc(name)}</strong>
-      <span class="status ${badgeClass(session.status)}">${esc(session.status || "unknown")}</span>
-    </div>
-    <dl>
-      <div><dt>모델</dt><dd>${esc(session.model || "-")}</dd></div>
-      <div><dt>공간</dt><dd>${esc(session.cwd || "-")}</dd></div>
-      <div><dt>입력</dt><dd>${esc(session.interactive ? "가능" : "확인 필요")}</dd></div>
-    </dl>
-    <p>${esc(preview || "최근 미리보기 없음")}</p>
-  </article>`;
+function rawDrilldown(board, workLedger) {
+  const picks = [];
+  const add = (item) => {
+    if (item && !picks.find((entry) => entry.id === item.id)) picks.push(item);
+  };
+  (Array.isArray(board.decision_needed) ? board.decision_needed : []).slice(0, 4).forEach(add);
+  (Array.isArray(board.active) ? board.active : []).filter((item) => item.owner === "developer-8").slice(0, 2).forEach(add);
+  return picks.map((item) => ({
+    id: item.id,
+    title: item.title,
+    exec: item,
+    workTask: workTaskMap(workLedger).get(item.id) || null,
+    workEvents: workEventsForTask(workLedger, item.id).slice(-5)
+  }));
 }
 
-function renderAgentCard(session) {
-  const name = session.id === "dev-lead" ? "Max" : (session.name || session.id);
-  const updated = session.ageMinutes === null ? "unknown" : `${session.ageMinutes}m ago`;
-  return `<article class="agent-card">
-    <div class="agent-head">
-      <strong>${esc(name)}</strong>
-      <span class="status ${badgeClass(session.boardState)}">${esc(session.boardState || "unknown")}</span>
-    </div>
-    <dl>
-      <div><dt>Task</dt><dd>${esc(session.task || "task unknown")}</dd></div>
-      <div><dt>Next</dt><dd>${esc(session.nextAction || "heartbeat missing")}</dd></div>
-      <div><dt>Blocker</dt><dd>${esc(session.blocker || "none")}</dd></div>
-      <div><dt>Progress</dt><dd>${esc(session.progress || "-")}</dd></div>
-      <div><dt>Updated</dt><dd>${esc(updated)}</dd></div>
-      <div><dt>Model</dt><dd>${esc(session.model || "-")}</dd></div>
-    </dl>
-    <p>${esc(session.previewSummary || "no preview")}</p>
-  </article>`;
+function renderChip(label, value, klass = "neutral") {
+  return `<span class="chip ${klass}"><strong>${esc(label)}</strong><span>${esc(value)}</span></span>`;
 }
 
-function renderPage(ledger, agents, agentError) {
-  const directives = Array.isArray(ledger.directives) ? ledger.directives : [];
-  const openDirectives = directives.filter((item) => !String(item.status).toLowerCase().includes("done"));
-  const doneDirectives = directives.filter((item) => String(item.status).toLowerCase().includes("done"));
-  const activeCount = directives.filter((item) => String(item.status).includes("active")).length;
-  const doneCount = directives.filter((item) => String(item.status).includes("done")).length;
-  const benchmark = ledger.hq_benchmark || {};
-  const patterns = Array.isArray(benchmark.observed_patterns) ? benchmark.observed_patterns : [];
-  const advantages = Array.isArray(benchmark.distilled_advantages) ? benchmark.distilled_advantages : [];
-  const agentSummary = summarizeAgents(agents);
+function renderList(items, renderItem, empty = "표시할 항목이 없습니다.") {
+  if (!items.length) return `<div class="empty">${esc(empty)}</div>`;
+  return `<div class="list">${items.map(renderItem).join("")}</div>`;
+}
+
+function renderPage(board, workLedger) {
+  const counts = board.counts || {};
+  const activeItems = Array.isArray(board.active) ? board.active : [];
+  const decisionQueue = Array.isArray(board.decision_needed) ? board.decision_needed : [];
+  const hierarchy = Array.isArray(board.hierarchy) ? board.hierarchy : [];
+  const approvals = Array.isArray(board.approvals) ? board.approvals : [];
+  const evidenceIndex = Array.isArray(board.evidence_index) ? board.evidence_index : [];
+  const ownerRows = ownerMap(activeItems);
+  const activityRows = agentActivity(activeItems);
+  const risks = staleRisks(board);
+  const gates = qaGates(board, workLedger);
+  const drilldown = rawDrilldown(board, workLedger);
 
   return `<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="refresh" content="10" />
-  <title>CEO 지시 원장</title>
+  <title>9100 Executive Dashboard</title>
   <style>
     :root {
-      color-scheme: dark;
-      --bg: #0c1117;
-      --panel: #151b24;
-      --panel-2: #101722;
-      --line: #273142;
-      --text: #edf3fb;
-      --muted: #9dacbf;
-      --blue: #5b7cfa;
-      --green: #35c48b;
-      --amber: #f2bb4b;
-      --red: #f16d75;
+      color-scheme: light;
+      --bg: #f3f6fb;
+      --panel: #ffffff;
+      --ink: #142033;
+      --muted: #5d6b82;
+      --line: #d8e0ec;
+      --blue: #1f5eff;
+      --red: #cf3d2e;
+      --amber: #b7791f;
+      --green: #177b57;
+      --shadow: 0 18px 42px rgba(16, 24, 40, 0.08);
     }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: "Segoe UI", system-ui, sans-serif;
-      letter-spacing: 0;
-    }
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 5;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 16px;
-      align-items: center;
-      padding: 14px 22px;
-      border-bottom: 1px solid var(--line);
-      background: rgba(12, 17, 23, 0.97);
-    }
-    h1 { margin: 0; font-size: 20px; }
-    .sub { color: var(--muted); font-size: 12px; margin-top: 3px; }
-    .stats { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-    .stat {
-      min-width: 82px;
-      padding: 8px 10px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-      text-align: right;
-    }
-    .stat strong { display: block; font-size: 17px; }
-    .stat span { color: var(--muted); font-size: 11px; }
-    main {
-      width: min(1560px, calc(100vw - 28px));
-      margin: 14px auto 40px;
-      display: grid;
-      grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
-      gap: 14px;
-    }
-    aside {
-      position: sticky;
-      top: 76px;
-      align-self: start;
-      display: grid;
-      gap: 12px;
-      min-width: 0;
-    }
-    section, .card {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-      min-width: 0;
-    }
-    section { padding: 14px; }
-    h2, h3 { margin: 0; }
-    section h2 { font-size: 15px; margin-bottom: 10px; }
-    ul { margin: 0; padding-left: 18px; color: var(--muted); line-height: 1.48; }
-    li + li { margin-top: 7px; }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-      gap: 12px;
-      min-width: 0;
-    }
-    .content {
-      display: grid;
-      gap: 14px;
-      min-width: 0;
-    }
-    .section-title {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      margin: 0 0 10px;
-      color: var(--text);
-      font-size: 15px;
-    }
-    .section-title span {
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 500;
-    }
-    details.done-box {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: rgba(21, 27, 36, .68);
-      padding: 12px;
-    }
-    details.done-box > summary {
-      cursor: pointer;
-      color: var(--text);
-      font-weight: 700;
-      margin-bottom: 12px;
-    }
-    details.done-box .grid {
-      margin-top: 12px;
-    }
-    .card {
-      padding: 14px;
-      display: grid;
-      gap: 11px;
-      border-left-width: 4px;
-    }
-    .card.p0 { border-left-color: var(--red); }
-    .card.p1 { border-left-color: var(--amber); }
-    .card-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: start;
-    }
-    .priority {
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-    .card h2 { font-size: 15px; margin-top: 2px; }
-    .status {
-      flex: 0 0 auto;
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 11px;
-      border: 1px solid var(--line);
-      color: var(--muted);
-      background: var(--panel-2);
-    }
-    .status.active { color: var(--green); border-color: rgba(53,196,139,.45); }
-    .status.done { color: #93e6bd; border-color: rgba(53,196,139,.35); }
-    .status.planned { color: var(--amber); border-color: rgba(242,187,75,.45); }
-    .status.blocked { color: #ffb4b4; border-color: rgba(241,109,117,.45); }
-    .status.stale, .status.active-needs-next { color: var(--amber); border-color: rgba(242,187,75,.45); }
-    .directive {
-      margin: 0;
-      color: var(--text);
-      line-height: 1.45;
-    }
-    .last-update {
-      margin: 0;
-      padding: 9px 10px;
-      border-radius: 6px;
-      background: rgba(91, 124, 250, .1);
-      color: #dce5ff;
-      line-height: 1.42;
-      font-size: 13px;
-    }
-    .progress-row {
-      display: grid;
-      grid-template-columns: 1fr 44px;
-      gap: 9px;
-      align-items: center;
-    }
-    .progress-row strong {
-      text-align: right;
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .progress-bar {
-      height: 8px;
-      border-radius: 999px;
-      overflow: hidden;
-      background: #0b111a;
-      border: 1px solid rgba(255,255,255,.08);
-    }
-    .progress-bar span {
-      display: block;
-      height: 100%;
-      border-radius: inherit;
-      background: linear-gradient(90deg, var(--blue), var(--green));
-    }
-    dl { display: grid; gap: 8px; margin: 0; }
-    dl div {
-      display: grid;
-      grid-template-columns: 74px 1fr;
-      gap: 8px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255,255,255,.06);
-    }
-    dt { color: var(--muted); font-size: 11px; text-transform: uppercase; }
-    dd { margin: 0; color: #d8e1ee; font-size: 13px; line-height: 1.4; }
-    .report-fields {
-      padding: 10px;
-      border: 1px solid rgba(91, 124, 250, .28);
-      border-radius: 8px;
-      background: rgba(91, 124, 250, .08);
-    }
-    .report-fields div {
-      grid-template-columns: 112px 1fr;
-      border-top-color: rgba(91, 124, 250, .18);
-    }
-    .report-fields div:first-child { border-top: 0; padding-top: 0; }
-    .report-fields dt { color: #b8c7ff; }
-    .agents {
-      display: grid;
-      gap: 8px;
-      max-height: 520px;
-      overflow: auto;
-      padding-right: 2px;
-    }
-    .agent-card {
-      padding: 10px;
-      border: 1px solid rgba(255,255,255,.07);
-      border-radius: 8px;
-      background: var(--panel-2);
-    }
-    .agent-summary {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 8px;
-      margin-bottom: 10px;
-    }
-    .agent-summary div {
-      padding: 8px;
-      border: 1px solid rgba(255,255,255,.07);
-      border-radius: 8px;
-      background: #0b111a;
-      text-align: center;
-    }
-    .agent-summary strong { display: block; font-size: 16px; }
-    .agent-summary span { color: var(--muted); font-size: 11px; }
-    .agent-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .agent-head strong { font-size: 13px; }
-    .agent-card dl { gap: 5px; }
-    .agent-card dl div {
-      grid-template-columns: 42px 1fr;
-      padding-top: 5px;
-    }
-    .agent-card p, .agent-error {
-      margin: 8px 0 0;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.38;
-    }
-    .updates {
-      margin: 0;
-      padding: 10px 10px 10px 26px;
-      border-radius: 6px;
-      background: rgba(255,255,255,.035);
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.42;
-    }
-    .updates li + li { margin-top: 4px; }
-    code {
-      display: block;
-      margin-top: 6px;
-      padding: 6px 8px;
-      border-radius: 6px;
-      background: #0b111a;
-      color: #b8d7ff;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      font-family: Consolas, monospace;
-      font-size: 12px;
-    }
-    .source {
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.45;
-    }
-    @media (min-width: 1900px) {
-      main { grid-template-columns: minmax(360px, 440px) minmax(0, 1fr); }
-      .grid { grid-template-columns: repeat(3, minmax(340px, 1fr)); }
-    }
-    @media (max-width: 980px) {
-      header { grid-template-columns: 1fr; }
-      .stats { justify-content: flex-start; }
-      main { grid-template-columns: 1fr; }
-      aside { position: static; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 "Segoe UI", "Malgun Gothic", system-ui, sans-serif; }
+    .page { max-width: 1560px; margin: 0 auto; padding: 24px; }
+    .hero, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+    .hero { padding: 22px 24px; margin-bottom: 18px; }
+    .hero h1 { margin: 0 0 8px; font-size: 28px; }
+    .hero p { margin: 0; color: var(--muted); }
+    .meta { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip { display: inline-flex; gap: 8px; align-items: center; border-radius: 999px; padding: 7px 12px; background: #eef3fb; color: var(--ink); }
+    .chip strong { font-size: 12px; color: var(--muted); }
+    .chip.danger { background: #fee8e6; color: var(--red); }
+    .chip.warn { background: #fff2db; color: var(--amber); }
+    .chip.good { background: #e4f7ef; color: var(--green); }
+    .chip.neutral { background: #eef3fb; color: var(--ink); }
+    .metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .metric { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); }
+    .metric .label { color: var(--muted); font-size: 12px; }
+    .metric .value { display: block; margin-top: 6px; font-size: 30px; font-weight: 800; }
+    .grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+    .stack { display: grid; gap: 16px; }
+    .panel { padding: 18px; }
+    .panel h2 { margin: 0 0 12px; font-size: 18px; }
+    .subtle { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+    .list { display: grid; gap: 10px; }
+    .card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: #fbfcfe; }
+    .card h3 { margin: 0 0 6px; font-size: 15px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .table { width: 100%; border-collapse: collapse; }
+    .table th, .table td { border-top: 1px solid #edf2f7; padding: 10px 8px; text-align: left; vertical-align: top; }
+    .table th { color: var(--muted); font-size: 12px; }
+    .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px; font-weight: 700; font-size: 11px; }
+    .badge.danger { background: #fee8e6; color: var(--red); }
+    .badge.warn { background: #fff2db; color: var(--amber); }
+    .badge.good { background: #e4f7ef; color: var(--green); }
+    .badge.neutral { background: #eef3fb; color: var(--ink); }
+    details { border: 1px solid var(--line); border-radius: 12px; background: #fbfcfe; padding: 10px 12px; }
+    details:not([open]) > *:not(summary) { display: none !important; }
+    details + details { margin-top: 10px; }
+    summary { cursor: pointer; font-weight: 700; }
+    pre { margin: 10px 0 0; padding: 12px; border-radius: 10px; background: #0d1726; color: #dbe7ff; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+    .empty { padding: 18px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); background: #fbfcfe; }
+    @media (max-width: 1180px) {
+      .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 760px) {
+      .page { padding: 14px; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>CEO 지시 원장</h1>
-      <div class="sub">루카스 지시사항, 진행률, 담당자, 증거, 에이전트 상태 · 갱신 ${esc(ledger.updated_at)} · 10초 자동 새로고침</div>
-    </div>
-    <div class="stats">
-      <div class="stat"><strong>${directives.length}</strong><span>지시</span></div>
-      <div class="stat"><strong>${activeCount}</strong><span>진행중</span></div>
-      <div class="stat"><strong>${doneCount}</strong><span>완료</span></div>
-      <div class="stat"><strong>${agents.length}</strong><span>에이전트</span></div>
-    </div>
-  </header>
-  <main>
-    <aside>
-      <section>
-        <h2>본사 벤치마킹</h2>
-        <div class="source">저장소: <code>${esc(benchmark.repo || "")}</code></div>
-        <ul>${patterns.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
-      </section>
-      <section>
-        <h2>추려낸 장점</h2>
-        <ul>${advantages.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
-      </section>
-      <section>
-        <h2>에이전트 현황</h2>
-        ${agentError ? `<p class="agent-error">${esc(agentError)}</p>` : `<div class="agent-summary">
-          <div><strong>${agentSummary.blocked}</strong><span>Blocked</span></div>
-          <div><strong>${agentSummary.stale}</strong><span>Stale</span></div>
-          <div><strong>${agentSummary.active}</strong><span>Active</span></div>
-          <div><strong>${agentSummary.idle}</strong><span>Idle</span></div>
-          <div><strong>${agentSummary.missingHeartbeat}</strong><span>No heartbeat</span></div>
-        </div><div class="agents">${agents.map(renderAgentCard).join("")}</div>`}
-      </section>
-    </aside>
-    <div class="content">
-      <section>
-        <div class="section-title">진행중 지시사항 <span>완료 항목은 아래에 분리</span></div>
-        <div class="grid">
-          ${openDirectives.map(renderDirective).join("\n")}
-        </div>
-      </section>
-      <details class="done-box">
-        <summary>완료된 항목 ${doneDirectives.length}개</summary>
-        <div class="grid">
-          ${doneDirectives.map(renderDirective).join("\n")}
-        </div>
-      </details>
-    </div>
-  </main>
+  <div class="page">
+    <section class="hero">
+      <h1>9100 운영 대시보드</h1>
+      <p>실행 보드 기준 읽기 전용 화면입니다. 주 데이터는 <code>data/execution-board.json</code>이며, 원시 JSON 드릴다운에서만 <code>data/work-ledger.json</code>을 함께 봅니다.</p>
+      <div class="meta">
+        ${renderChip("생성 시각", timeLabel(board.generated_at))}
+        ${renderChip("이벤트 상한", compact(board.source_event_high_watermark))}
+        ${renderChip("정책 모드", compact(board.policy_mode || "normal"), badgeClass(board.policy_mode || "normal"))}
+        ${renderChip("생성자", compact(board.generated_by || "-"))}
+      </div>
+    </section>
+
+    <section class="metrics">
+      <div class="metric"><span class="label">활성 항목</span><strong class="value">${counts.active || 0}</strong></div>
+      <div class="metric"><span class="label">P0</span><strong class="value">${counts.p0 || 0}</strong></div>
+      <div class="metric"><span class="label">P1</span><strong class="value">${counts.p1 || 0}</strong></div>
+      <div class="metric"><span class="label">결정 필요</span><strong class="value">${counts.decision_needed || 0}</strong></div>
+      <div class="metric"><span class="label">정체/미배정</span><strong class="value">${counts.stale || 0}</strong></div>
+      <div class="metric"><span class="label">미소유</span><strong class="value">${counts.unowned || 0}</strong></div>
+    </section>
+
+    <section class="grid">
+      <div class="stack">
+        <section class="panel">
+          <h2>결정 필요 큐</h2>
+          <div class="subtle">Caesar/Max 승인이나 재배정이 필요한 항목 우선순위</div>
+          ${renderList(
+            decisionQueue.slice(0, 8),
+            (item) => `<article class="card">
+              <h3>${esc(item.id)} · ${esc(item.title)}</h3>
+              <div class="row">
+                <span class="badge ${priorityClass(item.priority_band)}">${esc(item.priority_band || "P?")}</span>
+                <span class="badge ${badgeClass(item.owner_status || item.assignment_state)}">${esc(compact(item.owner_status || item.assignment_state || "unknown"))}</span>
+                <span class="badge ${badgeClass(item.approval_state)}">${esc(compact(item.approval_state || "none"))}</span>
+              </div>
+              <div class="row">
+                ${renderChip("현재 소유", compact(item.owner || "-"))}
+                ${renderChip("다음 소유", compact(item.next_owner || "Max"))}
+                ${renderChip("계약", compact(item.protected_contract || "none"))}
+              </div>
+            </article>`,
+            "결정 대기 항목이 없습니다."
+          )}
+        </section>
+
+        <section class="panel">
+          <h2>P0/P1 소유 맵</h2>
+          <div class="subtle">우선순위 기준 소유 분포와 대표 항목</div>
+          <table class="table">
+            <thead><tr><th>소유자</th><th>P0</th><th>P1</th><th>대표 항목</th></tr></thead>
+            <tbody>
+              ${ownerRows.map((row) => `<tr>
+                <td>${esc(row.owner)}</td>
+                <td>
+                  <div class="row">
+                    <span class="badge ${priorityClass(row.topBand)}">${esc(row.topBand)}</span>
+                    <span class="badge ${row.p0 ? "danger" : "neutral"}">P0 ${row.p0}</span>
+                    <span class="badge ${row.p1 ? "warn" : "neutral"}">P1 ${row.p1}</span>
+                  </div>
+                </td>
+                <td>
+                  <div class="row">
+                    <span class="badge ${row.stale ? "danger" : "good"}">stale ${row.stale}</span>
+                    <span class="badge ${row.unassigned ? "warn" : "good"}">unassigned ${row.unassigned}</span>
+                    <span class="badge ${row.assigned ? "good" : "neutral"}">assigned ${row.assigned}</span>
+                    <span class="badge ${row.decisionNeeded ? "warn" : "neutral"}">decision ${row.decisionNeeded}</span>
+                  </div>
+                </td>
+                <td>${esc(row.nextOwners.join(" / "))} / ${esc(row.items.join(" / "))}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="panel">
+          <h2>정체 / 차단 위험</h2>
+          <div class="subtle">owner_status, assignment_state, stale_reason 기준 위험 항목</div>
+          ${renderList(
+            risks.stale,
+            (item) => `<article class="card">
+              <h3>${esc(item.id)} · ${esc(item.title)}</h3>
+              <div class="row">
+                <span class="badge ${badgeClass(item.owner_status)}">${esc(compact(item.owner_status || "unknown"))}</span>
+                <span class="badge ${badgeClass(item.assignment_state)}">${esc(compact(item.assignment_state || "unknown"))}</span>
+                <span class="badge ${badgeClass(item.stale_reason)}">${esc(compact(item.stale_reason || "no-reason"))}</span>
+              </div>
+              <div class="row">
+                ${renderChip("현재 소유", compact(item.owner || "-"))}
+                ${renderChip("다음 소유", compact(item.next_owner || "Max"))}
+                ${renderChip("카테고리", compact(item.category || "-"))}
+              </div>
+            </article>`,
+            "정체 위험 항목이 없습니다."
+          )}
+          ${risks.blocked.length ? `<div class="subtle" style="margin-top:12px">blocked 배열: ${esc(JSON.stringify(risks.blocked))}</div>` : ""}
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="panel">
+          <h2>에이전트 활동 스트립</h2>
+          <div class="subtle">live terminal 대신 execution board 소유/정체 상태를 요약합니다.</div>
+          ${renderList(
+            activityRows.slice(0, 10),
+            (row) => `<article class="card">
+              <h3>${esc(row.agent)}</h3>
+              <div class="row">
+                ${renderChip("배정", String(row.assigned), row.assigned ? "good" : "neutral")}
+                ${renderChip("정체", String(row.stale), row.stale ? "danger" : "neutral")}
+                ${renderChip("결정 필요", String(row.decisionNeeded), row.decisionNeeded ? "warn" : "neutral")}
+                ${renderChip("QA 게이트", String(row.reviewGate), row.reviewGate ? "warn" : "neutral")}
+                ${renderChip("최상위 밴드", row.topBand, priorityClass(row.topBand))}
+              </div>
+              <div class="subtle">대표: ${esc(row.sample.join(" / "))}</div>
+            </article>`
+          )}
+        </section>
+
+        <section class="panel">
+          <h2>QA / 증거 게이트</h2>
+          <div class="subtle">승인 게이트, evidence index, QA 관련 protected contract</div>
+          <div class="row" style="margin-bottom:12px">
+            ${renderChip("승인 게이트", String(approvals.length), approvals.length ? "warn" : "neutral")}
+            ${renderChip("증거 인덱스", String(evidenceIndex.length), evidenceIndex.length ? "good" : "neutral")}
+            ${renderChip("ACK 매트릭스", String((board.ack_matrix || []).length), "neutral")}
+          </div>
+          <table class="table">
+            <thead><tr><th>항목</th><th>소유</th><th>게이트</th><th>승인</th><th>증거 수</th><th>최근</th></tr></thead>
+            <tbody>
+              ${gates.map((item) => `<tr>
+                <td>${esc(item.id)}</td>
+                <td>${esc(item.owner)}</td>
+                <td>${esc(item.gate)}</td>
+                <td><span class="badge ${badgeClass(item.approval)}">${esc(item.approval)}</span></td>
+                <td>${item.evidenceCount}</td>
+                <td>${esc(item.lastAt)}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+          ${renderList(
+            approvals,
+            (item) => `<article class="card">
+              <h3>${esc(item.gate)}</h3>
+              <div class="row">
+                <span class="badge ${badgeClass(item.state)}">${esc(item.state)}</span>
+                ${renderChip("근거 이벤트", compact(item.id))}
+              </div>
+            </article>`,
+            "승인 게이트가 없습니다."
+          )}
+        </section>
+
+        <section class="panel">
+          <h2>원시 JSON 드릴다운</h2>
+          <div class="subtle">execution board 기본 + 필요한 task만 work-ledger task/events를 붙여 보여줍니다.</div>
+          ${drilldown.map((entry) => `<details>
+            <summary>${esc(entry.id)} · ${esc(entry.title)}</summary>
+            <pre>${esc(JSON.stringify({
+              executionBoard: entry.exec,
+              workLedgerTask: entry.workTask,
+              workLedgerEvents: entry.workEvents
+            }, null, 2))}</pre>
+          </details>`).join("")}
+        </section>
+
+        <section class="panel">
+          <h2>카테고리 개요</h2>
+          <table class="table">
+            <thead><tr><th>카테고리</th><th>활성</th><th>P0</th><th>P1</th><th>결정 필요</th></tr></thead>
+            <tbody>
+              ${hierarchy.map((item) => `<tr>
+                <td>${esc(item.category || "Unclassified")}</td>
+                <td>${item.counts?.active || 0}</td>
+                <td>${item.counts?.p0 || 0}</td>
+                <td>${item.counts?.p1 || 0}</td>
+                <td>${item.counts?.decision_needed || 0}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </section>
+      </div>
+    </section>
+  </div>
 </body>
 </html>`;
 }
 
-function readLedger() {
-  return JSON.parse(fs.readFileSync(ledgerPath, "utf8"));
-}
+const server = http.createServer((request, response) => {
+  const board = readJson(executionBoardPath, {});
+  const workLedger = readJson(workLedgerPath, { tasks: [], events: [] });
+  const url = new URL(request.url || "/", `http://127.0.0.1:${port}`);
 
-const server = http.createServer(async (request, response) => {
-  try {
-    const ledger = readLedger();
-    let agents = [];
-    let agentError = "";
-    try {
-      agents = (await fetchAgents()).map(classifyAgent).sort((a, b) =>
-        a.stateRank - b.stateRank ||
-        (a.ageMinutes ?? 9999) - (b.ageMinutes ?? 9999) ||
-        String(a.id).localeCompare(String(b.id), "en")
-      );
-    } catch (error) {
-      agentError = error.message || String(error);
-    }
-    if (request.url === "/health") {
-      response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-      response.end(JSON.stringify({ ok: true, ledgerPath, directives: ledger.directives?.length || 0, agents: agents.length, agentError }));
-      return;
-    }
-    if (request.url === "/api/ledger") {
-      response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-      response.end(JSON.stringify(ledger));
-      return;
-    }
-    if (request.url === "/api/agents") {
-      response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-      response.end(JSON.stringify({ agents, error: agentError }));
-      return;
-    }
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    response.end(renderPage(ledger, agents, agentError));
-  } catch (error) {
-    response.writeHead(500, { "content-type": "text/plain; charset=utf-8" });
-    response.end(error.stack || String(error));
+  if (url.pathname === "/health") {
+    response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    response.end(JSON.stringify({
+      ok: true,
+      port,
+      executionBoardPath,
+      workLedgerPath,
+      generated_at: board.generated_at || null,
+      active: board.counts?.active || 0
+    }));
+    return;
   }
+
+  if (url.pathname === "/api/execution-board" || url.pathname === "/api/ledger") {
+    response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    response.end(JSON.stringify(board));
+    return;
+  }
+
+  if (url.pathname === "/api/work-ledger") {
+    const taskId = url.searchParams.get("taskId");
+    response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    if (!taskId) {
+      response.end(JSON.stringify(workLedger));
+      return;
+    }
+    response.end(JSON.stringify({
+      task: workTaskMap(workLedger).get(taskId) || null,
+      events: workEventsForTask(workLedger, taskId)
+    }));
+    return;
+  }
+
+  response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+  response.end(renderPage(board, workLedger));
 });
 
-server.listen(port, () => {
-  console.log(`CEO command ledger listening on http://127.0.0.1:${port} and http://localhost:${port}`);
+server.listen(port, "127.0.0.1", () => {
+  console.log(`CEO ledger board listening on http://127.0.0.1:${port}`);
 });

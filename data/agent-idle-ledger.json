@@ -1,0 +1,4532 @@
+{
+  "agents": {
+    "dev-lead": {
+      "totalIdleMs": 16108484,
+      "totalWaitingMs": 128550,
+      "totalBlockedMs": 33381861,
+      "dispatchCount": 311,
+      "events": [
+        {
+          "at": "2026-06-02T13:27:11.050Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:25:39.184Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:24:07.945Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:22:36.158Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:21:04.647Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:19:32.654Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:17:58.854Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:16:28.680Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:14:58.133Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:13:27.984Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:11:57.396Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:10:27.252Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:08:56.031Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:07:25.078Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:05:54.501Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:04:24.358Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:02:53.833Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:01:23.688Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:59:53.076Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:52:53.406Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:52:20.614Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:49:50.176Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:49:18.359Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:48:49.111Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:46:46.762Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:46:15.958Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:43:44.428Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:43:13.758Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:40:41.958Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:40:11.804Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:37:39.214Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:37:09.706Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:36:38.630Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:35:39.308Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:34:36.760Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:34:07.500Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:32:35.314Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:31:34.421Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:31:05.623Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:30:33.923Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:29:35.487Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:28:05.343Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:27:29.706Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:06:34.752Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T12:06:30.305Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T12:04:28.658Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:03:32.883Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:01:25.335Z",
+          "state": "blocked",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:00:30.472Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:00:24.573Z",
+          "state": "idle",
+          "taskId": "max-team-policy",
+          "action": "observed",
+          "reason": "unclear"
+        }
+      ],
+      "lastEventKey": "blocked:max-team-policy:dispatch",
+      "currentState": "blocked",
+      "currentTaskId": "max-team-policy",
+      "lastSeenAt": "2026-06-02T16:52:16.834Z",
+      "lastLogAgeMinutes": null,
+      "lastDispatchAgeMinutes": 205.1,
+      "lastPreview": "state-management-policy-20260531.md,data/ceo-command-\nledger.json,data/work-ledger.json,data/agent-boot-prompts.json\nmode=normal ledger_item=terminal-input-newline-regression-20260603\nnext=inspect active ledger/session state and assign only needed\nterminal-stability workers blocker=none\n────────────────────────────────────────────────────────────────────\n› ACK max-recovered item=terminal-input-newline-regression-20260603\nnext=assign developer-1 terminal input/newline RCA and developer-\n4 QA; preserve 9001; use ledger hierarchy terminal parent; report\nowner/next/blocker/evidence.\ne[201~\ngpt-5.5 medium · D:\\Lucas Core v0.1\\workspaces\\dev-lead\\repo"
+    },
+    "developer-2": {
+      "totalIdleMs": 10403351,
+      "totalWaitingMs": 191196,
+      "totalBlockedMs": 786339,
+      "dispatchCount": 117,
+      "events": [
+        {
+          "at": "2026-06-02T13:27:11.050Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:25:39.184Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:24:07.945Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T13:22:36.158Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:21:04.647Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:19:32.654Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T01:37:10.086Z",
+          "state": "working",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T01:35:35.883Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:34:05.747Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:32:31.481Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:31:01.331Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:26:18.080Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:24:42.515Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:22:57.266Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:21:08.170Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:19:25.551Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:17:44.833Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:16:07.005Z",
+          "state": "waiting",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "waiting-signal"
+        },
+        {
+          "at": "2026-06-02T01:14:33.637Z",
+          "state": "waiting",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "waiting-signal"
+        },
+        {
+          "at": "2026-06-02T01:13:00.639Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:11:10.215Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T01:09:29.520Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T19:30:27.382Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T19:29:18.480Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T18:40:21.924Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:36:57.107Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T18:32:24.056Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:32:17.677Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-05-31T18:31:15.807Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:30:07.497Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T18:14:11.303Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:13:02.979Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T18:10:46.263Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:09:46.023Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:08:17.940Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:07:17.579Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:06:53.239Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:04:26.511Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:03:18.289Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:01:56.083Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:00:19.382Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T17:59:19.224Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T17:58:11.003Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T17:56:48.891Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        }
+      ],
+      "lastEventKey": "idle:meeting-first:observe",
+      "currentState": "idle",
+      "currentTaskId": "meeting-first",
+      "lastSeenAt": "2026-06-02T13:27:11.050Z",
+      "lastLogAgeMinutes": 0,
+      "lastDispatchAgeMinutes": 1.5,
+      "lastPreview": "31;35H\nin\nng\ng\n◦\n20\n•\nW\nWo\nor\n◦rk1"
+    },
+    "developer-4": {
+      "totalIdleMs": 15434190,
+      "totalWaitingMs": 370805,
+      "totalBlockedMs": 33367563,
+      "dispatchCount": 308,
+      "events": [
+        {
+          "at": "2026-06-02T16:52:16.834Z",
+          "state": "stale",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "stale-log"
+        },
+        {
+          "at": "2026-06-02T13:27:11.050Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:25:39.184Z",
+          "state": "idle",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T13:24:07.945Z",
+          "state": "idle",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T13:22:36.158Z",
+          "state": "idle",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:21:04.647Z",
+          "state": "idle",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:19:32.654Z",
+          "state": "idle",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:52:53.406Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:52:20.614Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:50:50.082Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:49:50.176Z",
+          "state": "idle",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:49:18.359Z",
+          "state": "idle",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:48:49.111Z",
+          "state": "idle",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:46:46.762Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:46:15.958Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:43:44.428Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:43:13.758Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:40:41.958Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:40:11.804Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:37:39.214Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:37:09.706Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:34:36.760Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:34:07.500Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:31:34.421Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:31:05.623Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:28:05.343Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:06:34.752Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:04:28.658Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:03:32.883Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:01:25.335Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:00:30.472Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:58:22.415Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:57:28.057Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:55:19.156Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:54:25.834Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:52:16.703Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:51:23.958Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:49:14.032Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:48:22.093Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:46:11.655Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:45:20.207Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:43:08.791Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:42:18.017Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:40:06.323Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:39:16.150Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:37:02.830Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:36:14.273Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:34:00.901Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:33:12.413Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:30:58.589Z",
+          "state": "blocked",
+          "taskId": "qa-cdp-policy",
+          "action": "observed",
+          "reason": "blocked-signal"
+        }
+      ],
+      "lastEventKey": "stale:qa-cdp-policy:dispatch",
+      "currentState": "stale",
+      "currentTaskId": "qa-cdp-policy",
+      "lastSeenAt": "2026-06-02T16:52:16.834Z",
+      "lastLogAgeMinutes": null,
+      "lastDispatchAgeMinutes": 206.6,
+      "lastPreview": "gpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-4\\repo\n╭────────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.136.0)                         │\n│                                                    │\n│ model:       gpt-5.4 medium   /model to change     │\n│ directory:   D:\\Lucas Core v0.1\\…\\developer-4\\repo │\n│ permissions: YOLO mode                             │\n╰────────────────────────────────────────────────────╯\nTip: Try the Codex App. Run 'codex app' or visit\nhttps://chatgpt.com/codex?app-landing-page=true\n› Find and fix a bug in @filename\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-4\\repo"
+    },
+    "developer-7": {
+      "totalIdleMs": 8177869,
+      "totalWaitingMs": 0,
+      "totalBlockedMs": 479707,
+      "dispatchCount": 102,
+      "events": [
+        {
+          "at": "2026-06-02T01:09:29.520Z",
+          "state": "working",
+          "taskId": "heungkuk-final-source",
+          "action": "observed",
+          "reason": "stale-log"
+        },
+        {
+          "at": "2026-05-31T19:47:31.840Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T19:46:22.907Z",
+          "state": "blocked",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T19:45:14.670Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T19:44:06.398Z",
+          "state": "blocked",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T19:30:27.382Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T19:29:18.480Z",
+          "state": "blocked",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T18:58:35.562Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:57:26.764Z",
+          "state": "blocked",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T18:56:18.330Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:55:10.078Z",
+          "state": "blocked",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T18:32:24.056Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:32:17.677Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:31:15.807Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:30:07.497Z",
+          "state": "blocked",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T18:23:17.724Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:22:09.484Z",
+          "state": "blocked",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-05-31T18:10:46.263Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-05-31T18:09:46.023Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-05-31T18:08:17.940Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-05-31T18:07:17.579Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-05-31T18:06:53.239Z",
+          "state": "idle",
+          "taskId": "heungkuk-final-source",
+          "action": "auto-dispatched",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-05-31T17:56:48.891Z",
+          "state": "working",
+          "taskId": "heungkuk-final-source",
+          "action": "observed",
+          "reason": "busy-signal"
+        }
+      ],
+      "lastEventKey": "working:heungkuk-final-source:observe",
+      "currentState": "working",
+      "currentTaskId": "heungkuk-final-source",
+      "lastSeenAt": "2026-06-02T01:09:29.520Z",
+      "lastLogAgeMinutes": 12.7,
+      "lastDispatchAgeMinutes": 1719.9,
+      "lastPreview": "│ \\WorkSpace\\HeungKukLife\\app\\build\\outputs\\apk\\release\\app-release.apk'\n└ Performing Streamed Install\nSuccess\n──────────────────────────────────────────────────────────────────────────────────────────────────────────\n• 포트 뺀 버전으로 다시 설치했습니다. 지금 단말에는 https://mobiled.heungkuklife.co.kr 기준 release APK가\n올라가 있습니다.\n수정은 D:/WorkSpace/HeungKukLife/app/src/main/java/kr/co/heungkuklife/hklifem/config/Config.kt:31 두 줄\n만 :20443 제거했고, assembleRelease와 adb install -r 모두 다시 성공했습니다. APK는 D:\n\\WorkSpace\\HeungKukLife\\app\\build\\outputs\\apk\\release\\app-release.apk입니다.\n─ Worked for 2m 04s ──────────────────────────────────────────────────────────────────────────────────────\n› Find and fix a bug in @filename\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-7\\repo"
+    },
+    "developer-3": {
+      "totalIdleMs": 10089515,
+      "totalWaitingMs": 0,
+      "totalBlockedMs": 37784306,
+      "dispatchCount": 303,
+      "events": [
+        {
+          "at": "2026-06-02T13:24:07.945Z",
+          "state": "working",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T13:22:36.158Z",
+          "state": "idle",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:21:04.647Z",
+          "state": "idle",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:19:32.654Z",
+          "state": "working",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T12:52:53.406Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:52:20.614Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:49:50.176Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:49:18.359Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:46:46.762Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:46:15.958Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:43:44.428Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:43:13.758Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:40:41.958Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:40:11.804Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:37:39.214Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:37:09.706Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:34:36.760Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:34:07.500Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:31:34.421Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:31:05.623Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:28:05.343Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:06:34.752Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:04:28.658Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:03:32.883Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:01:25.335Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:00:30.472Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:58:22.415Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:57:28.057Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:55:19.156Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:54:25.834Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:52:16.703Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:51:23.958Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:49:14.032Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:48:22.093Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:46:11.655Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:45:20.207Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:43:08.791Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:42:18.017Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:40:06.323Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:39:16.150Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:37:02.830Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:36:14.273Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:34:00.901Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:33:12.413Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:30:58.589Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:30:10.550Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:27:10.276Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:26:51.840Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T10:09:55.855Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T10:09:43.499Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        }
+      ],
+      "lastEventKey": "working:ledger-management:observe",
+      "currentState": "working",
+      "currentTaskId": "ledger-management",
+      "lastSeenAt": "2026-06-02T13:27:11.050Z",
+      "lastLogAgeMinutes": 3.8,
+      "lastDispatchAgeMinutes": 6.1,
+      "lastPreview": "non-helper INPUT/TEXTAREA focus, at D:/Lucas Core v0.1/apps/web/src/main.tsx:2419.\nDelta observed:\n- The unratified main.tsx diff for this scope is exactly the right direction: helper blur on composer focus plus xterm custom key guard. I\ndo not see a reason to revert it.\n- Static review did not reveal a composer-focus parity bug specific to popout/card/fullscreen for Enter, Shift+Enter, or IME.\n- I did not run CDP/browser verification in this turn, so this is a source-level keep verdict, not a UI-evidence pass.\nCommand conflict:\n- A newer ledger dispatch targeted ledger-management, but it conflicts with the earlier explicit terminal-only order. I held scope on\nterminal work and flagged the conflict instead of switching silently.\n─ Worked for 4m 23s ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n› Find and fix a bug in @filename\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-3\\repo"
+    },
+    "developer-1": {
+      "totalIdleMs": 10032573,
+      "totalWaitingMs": 1628006,
+      "totalBlockedMs": 37482140,
+      "dispatchCount": 306,
+      "events": [
+        {
+          "at": "2026-06-02T16:52:16.834Z",
+          "state": "working",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "stale-log"
+        },
+        {
+          "at": "2026-06-02T13:27:11.050Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:25:39.184Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:24:07.945Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:22:36.158Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:21:04.647Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:19:32.654Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:17:58.854Z",
+          "state": "idle",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:52:53.406Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:52:20.614Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:49:50.176Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:49:18.359Z",
+          "state": "waiting",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "waiting-signal"
+        },
+        {
+          "at": "2026-06-02T12:48:49.111Z",
+          "state": "idle",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:46:46.762Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:46:15.958Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:43:44.428Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:43:13.758Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:40:41.958Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:40:11.804Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:37:39.214Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:37:09.706Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:34:36.760Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:34:07.500Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:31:34.421Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:31:05.623Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:28:05.343Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:06:34.752Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:04:28.658Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:03:32.883Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:01:25.335Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:00:30.472Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:58:22.415Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:57:28.057Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:55:19.156Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:54:25.834Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:52:16.703Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:51:23.958Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:49:14.032Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:48:22.093Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:46:11.655Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:45:20.207Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:43:08.791Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:42:18.017Z",
+          "state": "waiting",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "waiting-signal"
+        },
+        {
+          "at": "2026-06-02T11:40:06.323Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:39:16.150Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:37:02.830Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:36:14.273Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:34:00.901Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:33:12.413Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:30:58.589Z",
+          "state": "blocked",
+          "taskId": "terminal-scrollback",
+          "action": "observed",
+          "reason": "blocked-signal"
+        }
+      ],
+      "lastEventKey": "working:terminal-scrollback:observe",
+      "currentState": "working",
+      "currentTaskId": "terminal-scrollback",
+      "lastSeenAt": "2026-06-02T16:52:16.834Z",
+      "lastLogAgeMinutes": null,
+      "lastDispatchAgeMinutes": 205.1,
+      "lastPreview": "terminalTileFooter.test.ts:52, D:/Lucas Core v0.1/apps/web/src/\nterminalTileFooter.test.ts:60에서 Shift+Enter 수동 개행과 일반\nEnter submit 분리를 검증합니다. 검증은 node --experimental-strip-\ntypes --test ... 웹 테스트 38개 전부 통과, cargo test --manifest-\npath apps/api/Cargo.toml prompt_submit -- --nocapture도 통과했습니\n다.\n브라우저/CDP 실물 QA와 스크린샷 증거는 이번 턴에 아직 안 돌렸습니\n다. 필요하면 바로 9000 기준으로 card/fullscreen/popout에서 실제 개\n행, e[201~ 누수, DOM/console까지 이어서 확인하겠습니다.\n─ Worked for 4m 17s ────────────────────────────────────────────────\n› Find and fix a bug in @filename\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-1\\repo"
+    },
+    "developer-6": {
+      "totalIdleMs": 2840263,
+      "totalWaitingMs": 321496,
+      "totalBlockedMs": 19145437,
+      "dispatchCount": 172,
+      "events": [
+        {
+          "at": "2026-06-02T13:27:11.050Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:25:39.184Z",
+          "state": "idle",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:24:07.945Z",
+          "state": "idle",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:22:36.158Z",
+          "state": "idle",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:21:04.647Z",
+          "state": "idle",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:19:32.654Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:17:35.762Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:16:04.919Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:14:31.915Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:13:01.116Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:11:28.132Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:09:57.336Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:08:24.313Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:06:53.529Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:05:20.256Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:03:49.436Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:02:16.367Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:00:45.547Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:59:12.176Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:57:41.374Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:56:08.389Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:54:37.572Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:53:04.231Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:51:33.417Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:50:00.389Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:48:29.612Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:46:56.653Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:45:25.877Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:43:52.902Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:42:22.104Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:40:49.151Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:39:18.361Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:37:45.374Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:36:14.574Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:34:41.618Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:33:10.807Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:31:37.841Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:30:07.037Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:28:34.039Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:27:03.231Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:25:30.230Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:23:59.441Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:22:26.433Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:20:55.888Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:19:22.592Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:17:51.779Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:16:18.447Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:14:47.870Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:13:14.174Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:11:43.605Z",
+          "state": "blocked",
+          "taskId": "ledger-management",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        }
+      ],
+      "lastEventKey": "blocked:ledger-management:observe",
+      "currentState": "blocked",
+      "currentTaskId": "ledger-management",
+      "lastSeenAt": "2026-06-02T13:27:11.050Z",
+      "lastLogAgeMinutes": 1.2,
+      "lastDispatchAgeMinutes": 1.5,
+      "lastPreview": "nt_state: no edits, no commit, no 9001 restart; terminal runtime split inspection only\nrequested_resolution: explicitly reopen ledger-management, or confirm terminal-only mode still overrides these directives\nHEARTBEAT item=terminal-hq-runtime-split-20260602 doing_now=holding terminal-only scope and preserving no-edit/no-restart boundary\nnext=resume terminal evidence review or switch to ledger-management if explicitly reopened blocker=unresolved command conflict evidence=D:\n\\Lucas Core v0.1\\data\\agent-ops-events.jsonl; D:\\Lucas Core v0.1\\data\\ceo-command-ledger.json; D:\\Lucas Core v0.1\\data\\work-ledger.json;\nD:\\Lucas Core v0.1\\apps\\web\\vite.config.ts; D:\\Lucas Core v0.1\\apps\\api\\src\\main.rs\nCurrent verified state remains:\n9000 web proxies /api and /ws to 9001.\n9001 API, 9002 control plane, and 9100 ledger board are separate live listeners.\n9001 PID is still 25244; no restart was performed.\n› Find and fix a bug in @filename\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-6\\repo"
+    },
+    "developer-8": {
+      "totalIdleMs": 18635233,
+      "totalWaitingMs": 136527,
+      "totalBlockedMs": 5393117,
+      "dispatchCount": 185,
+      "events": [
+        {
+          "at": "2026-06-02T16:52:16.834Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "stale-log"
+        },
+        {
+          "at": "2026-06-02T13:27:11.050Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:25:39.184Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:24:07.945Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:22:36.158Z",
+          "state": "blocked",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:21:04.647Z",
+          "state": "blocked",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:19:32.654Z",
+          "state": "blocked",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:51:51.830Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:50:51.265Z",
+          "state": "blocked",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:50:50.082Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:45:45.851Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T12:44:45.463Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:42:43.911Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:41:43.574Z",
+          "state": "blocked",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:41:42.481Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:02:26.588Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T12:02:02.276Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:00:30.472Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:00:24.573Z",
+          "state": "blocked",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:59:23.170Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T11:58:59.841Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T11:56:20.517Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T11:55:57.550Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T11:43:08.791Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T11:42:18.017Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T06:06:53.529Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T06:05:20.256Z",
+          "state": "blocked",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:00:45.547Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T05:59:12.176Z",
+          "state": "blocked",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:54:37.572Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T05:53:04.231Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T05:19:22.592Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T05:17:51.779Z",
+          "state": "blocked",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:16:18.447Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T05:14:47.870Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T05:13:14.174Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T04:59:28.175Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T04:57:54.585Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T04:56:24.043Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T04:54:50.415Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T04:51:46.566Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T04:50:15.761Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T04:24:11.445Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T04:22:40.582Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T04:21:07.255Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T04:19:36.446Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T04:18:03.156Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T04:16:32.377Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T04:13:28.506Z",
+          "state": "working",
+          "taskId": "agent-status-on-9100",
+          "action": "observed",
+          "reason": "busy-signal"
+        },
+        {
+          "at": "2026-06-02T04:11:54.769Z",
+          "state": "idle",
+          "taskId": "agent-status-on-9100",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        }
+      ],
+      "lastEventKey": "idle:agent-status-on-9100:dispatch",
+      "currentState": "idle",
+      "currentTaskId": "agent-status-on-9100",
+      "lastSeenAt": "2026-06-02T16:52:16.834Z",
+      "lastLogAgeMinutes": null,
+      "lastDispatchAgeMinutes": 206.6,
+      "lastPreview": "gpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-8\\repo\n╭────────────────────────────────────────────────────╮\n│ >_ OpenAI Codex (v0.136.0)                         │\n│                                                    │\n│ model:       gpt-5.4 medium   /model to change     │\n│ directory:   D:\\Lucas Core v0.1\\…\\developer-8\\repo │\n│ permissions: YOLO mode                             │\n╰────────────────────────────────────────────────────╯\nTip: New Use /fast to enable our fastest inference with increased\nplan usage.\n› Write tests for @filename\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-8\\repo"
+    },
+    "developer-5": {
+      "totalIdleMs": 8527103,
+      "totalWaitingMs": 0,
+      "totalBlockedMs": 19975111,
+      "dispatchCount": 206,
+      "events": [
+        {
+          "at": "2026-06-02T13:27:11.050Z",
+          "state": "idle",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T13:25:39.184Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:24:07.945Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:22:36.158Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T13:21:04.647Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:17:35.762Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:16:04.919Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:14:31.915Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:13:01.116Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:11:28.132Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:09:57.336Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:08:24.313Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:06:53.529Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:05:20.256Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:03:49.436Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:02:16.367Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:00:45.547Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:59:12.176Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:57:41.374Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:56:08.389Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:54:37.572Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:53:04.231Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:51:33.417Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:50:00.389Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:48:29.612Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:46:56.653Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:45:25.877Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:43:52.902Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:42:22.104Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:40:49.151Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:39:18.361Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:37:45.374Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:36:14.574Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:34:41.618Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:33:10.807Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:31:37.841Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:30:07.037Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:28:34.039Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:27:03.231Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:25:30.230Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:23:59.441Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:22:26.433Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:20:55.888Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:19:22.592Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:17:51.779Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:16:18.447Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:14:47.870Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:13:14.174Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:11:43.605Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:10:10.270Z",
+          "state": "blocked",
+          "taskId": "meeting-first",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        }
+      ],
+      "lastEventKey": "idle:meeting-first:observe",
+      "currentState": "idle",
+      "currentTaskId": "meeting-first",
+      "lastSeenAt": "2026-06-02T13:27:11.050Z",
+      "lastLogAgeMinutes": 0,
+      "lastDispatchAgeMinutes": 1.5,
+      "lastPreview": "[?25hrk\nki\nin\nng\ng\n•\n9\n◦\nW"
+    },
+    "hkl-handover-tf-4": {
+      "totalIdleMs": 496020,
+      "totalWaitingMs": 0,
+      "totalBlockedMs": 17889527,
+      "dispatchCount": 100,
+      "events": [
+        {
+          "at": "2026-06-02T06:17:35.762Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:16:04.919Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:14:31.915Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:13:01.116Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:11:28.132Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:09:57.336Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:08:24.313Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:06:53.529Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:05:20.256Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:03:49.436Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:02:16.367Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:00:45.547Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:59:12.176Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:57:41.374Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:56:08.389Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:54:37.572Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:53:04.231Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:51:33.417Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:50:00.389Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:48:29.612Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:46:56.653Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:45:25.877Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:43:52.902Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:42:22.104Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:40:49.151Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:39:18.361Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:37:45.374Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:36:14.574Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:34:41.618Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:33:10.807Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:31:37.841Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:30:07.037Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:28:34.039Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:27:03.231Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:25:30.230Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:23:59.441Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:22:26.433Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:20:55.888Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:19:22.592Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:17:51.779Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:16:18.447Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:14:47.870Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:13:14.174Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:11:43.605Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:10:10.270Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:08:39.710Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:07:06.401Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:05:35.864Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:04:02.531Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:02:32.007Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        }
+      ],
+      "lastEventKey": "blocked:hkl-auth-manual-handover-20260602:dispatch",
+      "currentState": "blocked",
+      "currentTaskId": "hkl-auth-manual-handover-20260602",
+      "lastSeenAt": "2026-06-02T06:17:35.762Z",
+      "lastLogAgeMinutes": 0.5,
+      "lastDispatchAgeMinutes": 3.1,
+      "lastPreview": "8934tf 확인. 10분 내 item/doing/next/blocker/evidence 보고.\n• item=hkl-auth-manual-handover-20260602\ndoing=delivery index maintenance and final handoff readiness: 전달 인덱스 문서 기준으로 기준 워크스페이스 결정, 산출물 목록, 누락 질문, 한\n글 UTF-8 리스크, owner/action handoff를 유지 점검 중\nnext=final input closure: Android-only vs iOS 포함 범위, G10 계획문서 포함 여부, 최종 endpoint 기준이 확인되면 최종 전달 묶음 문구를 확정\n가능\nblocker=data/agent-ops-events.jsonl dispatch detail lookup has timed out repeatedly; current handover item work itself is not blocked\nevidence=D:\\\\Lucas Core v0.1\\\\workspaces\\\\hkl-handover-tf-4\\\\repo\\\\docs\\\\hkl-integrated-auth-delivery-index-20260602-ko.md, D:\\\\WorkSpace\\\n\\HeungKukLife-popup-final, D:\\\\WorkSpace\\\\HeungKukLife-popup-stable, D:\\\\WorkSpace\\\\HeungKukLife_0516_Final\\\\doc\\\\HeungKukLife_WizVera_분\n석보고서.md, D:\\\\WorkSpace\\\\HeungKukLife_0516_Final\\\\doc\\\\HeungKukLife_WizVera_G10_최종개발계획서_v2.md\n› Improve documentation in @filename\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\hkl-handover-tf-4\\repo"
+    },
+    "hkl-handover-tf-1": {
+      "totalIdleMs": 1213979,
+      "totalWaitingMs": 26287543,
+      "totalBlockedMs": 10530730,
+      "dispatchCount": 199,
+      "events": [
+        {
+          "at": "2026-06-02T12:52:53.406Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:52:20.614Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:49:50.176Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:49:18.359Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:47:47.688Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:46:46.762Z",
+          "state": "idle",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:46:15.958Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:43:44.428Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:43:13.758Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:40:41.958Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:40:11.804Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:37:39.214Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:37:09.706Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:34:36.760Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:34:07.500Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:32:35.314Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:31:34.421Z",
+          "state": "idle",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:31:05.623Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:28:05.343Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:27:29.706Z",
+          "state": "idle",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T12:06:34.752Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:04:28.658Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:03:32.883Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:01:25.335Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T12:00:30.472Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:58:22.415Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:57:28.057Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:55:19.156Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:54:25.834Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:52:16.703Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:51:23.958Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:49:14.032Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:48:22.093Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:46:11.655Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:45:20.207Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:43:08.791Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:42:18.017Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:40:06.323Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:39:16.150Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:37:02.830Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:36:14.273Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:36:02.329Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:34:00.901Z",
+          "state": "waiting",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "waiting-signal"
+        },
+        {
+          "at": "2026-06-02T11:33:12.413Z",
+          "state": "waiting",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "waiting-signal"
+        },
+        {
+          "at": "2026-06-02T11:30:58.589Z",
+          "state": "waiting",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "waiting-signal"
+        },
+        {
+          "at": "2026-06-02T11:30:10.550Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:27:56.631Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T11:27:10.276Z",
+          "state": "idle",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "unclear"
+        },
+        {
+          "at": "2026-06-02T11:26:51.840Z",
+          "state": "waiting",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "waiting-signal"
+        },
+        {
+          "at": "2026-06-02T10:09:55.855Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        }
+      ],
+      "lastEventKey": "blocked:hkl-auth-manual-handover-20260602:observe",
+      "currentState": "blocked",
+      "currentTaskId": "hkl-auth-manual-handover-20260602",
+      "lastSeenAt": "2026-06-02T12:52:53.406Z",
+      "lastLogAgeMinutes": 0.1,
+      "lastDispatchAgeMinutes": 0.5,
+      "lastPreview": "WizVera_분석보고서.md; D:\\WorkSpace\\HeungKukLife_0516_Final\\doc\\HeungKukLife_WizVera_G10_최종개발계획서_v2.md; D:\n\\WorkSpace\\HeungKukLife_0516_Final\\doc\\HeungKukLife_WizVera_G10_iOS개발자_브리핑.md; D:\\WorkSpace\\HeungKukLife\\Android_final_release_gate_checklist.md; D:\\WorkSpace\\HeungKukLife\\공동인증서\n_Android_입력오류_ITO_보고.md; D:\\WorkSpace\\HeungKukLife\\app\\src\\main\\java\\kr\\co\\heungkuklife\\hklifem\\activity\\SplashActivity.kt; D:\n\\WorkSpace\\HeungKukLife\\app\\src\\main\\java\\kr\\co\\heungkuklife\\hklifem\\activity\\GateActivity.kt; D:\n\\WorkSpace\\HeungKukLife\\app\\src\\main\\java\\kr\\co\\heungkuklife\\hklifem\\activity\\auth\\SignActivity.kt; D:\n\\WorkSpace\\HeungKukLife\\app\\src\\main\\java\\kr\\co\\heungkuklife\\hklifem\\bridge\\HklifeHybrid.kt\n───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n› Use /skills to list available skills\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\hkl-handover-tf-1\\repo"
+    },
+    "hkl-handover-tf-2": {
+      "totalIdleMs": 601269,
+      "totalWaitingMs": 0,
+      "totalBlockedMs": 17784278,
+      "dispatchCount": 100,
+      "events": [
+        {
+          "at": "2026-06-02T06:17:35.762Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:16:04.919Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:14:31.915Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:13:01.116Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:11:28.132Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:09:57.336Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:08:24.313Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:06:53.529Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:05:20.256Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:03:49.436Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:02:16.367Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:00:45.547Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:59:12.176Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:57:41.374Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:56:08.389Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:54:37.572Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:53:04.231Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:51:33.417Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:50:00.389Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:48:29.612Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:46:56.653Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:45:25.877Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:43:52.902Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:42:22.104Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:40:49.151Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:39:18.361Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:37:45.374Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:36:14.574Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:34:41.618Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:33:10.807Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:31:37.841Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:30:07.037Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:28:34.039Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:27:03.231Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:25:30.230Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:23:59.441Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:22:26.433Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:20:55.888Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:19:22.592Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:17:51.779Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:16:18.447Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:14:47.870Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:13:14.174Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:11:43.605Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:10:10.270Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:08:39.710Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:07:06.401Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:05:35.864Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:04:02.531Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:02:32.007Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        }
+      ],
+      "lastEventKey": "blocked:hkl-auth-manual-handover-20260602:dispatch",
+      "currentState": "blocked",
+      "currentTaskId": "hkl-auth-manual-handover-20260602",
+      "lastSeenAt": "2026-06-02T06:17:35.762Z",
+      "lastLogAgeMinutes": 0.5,
+      "lastDispatchAgeMinutes": 3.1,
+      "lastPreview": " 자동 원장 pull/유휴 방지 재지시이며, 현재 lane 상태는 계속 대기/막힘 신호 있음으로 확인됐다. evidence 파일은 현재 경로에 존재하며\n마지막 수정 시각은 2026-06-02 10:10:24 KST다.\nnext=D:\\WorkSpace\\HeungKukLife를 주 기준본, D:\\WorkSpace\\HeungKukLife-popup-stable를 팝업 회귀 기준선으로 handover 본문에 고정하고,\nSplashActivity.kt -> HklifeHybrid.kt -> SignActivity.kt -> Web callback 흐름과 /crtcnt/crtmth/jntMng/regist.do 입력 이슈, 팝업 back/close\n기준선을 절차형으로 넘긴다. 막힘이 지속되면 다른 원장 후보로는 HKL manual 본문 절차 정리 지원을 제안할 수 있다.\nblocker=ledger-level waiting/blocked signal persists from repeated auto-pull polling; no new technical blocker was introduced in the\nevidence artifact itself. 9001 singleton preserved and developer-7 not involved\nevidence=D:\\Lucas Core v0.1\\workspaces\\hkl-handover-tf-2\\repo\\docs\\hkl-integrated-auth-source-evidence-20260602-ko.md\n────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n› Write tests for @filename\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\hkl-handover-tf-2\\repo"
+    },
+    "hkl-handover-tf-3": {
+      "totalIdleMs": 394148,
+      "totalWaitingMs": 0,
+      "totalBlockedMs": 17991399,
+      "dispatchCount": 100,
+      "events": [
+        {
+          "at": "2026-06-02T06:17:35.762Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:16:04.919Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:14:31.915Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:13:01.116Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:11:28.132Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:09:57.336Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:08:24.313Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:06:53.529Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:05:20.256Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:03:49.436Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:02:16.367Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T06:00:45.547Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:59:12.176Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:57:41.374Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:56:08.389Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:54:37.572Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:53:04.231Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:51:33.417Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:50:00.389Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:48:29.612Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:46:56.653Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:45:25.877Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:43:52.902Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:42:22.104Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:40:49.151Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:39:18.361Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:37:45.374Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:36:14.574Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:34:41.618Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:33:10.807Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:31:37.841Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:30:07.037Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:28:34.039Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:27:03.231Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:25:30.230Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:23:59.441Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:22:26.433Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:20:55.888Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:19:22.592Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:17:51.779Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:16:18.447Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:14:47.870Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:13:14.174Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:11:43.605Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:10:10.270Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:08:39.710Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:07:06.401Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:05:35.864Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:04:02.531Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "auto-dispatched",
+          "reason": "blocked-signal"
+        },
+        {
+          "at": "2026-06-02T05:02:32.007Z",
+          "state": "blocked",
+          "taskId": "hkl-auth-manual-handover-20260602",
+          "action": "observed",
+          "reason": "blocked-signal"
+        }
+      ],
+      "lastEventKey": "blocked:hkl-auth-manual-handover-20260602:dispatch",
+      "currentState": "blocked",
+      "currentTaskId": "hkl-auth-manual-handover-20260602",
+      "lastSeenAt": "2026-06-02T06:17:35.762Z",
+      "lastLogAgeMinutes": 0.5,
+      "lastDispatchAgeMinutes": 3.1,
+      "lastPreview": "doing=HKL 통합인증 인수인계 체크리스트 기준으로 Android 시연 순서, 검수 경계, popup/back acceptance, build evidence, screenshot 필요 지점\n을 계속 유지 정리 중\nnext=QA 전달용으로 Android browser-app boundary, 필수 스크린샷 포인트, 설치 성공 증거 항목, 단말/OS/navigation mode 확인 매트릭스를 분리\n요약\nblocker=실기기 screenshot 및 설치 성공 증거 미확보, 공동인증 popup/back 시각 증거 미확보, iOS 실프로젝트 경로와 G10 scheme/entry URL 미확\n정, data/agent-ops-events.jsonl 최신 dispatch 직접 조회는 대용량으로 반복 타임아웃 발생\nevidence=/D:/Lucas Core v0.1/workspaces/hkl-handover-tf-3/repo/docs/hkl-integrated-auth-handover-checklist-20260602-ko.md, D:\n\\WorkSpace\\HeungKukLife\\Android_final_release_gate_checklist.md, D:\\WorkSpace\\HeungKukLife\\공동인증서_Android_입력오류_ITO_보고.md, D:\n\\WorkSpace\\HeungKukLife\\app\\src\\main\\java\\kr\\co\\heungkuklife\\hklifem\\activity\\SplashActivity.kt, D:\n\\WorkSpace\\HeungKukLife\\app\\build\\outputs\\apk\\release\\app-release.apk\n› Summarize recent commits\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\hkl-handover-tf-3\\repo"
+    }
+  },
+  "updatedAt": "2026-06-02T16:52:16.834Z",
+  "policy": {
+    "checkIntervalSeconds": 60,
+    "dispatchCooldownMinutes": 10,
+    "staleLogMinutes": 5,
+    "states": [
+      "working",
+      "idle",
+      "waiting",
+      "blocked",
+      "stale",
+      "inactive"
+    ]
+  }
+}

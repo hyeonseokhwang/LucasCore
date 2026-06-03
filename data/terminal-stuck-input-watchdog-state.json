@@ -1,0 +1,24 @@
+﻿{
+    "sessions":  {
+
+                 },
+    "updatedAt":  "2026-06-02T19:45:12.966Z",
+    "lastResult":  {
+                       "at":  "2026-06-02T19:45:12.966Z",
+                       "ok":  true,
+                       "apiBase":  "http://127.0.0.1:9001",
+                       "thresholdMs":  2000,
+                       "intervalMs":  1000,
+                       "anomalyThresholdMs":  5000,
+                       "sessionCount":  10,
+                       "actions":  [
+
+                                   ],
+                       "alerts":  [
+
+                                  ]
+                   },
+    "anomalies":  {
+
+                  }
+}

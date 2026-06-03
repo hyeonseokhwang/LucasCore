@@ -1,0 +1,567 @@
+{
+  "at": "2026-06-02T07:23:13.393Z",
+  "ok": true,
+  "dryRun": true,
+  "simulate": true,
+  "pid9001": "1656",
+  "afterPid9001": "1656",
+  "protectedAgents": [
+    "developer-7"
+  ],
+  "issues": [
+    {
+      "itemId": "mira-ledger-dev-team-up-supervision",
+      "title": "Mira Ledger development team, Spring MSA TF, and 9002 stability supervision",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "spring-msa-study-start-1400",
+      "title": "Spring MSA study start 14:00 KST",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "p0-ui-overlay-occlusion",
+      "title": "P0 UI overlays occlude Grid/Canvas controls and terminal/card footer",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "p0-newline-audit-1410",
+      "title": "P0 enterprise newline/submit audit due 14:10 KST",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "communication-gap-pty-visible-reporting",
+      "title": "Communication gap: terminal log report not routed to Chief Min/HQ visible pty",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "product-code-change-approval-risk",
+      "title": "Risk check: product code changes before approval",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "year-end-tax-hourly-reminder",
+      "title": "???? ?? ? 1???? ????",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "spring-msa-study-2000",
+      "title": "20:00 ??? MSA ??? ??/??",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "heungkuk-android-final-package",
+      "title": "Heungkuk Android final package",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "spring-msa-whitepaper-1330",
+      "title": "13:30 ??? MSA ???? ??",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "android-hungkuk-final-1400",
+      "title": "14:00 ???? ????? ??? ?? ??",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "hq-msa-history-request",
+      "title": "??? ??? ??? MSA ?? ?? ??",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "branch-staff-health-6-person",
+      "title": "?? ?? 6? ?? ? ????",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "lcc-core-codex-status-quota",
+      "title": "Expose Codex /status quota in LCC CORE",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "enterprise-policy-heungkuk-popup-stable-b2826b2",
+      "title": "Enterprise policy: HeungKuk Android popup stable baseline b2826b2",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "p0-terminal-stability-20260601",
+      "title": "P0 terminal stability zeroth: bounded replay buffer and log retention",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "memory-system-hq",
+      "title": "HQ-style durable memory first cut and follow-up QA",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "meeting-first",
+      "title": "Meeting MVP first visible screen and HQ comparison",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "portable-release-20260603",
+      "title": "Portable LCC Core v0.1 release with HQ memory system",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "hkl-auth-manual-handover-20260602",
+      "title": "Heungkuk Life integrated-auth manual and handover support",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "caesar-hourly-reporting",
+      "title": "Caesar hourly executive reports",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "terminal-buffer-instant-render-20260602",
+      "title": "Terminal viewer server-owned buffer and instant tail render",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "ceo-support-qa-audit-ops-20260602",
+      "title": "CEO support QA/audit/ops oversight cell",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "decision-blocker-portal-20260602",
+      "title": "Decision and blocker portal for memory-safe operations",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "ops-progress-space-20260602",
+      "title": "Lucas-visible operations progress space",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "ceo-9100-board-cleanup-20260602",
+      "title": "Clean up 9100 CEO ledger board for current operations",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "terminal-input-text-loss-20260602",
+      "title": "P0 terminal input text loss while typing Korean/long text",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "ownerless-p0-sim",
+      "title": "가나다라 ownerless simulation",
+      "reason": "ownerless-active-item",
+      "owner": "dev-lead"
+    },
+    {
+      "itemId": "session-health",
+      "reason": "blocked",
+      "owner": "developer-1"
+    },
+    {
+      "itemId": "session-health",
+      "reason": "idle",
+      "owner": "developer-2"
+    },
+    {
+      "itemId": "protected-agent",
+      "reason": "dev7-exclusion-check",
+      "owner": "developer-7"
+    }
+  ],
+  "dispatches": [
+    {
+      "issue": {
+        "itemId": "mira-ledger-dev-team-up-supervision",
+        "title": "Mira Ledger development team, Spring MSA TF, and 9002 stability supervision",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991931.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "spring-msa-study-start-1400",
+        "title": "Spring MSA study start 14:00 KST",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991933.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "p0-ui-overlay-occlusion",
+        "title": "P0 UI overlays occlude Grid/Canvas controls and terminal/card footer",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991935.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "p0-newline-audit-1410",
+        "title": "P0 enterprise newline/submit audit due 14:10 KST",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991937.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "communication-gap-pty-visible-reporting",
+        "title": "Communication gap: terminal log report not routed to Chief Min/HQ visible pty",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991938.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "product-code-change-approval-risk",
+        "title": "Risk check: product code changes before approval",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991940.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "year-end-tax-hourly-reminder",
+        "title": "???? ?? ? 1???? ????",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991942.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "spring-msa-study-2000",
+        "title": "20:00 ??? MSA ??? ??/??",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991943.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "heungkuk-android-final-package",
+        "title": "Heungkuk Android final package",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991945.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "spring-msa-whitepaper-1330",
+        "title": "13:30 ??? MSA ???? ??",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991947.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "android-hungkuk-final-1400",
+        "title": "14:00 ???? ????? ??? ?? ??",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991948.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "hq-msa-history-request",
+        "title": "??? ??? ??? MSA ?? ?? ??",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991950.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "branch-staff-health-6-person",
+        "title": "?? ?? 6? ?? ? ????",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991951.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "lcc-core-codex-status-quota",
+        "title": "Expose Codex /status quota in LCC CORE",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991953.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "enterprise-policy-heungkuk-popup-stable-b2826b2",
+        "title": "Enterprise policy: HeungKuk Android popup stable baseline b2826b2",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991955.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "p0-terminal-stability-20260601",
+        "title": "P0 terminal stability zeroth: bounded replay buffer and log retention",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991956.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "memory-system-hq",
+        "title": "HQ-style durable memory first cut and follow-up QA",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991957.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "meeting-first",
+        "title": "Meeting MVP first visible screen and HQ comparison",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991959.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "portable-release-20260603",
+        "title": "Portable LCC Core v0.1 release with HQ memory system",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991960.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "hkl-auth-manual-handover-20260602",
+        "title": "Heungkuk Life integrated-auth manual and handover support",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991961.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "caesar-hourly-reporting",
+        "title": "Caesar hourly executive reports",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991963.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "terminal-buffer-instant-render-20260602",
+        "title": "Terminal viewer server-owned buffer and instant tail render",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991964.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "ceo-support-qa-audit-ops-20260602",
+        "title": "CEO support QA/audit/ops oversight cell",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991965.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "decision-blocker-portal-20260602",
+        "title": "Decision and blocker portal for memory-safe operations",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991967.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "ops-progress-space-20260602",
+        "title": "Lucas-visible operations progress space",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991969.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "ceo-9100-board-cleanup-20260602",
+        "title": "Clean up 9100 CEO ledger board for current operations",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991971.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "terminal-input-text-loss-20260602",
+        "title": "P0 terminal input text loss while typing Korean/long text",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991972.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "ownerless-p0-sim",
+        "title": "가나다라 ownerless simulation",
+        "reason": "ownerless-active-item",
+        "owner": "dev-lead"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991974.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "session-health",
+        "reason": "blocked",
+        "owner": "developer-1"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-1-1780384991975.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "session-health",
+        "reason": "idle",
+        "owner": "developer-2"
+      },
+      "result": {
+        "dryRun": true,
+        "snapshot": "data/session-context-snapshots/developer-2-1780384991977.json"
+      }
+    },
+    {
+      "issue": {
+        "itemId": "protected-agent",
+        "reason": "dev7-exclusion-check",
+        "owner": "developer-7"
+      },
+      "result": {
+        "skipped": true,
+        "protected": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "at": "2026-06-02T07:11:20.872Z",
+  "agentId": "developer-1",
+  "taskId": "ceo-support-qa-audit-ops-20260602",
+  "reason": "ownerless-active-item",
+  "status": "active",
+  "preview": "blocked on terminal QA",
+  "resumeCriteria": "resume after non-sleeping ops-loop dispatch/result event is resolved"
+}

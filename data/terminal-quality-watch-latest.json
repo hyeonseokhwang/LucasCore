@@ -1,0 +1,17 @@
+{
+  "at": "2026-06-03T00:28:59.679Z",
+  "url": "http://127.0.0.1:9000",
+  "captureName": "terminal-quality-2026-06-03T00-28-56-271Z",
+  "exitCode": 0,
+  "stdout": "{\n  \"ok\": true,\n  \"screenshotPath\": \"D:\\\\Lucas Core v0.1\\\\data\\\\system-logs\\\\terminal-9000-cdp\\\\terminal-quality-2026-06-03T00-28-56-271Z.png\",\n  \"reportPath\": \"D:\\\\Lucas Core v0.1\\\\data\\\\system-logs\\\\terminal-9000-cdp\\\\terminal-quality-2026-06-03T00-28-56-271Z-report.json\",\n  \"metrics\": {\n    \"title\": \"Lucas LCC Core\",\n    \"href\": \"http://127.0.0.1:9000/?view=terminals&filter=all&layout=grid&session=dev-lead\",\n    \"search\": \"?view=terminals&filter=all&layout=grid&session=dev-lead\",\n    \"h1\": \"Terminal Fleet\",\n    \"layout\": \"columns\",\n    \"gridHasColumnsClass\": false,\n    \"terminalCards\": 6,\n    \"isPopout\": false,\n    \"popoutFooterVisible\": false,\n    \"popoutTextareaVisible\": false,\n    \"layoutButtons\": [\n      \"Fleet\",\n      \"Focus\",\n      \"Work\",\n      \"Equal\"\n    ],\n    \"horizontalScrollable\": false,\n    \"consoleText\": \"원장\\n0/3\\nLUCAS LCC\\nCore v0.1\\nSessions\\n6\\nAll\\nActive\\nSpringMSA TF\\n0/6\\nChief Min\\nJoon MSA\\nResearcher 1\\nResearcher 2\\nResearcher 3\\nResearcher 4\\nDevelopment Team\\n4/9\\nDev Lead\\nDeveloper 1\\nDeveloper 2\\nDeveloper 3\\nDeveloper 4\\nDeveloper 5\\nDeveloper 6\\nDeveloper 7\\nDeveloper 8\\ndevelopment\\noperations\\nexecutive\\nMeetings\\n3\\nMeeting First MVPDesign ReviewOps Sync\\nCanvases\\n4\\nLucas Operations ProgressLucas Decision and Blocker PortalCaesar Hourly ReportsLCC Core Smoke Canvas\\nTerminal Fleet\\n\\n6 active sessions · 3 meet\"\n  },\n  \"consoleEvents\": 6\n}\n",
+  "stderr": "",
+  "ok": true,
+  "problems": [],
+  "terminalCards": 6,
+  "layout": "columns",
+  "horizontalScrollable": false,
+  "consoleEvents": 6,
+  "consoleErrorEvents": 0,
+  "screenshotPath": "D:\\Lucas Core v0.1\\data\\system-logs\\terminal-9000-cdp\\terminal-quality-2026-06-03T00-28-56-271Z.png",
+  "reportPath": null
+}

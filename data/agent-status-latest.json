@@ -1,0 +1,102 @@
+{
+  "generated_at": "2026-06-02T18:14:13.304Z",
+  "source": "9001 /api/sessions",
+  "sessions": [
+    {
+      "id": "dev-lead",
+      "name": "Max",
+      "team": "development",
+      "status": "active",
+      "updated_at": "2026-06-02T18:13:46.251632Z",
+      "observed_state": "observed_no_prompt",
+      "preview_hash": "f69790ce1919e5bb",
+      "signals": {
+        "atPrompt": false,
+        "working": false,
+        "reported": false,
+        "ack": false
+      }
+    },
+    {
+      "id": "developer-1",
+      "name": "Developer 1",
+      "team": "development",
+      "status": "active",
+      "updated_at": "2026-06-02T18:13:00.321185100Z",
+      "observed_state": "reported_waiting_next",
+      "preview_hash": "a6648f04d3561fdb",
+      "signals": {
+        "atPrompt": true,
+        "working": false,
+        "reported": true,
+        "ack": true
+      }
+    },
+    {
+      "id": "ceo",
+      "name": "Caesar",
+      "team": "executive",
+      "status": "active",
+      "updated_at": "2026-06-02T18:14:13.290190700Z",
+      "observed_state": "working",
+      "preview_hash": "4e583d2b50a6a05f",
+      "signals": {
+        "atPrompt": true,
+        "working": true,
+        "reported": true,
+        "ack": true
+      }
+    },
+    {
+      "id": "developer-4",
+      "name": "Developer 4",
+      "team": "development",
+      "status": "active",
+      "updated_at": "2026-06-02T18:13:00.336954800Z",
+      "observed_state": "idle_prompt",
+      "preview_hash": "7eb785bda698039e",
+      "signals": {
+        "atPrompt": true,
+        "working": false,
+        "reported": false,
+        "ack": false
+      }
+    },
+    {
+      "id": "developer-8",
+      "name": "Developer 8",
+      "team": "development",
+      "status": "active",
+      "updated_at": "2026-06-02T18:13:00.356548800Z",
+      "observed_state": "idle_prompt",
+      "preview_hash": "7b0bb362cac141bc",
+      "signals": {
+        "atPrompt": true,
+        "working": false,
+        "reported": false,
+        "ack": false
+      }
+    },
+    {
+      "id": "areum",
+      "name": "Areum",
+      "team": "executive",
+      "status": "active",
+      "updated_at": "2026-06-02T18:13:00.409530500Z",
+      "observed_state": "reported_waiting_next",
+      "preview_hash": "c9e80df01e7bf9e1",
+      "signals": {
+        "atPrompt": true,
+        "working": false,
+        "reported": true,
+        "ack": true
+      }
+    }
+  ],
+  "counts": {
+    "observed_no_prompt": 1,
+    "reported_waiting_next": 2,
+    "working": 1,
+    "idle_prompt": 2
+  }
+}

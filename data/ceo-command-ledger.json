@@ -1,0 +1,819 @@
+{
+  "updated_at": "2026-06-02T13:13:24.594Z",
+  "title": "CEO 지시 원장",
+  "summary": "루카스 지시사항을 재기동 후에도 유지되는 실행 원장으로 관리합니다.",
+  "hq_benchmark": {
+    "repo": "D:\\Lucas-Initiative-HQ",
+    "observed_patterns": [
+      "command-center/server/routes/meetings.ts: 미팅 채널, 참여자, 메시지 유형, 첨부, 인코딩 검증",
+      "command-center/frontend/src/services/meeting-api.ts: 메시지/제안/결정/액션 항목 타입과 미팅 클라이언트 헬퍼",
+      "command-center/server/services/task-queue.ts: 대기 작업을 유휴 작업자에게 배정하는 루프와 배정 로그",
+      "canvas-hub/server.ts: 미팅 맥락과 작업 산출물을 연결하는 캔버스 구조"
+    ],
+    "distilled_advantages": [
+      "터미널 스크롤백에 의존하지 않고 지시사항을 영속 원장으로 분리한다",
+      "미팅을 작업 채널로 취급하고 메시지/제안/결정/액션 항목을 구분한다",
+      "각 지시마다 담당자, 상태, 증거, 막힌 점을 명시한다",
+      "작업 산출물과 미팅 맥락을 연결해 결정사항이 흩어지지 않게 한다",
+      "한글 지시가 깨지지 않도록 UTF-8 기준으로 저장한다"
+    ]
+  },
+  "directives": [
+    {
+      "id": "terminal-stability-zeroth",
+      "priority": "P0-zeroth",
+      "status": "active-now",
+      "progress": 80,
+      "last_update": "Terminal-only emergency mode: kept active by strict Lucas order at 2026-06-02T13:13:24.594Z.",
+      "updates": [
+        "Problem: terminal cards remain unstable, previews can be garbled or partial, and input/scrollback evidence is not yet reliable.",
+        "Root cause hypothesis: durable audit log and UI replay/preview buffer are not separated enough; tail-only display is a weak optimization.",
+        "Required change: bounded UI replay ring/window, explicit log retention/rotation, and no full-history read/ship on normal refresh.",
+        "9001 restart is allowed if required, but PID before/after and context-risk note must be recorded.",
+        "Max report: developer-1 bounded replay audit, developer-2 full-history read/ship/retention audit, developer-3 ledger visibility, developer-4 QA/CDP evidence.",
+        "developer-4 restored active on 9001 without restarting PID 4516; policy/QA prompt sent.",
+        "developer-3: 9100 ledger visibility fields added for 15-minute P0-zeroth reports; no 9001 restart.",
+        "P0-0 screen issue promoted: URL query filter/team can override the left session group after refresh; user expects selected group/layout/session to persist across reload.",
+        "PASS: apps/web/src/main.tsx URL replaceState persistence for view/filter/layout/session; apps/web test 25/25; build passed with chunk-size warning only; CDP refresh evidence consoleErrors=0 pageErrors=0."
+      ],
+      "owner": "Max, developer-1, developer-4",
+      "title": "Terminal stability first: bounded replay buffer and log retention",
+      "directive": "P0-0 now: fix terminal screen state persistence before other product work. Selected left group, layout, and session must survive refresh by keeping URL/local storage in sync.",
+      "next_action": "Max keeps monitoring for any residual screen-state regression; terminal durability/replay retention remains the next terminal-stability workstream.",
+      "evidence_required": "Regression watch only: screenshots and console check if the refresh persistence issue reappears.",
+      "report_fields": {
+        "item": "p0-terminal-stability-20260601 / terminal-stability-zeroth",
+        "problem": "P0-0 screen issue: when the URL still contains filter=development-team, choosing a different left session group and refreshing returns to Development Team.",
+        "root_cause": "readStoredTerminalFilter prioritizes URL query filter/team, but sidebar filter changes only updated React state/localStorage and left the URL stale.",
+        "action": "Patch shell URL-state sync so filter, layout, selected session, and view update the address bar as operator state changes.",
+        "doing_now": "P0-0 screen refresh persistence patch is applied and verified; monitoring for residual regressions.",
+        "next": "Continue terminal stability zeroth work on durable log/replay retention; reopen screen refresh persistence only if regression is observed.",
+        "blocker": "None identified. Expected scope is 9000 web hot reload/restart only; 9001 restart not required.",
+        "evidence": "apps/web/src/main.tsx URL replaceState persistence; data/work-ledger.json work-event-1780304461677; npm --prefix apps/web test 25/25; npm --prefix apps/web run build pass with chunk-size warning only; CDP screenshots data/system-logs/p0-screen-refresh-persistence-9000-cdp/p0-screen-refresh-persistence-desktop.png and p0-screen-refresh-persistence-mobile.png; 9001 PID 4516 preserved.",
+        "report_cadence": "15 min: item / problem / root_cause / action / doing_now / next / blocker / evidence"
+      }
+    },
+    {
+      "id": "meeting-first",
+      "priority": "P0-current-top",
+      "status": "paused-indefinite-non-terminal",
+      "progress": 80,
+      "last_update": "Paused indefinitely by strict Lucas order at 2026-06-02T13:13:24.594Z; terminal stabilization is the only active workstream.",
+      "updates": [
+        "본사 후보 파일 확인: command-center/server/routes/meetings.ts",
+        "본사 후보 파일 확인: command-center/frontend/src/services/meeting-api.ts",
+        "본사 후보 파일 확인: command-center/server/services/task-queue.ts",
+        "본사 후보 파일 확인: canvas-hub/server.ts",
+        "2026-06-01: D:\\Lucas-Initiative-HQ origin/master ?? meeting/chat benchmark scope ??",
+        "2026-06-01: meeting-first elevated to P0 active-now; ETA today first visible meeting screen",
+        "2026-06-01: ?? ? ?? ?? ??; 15? checkpoint/pull/handoff/QA gate active.",
+        "2026-06-01: forced restart reassignment sent to developer-1..7 and android-tester-1..3.",
+        "2026-06-01: Meeting MVP elevated to current top P0; 30-minute first output assigned.",
+        "2026-06-01: 20-minute sprint active across lanes A/B/C."
+      ],
+      "owner": "맥스, developer-2, developer-5",
+      "title": "미팅 기능 우선 구현",
+      "directive": "본사 소스를 벤치마킹해서 슬랙 형태의 미팅/작업 채널 기능을 먼저 만든다.",
+      "next_action": "No action until Lucas reopens non-terminal work after terminal stabilization.",
+      "evidence_required": "HQ ?? ?? ??, ??/route/component ??, 9000 screenshot, CDP console, DOM text, web test/build, 9001 PID unchanged."
+    },
+    {
+      "id": "heungkuk-final-source",
+      "priority": "P0",
+      "status": "paused-indefinite-non-terminal",
+      "progress": 35,
+      "last_update": "Paused indefinitely by strict Lucas order at 2026-06-02T13:13:24.594Z; terminal stabilization is the only active workstream.",
+      "updates": [
+        "Repo 확인: D:\\WorkSpace\\HeungKukLife",
+        "HEAD 확인: b2826b2 fix: stabilize joint certificate WebView input and popup back",
+        "dirty 파일 확인: ApiModule.kt, Util.kt, network_security_config.xml",
+        "기준 리포트 확인: android_joint_cert_task_full_report_ascii_20260531_0308.md",
+        "2026-06-01: app-debug.apk SHA256 C05E76427B788C98ADB90C640D133D658269A39225863849F4BB3000C56ABDE3 ??",
+        "2026-06-01: forced restart reassignment sent to developer-1..7 and android-tester-1..3.",
+        "2026-06-01: Android track lead changed to android-tester-1; developer-7 moved to support/evidence packaging."
+      ],
+      "owner": "android-tester-1, android-tester-2, android-tester-3, developer-7 support, Max",
+      "title": "흥국생명 안드로이드 최종소스 추리기",
+      "directive": "개발과 병행해서 흥국생명 안드로이드 공동인증서 WebView 작업의 최종소스 후보를 정리한다.",
+      "next_action": "No action until Lucas reopens non-terminal work after terminal stabilization.",
+      "evidence_required": "git status, 최종 커밋 SHA, APK SHA256, JS SHA256, 백업 경로, 잔여 이슈 결론.",
+      "references": [
+        "D:\\WorkSpace\\HeungKukLife",
+        "D:\\안드로이드이슈배포\\android_joint_cert_task_full_report_ascii_20260531_0308.md"
+      ]
+    },
+    {
+      "id": "terminal-scrollback",
+      "priority": "P0",
+      "status": "active-now",
+      "progress": 45,
+      "last_update": "Terminal-only emergency mode: kept active by strict Lucas order at 2026-06-02T13:13:24.594Z.",
+      "updates": [
+        "요구사항 확정: terminal scrollback 약 100라인",
+        "맥스/developer-1에 구현 지시 완료",
+        "2026-06-01: scrollback patch present; commit blocked until CDP scrollback proof passes",
+        "2026-06-01: ?? ? ?? ?? ??; 15? checkpoint/pull/handoff/QA gate active.",
+        "2026-06-01: forced restart reassignment sent to developer-1..7 and android-tester-1..3.",
+        "2026-06-01: 20-minute sprint active across lanes A/B/C."
+      ],
+      "owner": "developer-1, developer-4",
+      "title": "터미널 스크롤바와 100라인 스크롤백",
+      "directive": "터미널 카드에서 위로 약 100라인을 볼 수 있도록 스크롤바와 스크롤백을 추가한다.",
+      "next_action": "developer-1/developer-4? ?? ?? ??? ?? ???? scrollHeight, wheel/scrollbar, readable ANSI? CDP? ?????.",
+      "evidence_required": "뷰포트를 넘는 출력, 스크린샷, CDP 콘솔 확인, 9001 singleton 회귀 없음."
+    },
+    {
+      "id": "ledger-management",
+      "priority": "P1",
+      "status": "paused-indefinite-non-terminal",
+      "progress": 10,
+      "last_update": "Paused indefinitely by strict Lucas order at 2026-06-02T13:13:24.594Z; terminal stabilization is the only active workstream.",
+      "updates": [
+        "원장 관리 workspace 요구사항 기록",
+        "meeting item linkage 요구사항 기록",
+        "2026-06-01: 20-minute sprint active across lanes A/B/C."
+      ],
+      "owner": "developer-3, developer-6, 맥스",
+      "title": "원장 관리 공간",
+      "directive": "계획, 진행, 담당자, 상태, 마감, 증거, 막힌 점, 커밋, 다음 조치를 관리하는 전용 원장 공간을 만든다.",
+      "next_action": "No action until Lucas reopens non-terminal work after terminal stabilization.",
+      "evidence_required": "모델/API/UI 계획, 기존 원장/리마인더 항목 보존, 구현 후 스크린샷/CDP 결과."
+    },
+    {
+      "id": "responsive-layout",
+      "priority": "P0",
+      "status": "paused-indefinite-non-terminal",
+      "progress": 30,
+      "last_update": "Paused indefinitely by strict Lucas order at 2026-06-02T13:13:24.594Z; terminal stabilization is the only active workstream.",
+      "updates": [
+        "울트라와이드 균등 타일 비효율 확인",
+        "Work/Fleet/Focus layout mode 요구사항 지시",
+        "2026-06-01: Lucas requested equal-fit layout so all terminal cards fit on one screen.",
+        "2026-06-01: fleet layout delegated under Caesar no-direct-coding policy.",
+        "2026-06-01: tab-scoped terminal layout assignment created."
+      ],
+      "owner": "맥스, developer-8, developer-4",
+      "title": "해상도별 작업 화면 최적화",
+      "directive": "화면 비율과 해상도에 따라 레이아웃을 바꾼다. 울트라와이드에서 작은 터미널 타일만 깔지 않는다.",
+      "next_action": "No action until Lucas reopens non-terminal work after terminal stabilization.",
+      "evidence_required": "울트라와이드, 일반 데스크톱, 좁은 화면 스크린샷."
+    },
+    {
+      "id": "max-team-policy",
+      "priority": "P0",
+      "status": "paused-indefinite-non-terminal",
+      "progress": 91,
+      "last_update": "Paused indefinitely by strict Lucas order at 2026-06-02T13:13:24.594Z; terminal stabilization is the only active workstream.",
+      "updates": [
+        "맥스 명명 확정",
+        "개발자 1~8 역할 분배 정책 기록",
+        "맥스에게 혼자 일하지 말고 분배하라고 지시",
+        "2026-06-01: developer-1..8 heartbeat/status ?? ?? ?? ??",
+        "2026-06-01: 24/365 idle-prevention policy applied; fallback routing assigned.",
+        "2026-06-01: ?? ? ?? ?? ??; 15? checkpoint/pull/handoff/QA gate active.",
+        "2026-06-01: auto-pull started by dev-lead; ledger/agents/files checked; next checkpoint collection active.",
+        "2026-06-01: forced restart reassignment sent to developer-1..7 and android-tester-1..3.",
+        "2026-06-01: 20-minute sprint active across lanes A/B/C.",
+        "2026-06-01: idle redistribution performed before further Lucas escalation.",
+        "2026-06-01: auto-pull executed; dev8 QA handoff and Meeting MVP output collection assigned.",
+        "2026-06-01: operations alert/auto-pull handled; developer-1..8 HEARTBEAT reassignment sent.",
+        "2026-06-01: parser-friendly REPORT status lines sent to clear false idle detection.",
+        "2026-06-01: corrected session write body to data field and resent work commands."
+      ],
+      "owner": "맥스",
+      "title": "맥스는 지휘하고 개발자는 실행",
+      "directive": "맥스는 혼자 일하지 않는다. 작업을 쪼개고, 배정하고, 보고를 모으고, 리뷰하고, 통합하고, 커밋 경계를 관리한다.",
+      "next_action": "No action until Lucas reopens non-terminal work after terminal stabilization.",
+      "evidence_required": "9100 /api/ledger, /api/agents ?? ??, ?? ?? ??, ???? checkpoint, 9001 PID unchanged."
+    },
+    {
+      "id": "commit-discipline",
+      "priority": "P0",
+      "status": "paused-indefinite-non-terminal",
+      "progress": 20,
+      "last_update": "Paused indefinitely by strict Lucas order at 2026-06-02T13:13:24.594Z; terminal stabilization is the only active workstream.",
+      "updates": [
+        "작은 단위 커밋 정책 기록",
+        "UI 커밋은 screenshot/CDP 증거 필요"
+      ],
+      "owner": "모든 개발자, 맥스",
+      "title": "커밋 규율",
+      "directive": "완료된 개발 단위마다 신중하게 커밋한다. 검증 안 된 작업이나 무관한 변경은 커밋하지 않는다.",
+      "next_action": "No action until Lucas reopens non-terminal work after terminal stabilization.",
+      "evidence_required": "커밋 SHA, 변경 파일, 테스트/빌드 결과, UI 커밋의 스크린샷/CDP 결과."
+    },
+    {
+      "id": "hq-benchmark-policy",
+      "priority": "P0",
+      "status": "paused-indefinite-non-terminal",
+      "progress": 20,
+      "last_update": "Paused indefinitely by strict Lucas order at 2026-06-02T13:13:24.594Z; terminal stabilization is the only active workstream.",
+      "updates": [
+        "본사 소스 직접 검색 완료",
+        "meeting/task/canvas 관련 재사용 후보 기록"
+      ],
+      "owner": "맥스, developer-2, developer-3",
+      "title": "본사 소스 벤치마킹 후 장점만 추리기",
+      "directive": "본사 소스와 루카스가 겪은 시행착오를 보고, 쓸만한 장점만 추려 새 구현에 반영한다.",
+      "next_action": "No action until Lucas reopens non-terminal work after terminal stabilization.",
+      "evidence_required": "확인한 본사 파일, 효과 있었던 점, 복사하면 안 되는 점, 추려낸 설계안."
+    },
+    {
+      "id": "qa-cdp-policy",
+      "priority": "P0",
+      "status": "paused-indefinite-non-terminal",
+      "progress": 100,
+      "last_update": "Paused indefinitely by strict Lucas order at 2026-06-02T13:13:24.594Z; terminal stabilization is the only active workstream.",
+      "updates": [
+        "UI 개발 후 CDP/브라우저 자동화 확인 필수",
+        "스크린샷, DOM/text 확인, 콘솔 확인을 증거로 남김",
+        "CDP 캡처 후 브라우저/디버깅 포트 종료 필수"
+      ],
+      "owner": "맥스, developer-4, 모든 개발자",
+      "title": "개발 후 QA/CDP 확인 기본 정책",
+      "directive": "개발 후에는 기본적으로 QA를 수행한다. UI 변경은 CDP 또는 브라우저 자동화로 직접 확인한 뒤 보고한다.",
+      "next_action": "No action until Lucas reopens non-terminal work after terminal stabilization.",
+      "evidence_required": "스크린샷 경로, DOM/text 확인 결과, 콘솔 에러 여부, CDP 포트 종료 확인."
+    },
+    {
+      "id": "policy-persistence",
+      "priority": "P0",
+      "status": "done",
+      "progress": 100,
+      "last_update": "정책을 branch boot context와 agent boot prompts에 추가했다.",
+      "updates": [
+        "data/branch-boot-context.md 업데이트",
+        "data/agent-boot-prompts.json 업데이트"
+      ],
+      "owner": "시저",
+      "title": "정책 재기동 자동 주입",
+      "directive": "정책은 재기동 시 자동으로 주입되어야 한다.",
+      "next_action": "data/branch-boot-context.md와 data/agent-boot-prompts.json을 정책 원본으로 유지한다.",
+      "evidence_required": "부트 컨텍스트와 에이전트 프롬프트 항목."
+    },
+    {
+      "id": "expanded-team",
+      "priority": "P0",
+      "status": "done",
+      "progress": 100,
+      "last_update": "developer-5부터 developer-8까지 생성했고 9001에서 active 상태를 확인했다.",
+      "updates": [
+        "developer-5 active",
+        "developer-6 active",
+        "developer-7 active",
+        "developer-8 active"
+      ],
+      "owner": "시저",
+      "title": "개발자 4명 추가",
+      "directive": "동시에 진행할 일이 많으므로 개발자 4명을 더 추가한다.",
+      "next_action": "developer-5부터 developer-8까지 배정하고 화면에 보이게 유지한다.",
+      "evidence_required": "developer-5, developer-6, developer-7, developer-8 active 세션."
+    },
+    {
+      "id": "command-ledger-page",
+      "priority": "P0",
+      "status": "paused-indefinite-non-terminal",
+      "progress": 80,
+      "last_update": "Paused indefinitely by strict Lucas order at 2026-06-02T13:13:24.594Z; terminal stabilization is the only active workstream.",
+      "updates": [
+        "data/ceo-command-ledger.json 생성",
+        "tools/ceo-ledger-board-server.cjs 생성",
+        "http://127.0.0.1:9100 health 확인"
+      ],
+      "owner": "시저",
+      "title": "9100 지시 원장 페이지",
+      "directive": "루카스 지시사항을 모아보는 원장 기반 관리 페이지를 9100번 포트에 만든다.",
+      "next_action": "No action until Lucas reopens non-terminal work after terminal stabilization.",
+      "evidence_required": "health endpoint와 실제 화면."
+    },
+    {
+      "id": "agent-status-on-9100",
+      "priority": "P0",
+      "status": "paused-indefinite-non-terminal",
+      "progress": 45,
+      "last_update": "Paused indefinitely by strict Lucas order at 2026-06-02T13:13:24.594Z; terminal stabilization is the only active workstream.",
+      "updates": [
+        "요구사항 기록: 9100에 에이전트별 현재 상태/작업 표시",
+        "2026-06-01: Max NOW report and heartbeat enforcement recorded",
+        "2026-06-01: 24/365 idle-prevention policy applied; fallback routing assigned.",
+        "2026-06-01: ?? ? ?? ?? ??; 15? checkpoint/pull/handoff/QA gate active.",
+        "2026-06-01: forced restart reassignment sent to developer-1..7 and android-tester-1..3.",
+        "2026-06-01: Development Team grouping fix assigned.",
+        "2026-06-01: 20-minute sprint active across lanes A/B/C."
+      ],
+      "owner": "시저, developer-8, 맥스",
+      "title": "9100 에이전트 현황 패널",
+      "directive": "9100 원장 페이지에서 활성 에이전트가 무엇을 하고 있는지 함께 보여준다.",
+      "next_action": "No action until Lucas reopens non-terminal work after terminal stabilization.",
+      "evidence_required": "9100 페이지에 에이전트 현황이 보이고 health endpoint가 정상이어야 한다."
+    }
+  ],
+  "operating_policy": {
+    "name": "24/365 ?? ?? ????",
+    "backlog_source": "http://127.0.0.1:9100/api/ledger",
+    "rules": [
+      "9100 CEO ?? ??? ?? backlog? ????.",
+      "? ???? ?? ??? 10? ?? ??? ??? ?? ???? ????.",
+      "Max? owner? ?? ??? progress? ?? ??? ?????.",
+      "?? ???? 15??? status / next action / blocker? ????.",
+      "developer-4? ???/CDP ?? ??? ?? ???? ???.",
+      "??? ?? ??? ??, QA ? ????."
+    ],
+    "idle_prevention_table": [
+      {
+        "agent": "developer-1",
+        "primary": "terminal-scrollback",
+        "fallback_after_10m_blocked": "responsive-layout",
+        "heartbeat_minutes": 15
+      },
+      {
+        "agent": "developer-2",
+        "primary": "meeting-first HQ benchmark",
+        "fallback_after_10m_blocked": "hq-benchmark-policy reusable file map",
+        "heartbeat_minutes": 15
+      },
+      {
+        "agent": "developer-3",
+        "primary": "ledger-management benchmark",
+        "fallback_after_10m_blocked": "command-ledger-page data model cleanup proposal",
+        "heartbeat_minutes": 15
+      },
+      {
+        "agent": "developer-4",
+        "primary": "QA/CDP gatekeeper",
+        "fallback_after_10m_blocked": "next verification checklist from backlog",
+        "heartbeat_minutes": 15
+      },
+      {
+        "agent": "developer-5",
+        "primary": "meeting-first MVP support",
+        "fallback_after_10m_blocked": "minimal patch plan from confirmed HQ files",
+        "heartbeat_minutes": 15
+      },
+      {
+        "agent": "developer-6",
+        "primary": "ledger-management MVP support",
+        "fallback_after_10m_blocked": "work-ledger field additions proposal",
+        "heartbeat_minutes": 15
+      },
+      {
+        "agent": "developer-7",
+        "primary": "Heungkuk Android final-source triage",
+        "fallback_after_10m_blocked": "evidence packaging SHA/dirty/backups",
+        "heartbeat_minutes": 15
+      },
+      {
+        "agent": "developer-8",
+        "primary": "9100/9000 status panel and responsive plan",
+        "fallback_after_10m_blocked": "ledger/command-board patch proposal",
+        "heartbeat_minutes": 15
+      }
+    ],
+    "completion_gate": "developer-4 QA/CDP evidence required before done/commit",
+    "last_update": "2026-06-01: Max redistributed developer-1..8 and added idle-prevention routing."
+  },
+  "team_routine": {
+    "name": "?? ? ?? ?? ??",
+    "cadence_minutes": 15,
+    "rules": [
+      "? ???? ?? ??, ?? ??, ??, ??? ?? ????.",
+      "idle ???? 9100 ???? ?? ??? ?? ?? ?? ?? Max?? ?? ?? ? ????.",
+      "??? ?? ??? ?? QA?? ?????? ?? ?? ???? ????.",
+      "developer-4? ?? ??? ???? ??? ???/CDP/??? ????.",
+      "Max? ?? ??? ???? QA ???? ????.",
+      "meeting-first, terminal stabilization, ledger operating automation? P0 ?? ????."
+    ],
+    "checkpoints": [
+      {
+        "agent": "developer-1",
+        "ledger_item": "terminal-scrollback",
+        "next_checkpoint": "15? ? scrollback/readable layout ??? CDP ?? ?? ??"
+      },
+      {
+        "agent": "developer-2",
+        "ledger_item": "meeting-first",
+        "next_checkpoint": "15? ? HQ meeting/chat ??? MVP ??? ?? ??"
+      },
+      {
+        "agent": "developer-3",
+        "ledger_item": "ledger-management",
+        "next_checkpoint": "15? ? current/HQ ledger model proposal ??"
+      },
+      {
+        "agent": "developer-4",
+        "ledger_item": "qa-cdp-policy",
+        "next_checkpoint": "15? ? verification queue? artifact path template ??"
+      },
+      {
+        "agent": "developer-5",
+        "ledger_item": "meeting-first",
+        "next_checkpoint": "15? ? visible meeting MVP first files/data shape ??"
+      },
+      {
+        "agent": "developer-6",
+        "ledger_item": "ledger-management",
+        "next_checkpoint": "15? ? ledger UI/API patch plan? no-data-loss ?? ??"
+      },
+      {
+        "agent": "developer-7",
+        "ledger_item": "heungkuk-final-source",
+        "next_checkpoint": "15? ? APK/JS SHA, dirty, residual issue evidence ??"
+      },
+      {
+        "agent": "developer-8",
+        "ledger_item": "agent-status-on-9100 responsive-layout",
+        "next_checkpoint": "15? ? 9100 idle-prevention/status panel strategy ??"
+      }
+    ],
+    "last_update": "2026-06-01: Max reassigned developer checkpoints under human-team routine."
+  },
+  "last_auto_pull": {
+    "item": "max-team-policy",
+    "doing_now": "Meeting MVP commit boundary review; developer-1..8 parser-friendly REPORT reassignment sent through 9001 data field",
+    "next": "final review then scoped commit candidate: apps/web/src/main.tsx, apps/web/src/styles.css, data/meeting-mvp-contract-dev2.md only",
+    "blocker": "none for product candidate; generic 404 remains classified non-blocking by URL trace, final commit approval pending",
+    "evidence": [
+      "9100 /api/ledger checked",
+      "9100 /api/agents checked",
+      "agent-ops-events dispatchIds 1780252275916-8pkiei and 1780252278891-i7dmec checked",
+      "developer-1..8 reassignment sent via /api/sessions/:id/write data field",
+      "git diff --check clean except CRLF warnings",
+      "npm run test passed in apps/web",
+      "npm run build passed in apps/web",
+      "CDP screenshots: data/system-logs/meeting-mvp-9000-cdp/meeting-mvp-desktop.png and meeting-mvp-mobile.png",
+      "CDP URL trace: missing=[], failedResponses=[], pageErrors=[]; one generic 404 console entry",
+      "9001 PID 38752 unchanged"
+    ],
+    "updated_at": "2026-06-01 KST"
+  },
+  "forced_restart_assignment": {
+    "reason": "Lucas judged all except developer-8 idle; Max forced team restart and reassignment.",
+    "priorities": [
+      "meeting-first P0",
+      "terminal-scrollback P0",
+      "agent-status-on-9100 P0",
+      "Heungkuk Android parallel QA"
+    ],
+    "assignments": [
+      {
+        "agent": "developer-1",
+        "item": "terminal-scrollback",
+        "doing_now": "xterm scrollback 300 + vertical/readable layout evidence",
+        "next": "CDP scroll proof with developer-4",
+        "blocker": "awaiting fresh status"
+      },
+      {
+        "agent": "developer-2",
+        "item": "meeting-first",
+        "doing_now": "HQ Lucas-Initiative meeting/chat comparison",
+        "next": "reuse/reject table for visible MVP",
+        "blocker": "awaiting fresh status"
+      },
+      {
+        "agent": "developer-3",
+        "item": "ledger-management",
+        "doing_now": "ledger model/routes/components proposal",
+        "next": "handoff API/UI questions to developer-6",
+        "blocker": "awaiting fresh status"
+      },
+      {
+        "agent": "developer-4",
+        "item": "qa-cdp-policy",
+        "doing_now": "QA/CDP gate for meeting, terminal, 9100",
+        "next": "verification queue and artifact template",
+        "blocker": "awaiting fresh status"
+      },
+      {
+        "agent": "developer-5",
+        "item": "meeting-first",
+        "doing_now": "visible meeting MVP implementation support",
+        "next": "first files/data shape for channels/messages/decisions/actions",
+        "blocker": "awaiting fresh status"
+      },
+      {
+        "agent": "developer-6",
+        "item": "agent-status-on-9100 ledger-management",
+        "doing_now": "ledger state-management and no-data-loss plan",
+        "next": "work-ledger preserving patch plan",
+        "blocker": "awaiting fresh status"
+      },
+      {
+        "agent": "developer-7",
+        "item": "heungkuk-final-source support",
+        "doing_now": "Android evidence packaging support under android-tester-1",
+        "next": "support tester-1 with APK/JS/dirty/backups",
+        "blocker": "none"
+      },
+      {
+        "agent": "android-tester-1",
+        "item": "heungkuk-final-source lead",
+        "doing_now": "Android track lead: collect final source/APK/JS/dirty/residual issue evidence",
+        "next": "lead report from tester-2/3 and developer-7 support",
+        "blocker": "awaiting subreports"
+      },
+      {
+        "agent": "android-tester-2",
+        "item": "heungkuk-android-qa",
+        "doing_now": "JS override/server JS SHA and backup path",
+        "next": "read-only evidence report",
+        "blocker": "awaiting fresh status"
+      },
+      {
+        "agent": "android-tester-3",
+        "item": "heungkuk-android-qa",
+        "doing_now": "release candidate/residual issue/checklist",
+        "next": "read-only evidence report",
+        "blocker": "awaiting fresh status"
+      }
+    ],
+    "updated_at": "2026-06-01 KST"
+  },
+  "caesar_coding_policy": {
+    "role": "supervisor",
+    "rules": [
+      "Caesar? ???? ??? ?? supervisor? ??, ??, ??, QA/?? ???? ???.",
+      "??? Max? ???? developer??? ????.",
+      "Caesar ?? product code ??? Lucas? ????? ?? ??/?? ??? ??? ??? ????.",
+      "Terminal Fleet ?? ??? developer-1/developer-8 ??, developer-4 CDP ???? ????."
+    ],
+    "last_update": "2026-06-01: direct product coding restricted; fleet layout delegated."
+  },
+  "terminal_fleet_assignment": {
+    "item": "Terminal Fleet ?? ??",
+    "implementers": [
+      "developer-1",
+      "developer-8"
+    ],
+    "qa": "developer-4",
+    "max_role": "decompose/review/commit gate",
+    "scope": [
+      "apps/web/src/main.tsx",
+      "apps/web/src/styles.css"
+    ],
+    "required_evidence": [
+      "ultra-wide screenshot",
+      "desktop screenshot",
+      "narrow screenshot",
+      "CDP console",
+      "DOM/layout check",
+      "xterm readable/scrollbar check",
+      "apps/web test",
+      "apps/web build",
+      "9001 PID unchanged"
+    ],
+    "status": "assigned",
+    "blocker": "awaiting developer implementation/QA report"
+  },
+  "tab_scoped_terminal_layout_assignment": {
+    "item": "?? ??? ???? ??",
+    "priority": "P0",
+    "problem": "localStorage ?? terminal layout? ?? origin? ?? ???? ??? ???? Android ? ?? ??? ?? ?? ??? ?????.",
+    "requirement": "terminal layout mode? ????? ?? ??? ????. sessionStorage? ???? ???? URL team/filter/layout? ?????? ????.",
+    "implementers": [
+      "developer-1",
+      "developer-8"
+    ],
+    "qa": "developer-4",
+    "max_role": "review/commit gate",
+    "files": [
+      "apps/web/src/main.tsx",
+      "apps/web/src/styles.css if needed"
+    ],
+    "forbidden": [
+      "9001 singleton/API origin changes",
+      "broad UI refactor",
+      "unverified commit"
+    ],
+    "verification": [
+      "two CDP pages/tabs on same 9000 origin",
+      "set different layouts for Android and development tabs",
+      "prove no cross-tab layout effect",
+      "screenshots for both tabs",
+      "CDP console check",
+      "DOM/sessionStorage/localStorage check",
+      "apps/web test/build",
+      "9001 PID unchanged"
+    ],
+    "status": "assigned",
+    "updated_at": "2026-06-01 KST"
+  },
+  "development_team_group_assignment": {
+    "item": "Development Team ?? ??",
+    "priority": "P0",
+    "problem": "?? Development Team ??? 5/6?? ??? developer-1..4??? ???? developer-5..8? ????.",
+    "requirement": "Development Team?? Dev Lead(Max) + developer-1..developer-8? ????. Chief Min? android testers? ????. ?? team ?? development/android-qa/executive? ????.",
+    "implementer": "developer-8",
+    "support": "developer-1",
+    "qa": "developer-4",
+    "files": [
+      "apps/web/src/main.tsx",
+      "apps/web/src/styles.css only if needed"
+    ],
+    "verification": [
+      "CDP DOM text for Development Team count/members",
+      "screenshot left sidebar",
+      "console check",
+      "apps/web test/build",
+      "9001 PID unchanged"
+    ],
+    "status": "assigned",
+    "updated_at": "2026-06-01 KST"
+  },
+  "meeting_mvp_execution": {
+    "item": "Meeting MVP",
+    "priority": "P0-current-top",
+    "goal": "?? ?? ? ? ?? Meeting MVP ??",
+    "scope": [
+      "Meeting/Channel ??",
+      "??? ????",
+      "decisions",
+      "action items",
+      "ledger item label/link"
+    ],
+    "hq_refs": [
+      "D:/Lucas-Initiative-HQ command-center/server/routes/meetings.ts",
+      "D:/Lucas-Initiative-HQ command-center/frontend/src/services/meeting-api.ts",
+      "D:/Lucas-Initiative-HQ MeetingPanel/MeetingChat/MeetingMessageTimeline ??"
+    ],
+    "owners": {
+      "developer-2": "HQ ?? ? ??? ??",
+      "developer-5": "Meeting MVP UI",
+      "developer-3": "?? ??/label ???",
+      "developer-6": "?? ?? UI/API ??",
+      "developer-4": "QA/CDP ???",
+      "Max": "??/??/?? ???"
+    },
+    "first_checkpoint_minutes": 30,
+    "first_checkpoint_output": "??/route/component ?? ??",
+    "parallel_not_blocking": [
+      "Development Team ?? ??",
+      "?? ??? ???? ??"
+    ],
+    "required_evidence": [
+      "HQ file comparison",
+      "9000 screenshot",
+      "CDP console",
+      "DOM text for MVP sections",
+      "apps/web test/build",
+      "cargo check if API touched",
+      "9001 PID unchanged"
+    ],
+    "status": "assigned-now",
+    "updated_at": "2026-06-01 KST"
+  },
+  "twenty_minute_sprint": {
+    "status": "active",
+    "started_at": "2026-06-01 KST",
+    "lanes": {
+      "A_meeting_mvp": {
+        "owners": [
+          "developer-2",
+          "developer-5"
+        ],
+        "expected_output": "HQ data contract + Meeting MVP UI patch candidate"
+      },
+      "B_terminal_sidebar_layout": {
+        "owners": [
+          "developer-1",
+          "developer-8"
+        ],
+        "expected_output": "tab-scoped layout + Development Team group patch candidate"
+      },
+      "C_ledger_qa": {
+        "owners": [
+          "developer-3",
+          "developer-6",
+          "developer-4"
+        ],
+        "expected_output": "ledger link/no-data-loss plan + QA/CDP command matrix"
+      }
+    },
+    "max_next": "20? ? lane ??? ??, ?? ?? ??, QA ? ?? ??",
+    "constraints": [
+      "Caesar no direct product coding",
+      "9001 singleton unchanged",
+      "small commits after QA only"
+    ]
+  },
+  "idle_redistribution": {
+    "status": "active-reassigned-meeting-mvp-commit-boundary",
+    "reason": "Latest idle alerts handled; all developer-1..8 received concrete parser-friendly REPORT tasks. Meeting MVP remains top commit candidate.",
+    "top_priority": "meeting-first P0-current-top",
+    "assignments": [
+      {
+        "agent": "developer-1",
+        "ledger_item": "terminal-scrollback",
+        "doing_now": "collect terminal scrollback artifacts already reported",
+        "next_checkpoint": "10 min: confirm latest CDP/screenshot gap or hand to developer-4",
+        "blocker": "latest CDP proof missing"
+      },
+      {
+        "agent": "developer-2",
+        "ledger_item": "meeting-first",
+        "doing_now": "contract output exists in terminal and data/meeting-mvp-contract-dev2.md",
+        "next_checkpoint": "10 min: Max reads contract and gives dev5 integration boundary",
+        "blocker": "none"
+      },
+      {
+        "agent": "developer-3",
+        "ledger_item": "ledger-management",
+        "doing_now": "ledger item split and model evidence collected",
+        "next_checkpoint": "10 min: merge with dev6 no-data-loss fields",
+        "blocker": "none"
+      },
+      {
+        "agent": "developer-4",
+        "ledger_item": "qa-cdp-policy",
+        "doing_now": "QA running/terminal active; collect pass-fail only",
+        "next_checkpoint": "10 min: screenshot/CDP result or exact artifact gap",
+        "blocker": "artifact gate only"
+      },
+      {
+        "agent": "developer-5",
+        "ledger_item": "meeting-first",
+        "doing_now": "Meeting MVP static mock-data first screen plan active",
+        "next_checkpoint": "10 min: patch hunk candidate or explicit file gap",
+        "blocker": "QA before completion"
+      },
+      {
+        "agent": "developer-6",
+        "ledger_item": "ledger-management",
+        "doing_now": "work-ledger reuse and fields already surfaced",
+        "next_checkpoint": "10 min: combine with dev3",
+        "blocker": "none"
+      },
+      {
+        "agent": "developer-7",
+        "ledger_item": "heungkuk-final-source",
+        "doing_now": "read-only Android evidence support active",
+        "next_checkpoint": "10 min: HEAD/dirty/APK/SHA summary",
+        "blocker": "runtime owned by tester-1"
+      },
+      {
+        "agent": "developer-8",
+        "ledger_item": "agent-status-on-9100",
+        "doing_now": "dev4 handoff snapshot correction/status panel evidence",
+        "next_checkpoint": "10 min: clean QA handoff path",
+        "blocker": "dev4 QA gate"
+      }
+    ],
+    "updated_at": "2026-06-01 KST"
+  },
+  "terminal_only_mode": {
+    "active": true,
+    "strict": true,
+    "ordered_by": "Lucas",
+    "ordered_at": "2026-06-02T13:13:24.594Z",
+    "policy": "All non-terminal work is paused indefinitely. Only strict terminal stabilization, HQ terminal alignment, terminal input/render/storage/replay, xterm/PTY, and direct evidence for those items may proceed.",
+    "kept_work_tasks": [
+      "p0-terminalcard-chat-input",
+      "p0-ui-overlay-occlusion",
+      "p0-newline-audit-1410",
+      "communication-gap-pty-visible-reporting",
+      "p0-terminal-stability-20260601",
+      "terminal-buffer-instant-render-20260602",
+      "terminal-input-text-loss-20260602"
+    ],
+    "paused_work_tasks": [
+      "mira-ledger-dev-team-up-supervision",
+      "spring-msa-study-start-1400",
+      "product-code-change-approval-risk",
+      "year-end-tax-hourly-reminder",
+      "spring-msa-study-2000",
+      "heungkuk-android-final-package",
+      "spring-msa-whitepaper-1330",
+      "android-hungkuk-final-1400",
+      "hq-msa-history-request",
+      "branch-staff-health-6-person",
+      "lcc-core-codex-status-quota",
+      "enterprise-policy-heungkuk-popup-stable-b2826b2",
+      "memory-system-hq",
+      "meeting-first",
+      "portable-release-20260603",
+      "hkl-auth-manual-handover-20260602",
+      "caesar-hourly-reporting",
+      "ceo-support-qa-audit-ops-20260602",
+      "decision-blocker-portal-20260602",
+      "ops-progress-space-20260602",
+      "ceo-9100-board-cleanup-20260602",
+      "chatgpt-web-operator-20260602"
+    ],
+    "kept_directives": [
+      "terminal-stability-zeroth",
+      "terminal-scrollback"
+    ],
+    "paused_directives": [
+      "meeting-first",
+      "heungkuk-final-source",
+      "ledger-management",
+      "responsive-layout",
+      "max-team-policy",
+      "commit-discipline",
+      "hq-benchmark-policy",
+      "qa-cdp-policy",
+      "command-ledger-page",
+      "agent-status-on-9100"
+    ],
+    "work_event_id": "work-event-1780406004597"
+  }
+}

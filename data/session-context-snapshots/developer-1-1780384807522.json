@@ -1,0 +1,9 @@
+{
+  "at": "2026-06-02T07:20:07.523Z",
+  "agentId": "developer-1",
+  "taskId": "terminal-input-text-loss-20260602",
+  "reason": "ownerless-active-item",
+  "status": "active",
+  "preview": "blocked on terminal QA",
+  "resumeCriteria": "resume after non-sleeping ops-loop dispatch/result event is resolved"
+}

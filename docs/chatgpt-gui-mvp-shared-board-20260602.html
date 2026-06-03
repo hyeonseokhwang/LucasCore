@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lucas Ledger Shared Board MVP</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0f14;
+      --panel: #111923;
+      --panel-2: #162231;
+      --line: #2a3a4d;
+      --text: #e8eef7;
+      --muted: #9aa9bc;
+      --blue: #5aa7ff;
+      --green: #36d399;
+      --yellow: #f4c542;
+      --red: #fb7185;
+      --cyan: #5eead4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+    button, input, textarea { font: inherit; }
+    .app {
+      display: grid;
+      grid-template-columns: 260px minmax(520px, 1fr) 360px;
+      min-height: 100vh;
+    }
+    aside, main, .inspector { min-height: 100vh; }
+    aside {
+      border-right: 1px solid var(--line);
+      background: #0d141d;
+      padding: 18px 14px;
+    }
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-bottom: 18px;
+    }
+    .brand strong { font-size: 18px; }
+    .brand span { color: var(--muted); font-size: 13px; }
+    .nav-title {
+      margin: 22px 0 8px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    .nav-item {
+      width: 100%;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text);
+      padding: 9px 10px;
+      border-radius: 7px;
+      text-align: left;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+    .nav-item.active {
+      border-color: #315b8d;
+      background: #173456;
+      color: #ffffff;
+    }
+    .nav-item small {
+      color: var(--cyan);
+      font-weight: 700;
+    }
+    main {
+      padding: 22px;
+      overflow: auto;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.2;
+    }
+    .subtitle {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .actions { display: flex; gap: 8px; }
+    .btn {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--text);
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+    .btn.primary {
+      border-color: #3674c4;
+      background: #255d9d;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .metric {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 7px;
+    }
+    .metric strong { font-size: 22px; }
+    .board {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 14px;
+    }
+    .section {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      min-height: 220px;
+    }
+    .section header {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .section h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+    .section .body { padding: 12px; }
+    .card {
+      border: 1px solid var(--line);
+      background: #0d141d;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .card.selected {
+      border-color: var(--blue);
+      box-shadow: inset 3px 0 0 var(--blue);
+    }
+    .card-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .card-title strong { font-size: 15px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .pill.green { color: var(--green); border-color: rgba(54, 211, 153, .5); }
+    .pill.yellow { color: var(--yellow); border-color: rgba(244, 197, 66, .5); }
+    .pill.red { color: var(--red); border-color: rgba(251, 113, 133, .5); }
+    .facts {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      font-size: 13px;
+    }
+    .facts div {
+      border-top: 1px solid rgba(42, 58, 77, .7);
+      padding-top: 7px;
+    }
+    .facts dt {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+    .facts dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+    .shared-doc {
+      min-height: 420px;
+      padding: 18px;
+      background: #0e1620;
+      border-radius: 8px;
+      border: 1px solid #314255;
+    }
+    .shared-doc h3 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+    .shared-doc p {
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .block {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
+      background: #111c27;
+    }
+    .block strong { display: block; margin-bottom: 6px; }
+    .comment {
+      border-left: 3px solid #365574;
+      padding: 9px 0 9px 10px;
+      margin: 8px 0;
+      color: #cdd7e5;
+      font-size: 13px;
+    }
+    .inspector {
+      border-left: 1px solid var(--line);
+      background: #0d141d;
+      padding: 18px 14px;
+      overflow: auto;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .panel header {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      font-weight: 700;
+    }
+    .panel .body { padding: 12px; }
+    .decision {
+      display: grid;
+      gap: 9px;
+    }
+    .decision textarea {
+      width: 100%;
+      min-height: 82px;
+      resize: vertical;
+      border-radius: 7px;
+      border: 1px solid var(--line);
+      background: #09111a;
+      color: var(--text);
+      padding: 10px;
+    }
+    .json {
+      background: #081019;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 10px;
+      color: #b8c7da;
+      font: 12px Consolas, monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    @media (max-width: 1180px) {
+      .app { grid-template-columns: 220px 1fr; }
+      .inspector { grid-column: 1 / -1; min-height: auto; border-left: 0; border-top: 1px solid var(--line); }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .app { grid-template-columns: 1fr; }
+      aside { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .board { grid-template-columns: 1fr; }
+      .topbar { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand">
+        <strong>Lucas Ledger</strong>
+        <span>공유보드 중심 운영 MVP</span>
+      </div>
+      <div class="nav-title">운영 화면</div>
+      <button class="nav-item active">Executive Board <small>8</small></button>
+      <button class="nav-item">공유보드 <small>3</small></button>
+      <button class="nav-item">검수 대기 <small>2</small></button>
+      <button class="nav-item">감사 로그 <small>14</small></button>
+      <div class="nav-title">팀</div>
+      <button class="nav-item">Development Team <small>4/4</small></button>
+      <button class="nav-item">Ops / Audit <small>2</small></button>
+      <button class="nav-item">HKL Handover <small>1</small></button>
+    </aside>
+
+    <main>
+      <div class="topbar">
+        <div>
+          <h1>원장 운영 공유보드</h1>
+          <div class="subtitle">보드가 기준 산출물이고, 채팅과 댓글은 보드에 붙습니다.</div>
+        </div>
+        <div class="actions">
+          <button class="btn">Context Pack</button>
+          <button class="btn primary">결정 등록</button>
+        </div>
+      </div>
+
+      <section class="metrics">
+        <div class="metric"><span>진행 중 P0</span><strong>8</strong></div>
+        <div class="metric"><span>검수 대기</span><strong>2</strong></div>
+        <div class="metric"><span>차단 항목</span><strong>1</strong></div>
+        <div class="metric"><span>증거 없는 완료</span><strong>0</strong></div>
+      </section>
+
+      <section class="board">
+        <div class="section">
+          <header>
+            <h2>오늘의 기준 원장</h2>
+            <span class="pill green">CEO_WAKE ok</span>
+          </header>
+          <div class="body">
+            <article class="card selected">
+              <div class="card-title">
+                <strong>terminal-buffer-instant-render-20260602</strong>
+                <span class="pill yellow">P0</span>
+              </div>
+              <dl class="facts">
+                <div><dt>상태</dt><dd>진행 중</dd></div>
+                <div><dt>담당</dt><dd>developer-1 / QA developer-4</dd></div>
+                <div><dt>다음</dt><dd>본사식 live xterm 구조로 replay 제거</dd></div>
+                <div><dt>증거</dt><dd>CDP 입력 QA 통과</dd></div>
+              </dl>
+            </article>
+            <article class="card">
+              <div class="card-title">
+                <strong>ceo-9100-board-cleanup-20260602</strong>
+                <span class="pill red">paused</span>
+              </div>
+              <dl class="facts">
+                <div><dt>원 담당</dt><dd>ux-designer</dd></div>
+                <div><dt>임시 담당</dt><dd>developer-3</dd></div>
+                <div><dt>차단</dt><dd>반복 stale 후 pause-with-context</dd></div>
+                <div><dt>다음</dt><dd>한국어 Executive Board 설계</dd></div>
+              </dl>
+            </article>
+            <article class="card">
+              <div class="card-title">
+                <strong>lcc-core-hybrid-mobile-app-20260602</strong>
+                <span class="pill">planning</span>
+              </div>
+              <dl class="facts">
+                <div><dt>기한</dt><dd>2026-06-07 KST</dd></div>
+                <div><dt>방향</dt><dd>PWA + Capacitor shell</dd></div>
+                <div><dt>목표</dt><dd>모바일 회사 운영 화면</dd></div>
+                <div><dt>결정</dt><dd>OS별 분리 개발 보류</dd></div>
+              </dl>
+            </article>
+          </div>
+        </div>
+
+        <div class="section">
+          <header>
+            <h2>공유보드 본문</h2>
+            <span class="pill">원장 UI/UX</span>
+          </header>
+          <div class="body">
+            <div class="shared-doc">
+              <h3>공유보드 우선 설계</h3>
+              <p>본사 방식의 미팅-스레드-캔버스는 강력하지만 스레드가 많아질수록 기준 산출물을 찾기 어렵다. LCC Core는 공유보드를 중심에 두고, 채팅과 댓글은 보드의 각 블록에 붙인다.</p>
+              <div class="block">
+                <strong>결정 후보</strong>
+                Executive Board를 9100 첫 화면으로 둔다. 원장 JSON의 동일 사실을 한국어 요약 카드로 표현하고 raw JSON은 상세 drawer에 둔다.
+                <div class="comment">Max: 터미널은 보조 화면으로 낮추고, 원장/공유보드/검수 화면을 주 운영면으로 전환합니다.</div>
+                <div class="comment">Developer-3: paused-with-context와 interim owner 표시는 운영판의 필수 필드입니다.</div>
+              </div>
+              <div class="block">
+                <strong>다음 작업</strong>
+                9100 메인 화면을 Executive Board, Operations Board, Ledger Board 세 탭으로 나누고, 공유보드 상세에서 댓글과 결정 로그를 붙인다.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section class="inspector">
+      <div class="panel">
+        <header>결정 필요</header>
+        <div class="body decision">
+          <p>9100 첫 화면을 Executive Board로 고정할까요?</p>
+          <button class="btn primary">승인</button>
+          <button class="btn">보류</button>
+        </div>
+      </div>
+      <div class="panel">
+        <header>댓글 작성</header>
+        <div class="body decision">
+          <textarea placeholder="이 보드 블록에 대한 의견을 남깁니다."></textarea>
+          <button class="btn primary">댓글 등록</button>
+        </div>
+      </div>
+      <div class="panel">
+        <header>원장 JSON Drill-down</header>
+        <div class="body">
+          <div class="json">{
+  "taskId": "ceo-9100-board-cleanup-20260602",
+  "status": "doing",
+  "owner": "ux-designer",
+  "interimOwner": "developer-3",
+  "state": "paused-with-context",
+  "evidence": [
+    "data/ceo-wake-latest.json",
+    "docs/lucas-ledger-requirements-v0.1-20260602.md"
+  ]
+}</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

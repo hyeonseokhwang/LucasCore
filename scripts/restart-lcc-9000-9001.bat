@@ -12,7 +12,7 @@ echo [%STAMP%] Restarting LCC 9000/9001...
 echo Root: %ROOT%
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$ports=@(9000,9001); foreach($port in $ports){ Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $pid=$_.OwningProcess; if($pid -and $pid -ne $PID){ try { Stop-Process -Id $pid -Force -ErrorAction Stop; Write-Host ('Stopped port {0} pid {1}' -f $port,$pid) } catch { Write-Host ('Failed to stop port {0} pid {1}: {2}' -f $port,$pid,$_.Exception.Message) } } } }"
+  "$ports=@(9000,9001); foreach($port in $ports){ Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $ownerPid=$_.OwningProcess; if($ownerPid -and $ownerPid -ne $PID){ try { Stop-Process -Id $ownerPid -Force -ErrorAction Stop; Write-Host ('Stopped port {0} pid {1}' -f $port,$ownerPid) } catch { Write-Host ('Failed to stop port {0} pid {1}: {2}' -f $port,$ownerPid,$_.Exception.Message) } } } }"
 
 timeout /t 2 /nobreak >nul
 

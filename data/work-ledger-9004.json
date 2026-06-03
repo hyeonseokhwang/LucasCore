@@ -1,0 +1,89 @@
+{
+  "tasks": [
+    {
+      "id": "year-end-tax-hourly-reminder",
+      "title": "Year-end tax hourly reminder",
+      "status": "doing",
+      "priority": 1,
+      "due_at": null,
+      "reminder_minutes": 60,
+      "last_reminded_at": null,
+      "notes": "Daily objective seed.",
+      "updated_at": "2026-05-31T02:41:20.238111700Z"
+    },
+    {
+      "id": "spring-msa-study-2000",
+      "title": "Spring MSA study 20:00",
+      "status": "todo",
+      "priority": 2,
+      "due_at": "2026-05-31T11:00:00Z",
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "20:00 KST stored as 11:00 UTC.",
+      "updated_at": "2026-05-31T02:29:20.927861300Z"
+    },
+    {
+      "id": "heungkuk-android-final-package",
+      "title": "Heungkuk Android final package",
+      "status": "todo",
+      "priority": 3,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Daily objective seed.",
+      "updated_at": "2026-05-31T02:29:20.927861300Z"
+    },
+    {
+      "id": "spring-msa-tf-left-session-group",
+      "title": "SpringMSA TF left-session group",
+      "status": "done",
+      "priority": 109,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Created SpringMSA TF in left Sessions rail without increasing active session count. Membership: Branch Director, Joon MSA, Chief Min, Han Ops, Seo Security, Mira Ledger. Caden Android remains Android workstream.",
+      "updated_at": "2026-05-31T05:52:07.053659900Z"
+    },
+    {
+      "id": "session-groups-spring-msa-development",
+      "title": "Active session groups: SpringMSA TF and Development Team",
+      "status": "done",
+      "priority": 115,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "SpringMSA TF is now one active six-person group: Chief Min, Joon MSA, Spring MSA Researcher 1-4. Development Team is Chief Min, Dev Lead, Developer 1-4. Nine supporting sessions were spawned and role prompts were sent.",
+      "updated_at": "2026-05-31T06:03:27.949795100Z"
+    }
+  ],
+  "events": [
+    {
+      "id": "work-event-1780195280204",
+      "task_id": "year-end-tax-hourly-reminder",
+      "at": "2026-05-31T02:41:20.204153800Z",
+      "kind": "note",
+      "body": "verification smoke note"
+    },
+    {
+      "id": "work-event-1780206727053",
+      "task_id": "spring-msa-tf-left-session-group",
+      "at": "2026-05-31T05:52:07.053650400Z",
+      "kind": "organization",
+      "body": "SpringMSA TF group added to left Sessions rail; Branch Director is off-console lead, Joon MSA owner, four assistant researchers are Chief Min, Han Ops, Seo Security, Mira Ledger. Active session count remains 6."
+    },
+    {
+      "id": "work-event-1780207018255",
+      "task_id": "session-groups-spring-msa-development",
+      "at": "2026-05-31T05:56:58.255628500Z",
+      "kind": "organization",
+      "body": "Updated left Sessions group plan: SpringMSA TF=Chief Min+Joon MSA; SpringMSA Research=four on-demand researchers; Development Team=Chief Min+Dev Alpha+Dev Bravo/Charlie/Delta/Echo. No active sessions added."
+    },
+    {
+      "id": "work-event-1780207407949",
+      "task_id": "session-groups-spring-msa-development",
+      "at": "2026-05-31T06:03:27.949782900Z",
+      "kind": "note",
+      "body": "Corrected grouping per director: no separate SpringMSA Research group. Spawned spring-msa-research-1..4, dev-lead, developer-1..4; active sessions now 15 total. Sent role prompts requesting Korean status reports."
+    }
+  ]
+}

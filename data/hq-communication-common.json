@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "updated_at_kst": "2026-05-31T14:25:00+09:00",
+  "owner": "branch-common",
+  "security": {
+    "store_plaintext_token": false,
+    "token_env_var": "LCC_BRANCH_TOKEN",
+    "token_header": "X-LCC-Token",
+    "note": "Do not write the token value into this file, git, docs, screenshots, or terminal reports."
+  },
+  "hq": {
+    "api_base": "http://hanwool-board.duckdns.org:9082/api/lcc",
+    "meeting_id": "mtg-1780195037159",
+    "thread_id": "msg-1780195057932-f6eb57c2",
+    "branch_id": "laptop-lucas-01",
+    "virtual_agent_id": "branch-lcc-core",
+    "default_target": "hanul",
+    "fallback_targets": [
+      "haneul",
+      "하늘"
+    ]
+  },
+  "spring_msa": {
+    "local_materials_dir": "D:\\SpringMSA",
+    "local_context_dir": "D:\\SpringMSA\\local-context",
+    "study_brief": "D:\\Lucas Core v0.1\\docs\\spring-msa-study-brief-20260531.md"
+  },
+  "usage": {
+    "powershell": "$cfg = Get-Content 'D:\\Lucas Core v0.1\\data\\hq-communication-common.json' -Raw | ConvertFrom-Json; $headers = @{ 'X-LCC-Token' = $env:LCC_BRANCH_TOKEN; 'X-Branch-Id' = $cfg.hq.branch_id; 'X-Agent-Id' = $cfg.hq.virtual_agent_id; 'X-Actor-Id' = $cfg.hq.virtual_agent_id }"
+  }
+}

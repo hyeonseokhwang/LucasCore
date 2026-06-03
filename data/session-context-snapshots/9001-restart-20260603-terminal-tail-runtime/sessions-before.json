@@ -1,0 +1,75 @@
+﻿{
+    "value":  [
+                  {
+                      "id":  "ceo",
+                      "name":  "Caesar",
+                      "team":  "executive",
+                      "cwd":  "workspaces/ceo/repo",
+                      "cmd":  "codex.cmd",
+                      "args":  [
+                                   "--model",
+                                   "gpt-5.5",
+                                   "--cd",
+                                   ".",
+                                   "--no-alt-screen",
+                                   "--dangerously-bypass-approvals-and-sandbox"
+                               ],
+                      "model":  "gpt-5.5",
+                      "status":  "active",
+                      "pid":  null,
+                      "created_at":  "2026-06-03T01:07:55.180462Z",
+                      "updated_at":  "2026-06-03T02:31:33.630341700Z",
+                      "exit_code":  null,
+                      "preview":  "H\u001b[K\u001b[70;100H       \u001b[71;15H\u001b[K\u001b[72;2H\u001b[K\u001b[2m\u001b[73;9Hg\u001b[22m\u001b[28C\u001b[K\u001b[74;2H\u001b[K\n\u001b[K\u001b[76;39H\u001b[K\u001b[77;2H\u001b[K\u001b[78;58H\u001b[K\u001b[76;3H\u001b[?25h\u001b[?2026h\u001b[0 q\u001b[?2026l\u001b[?25l\u001b[67;2H\u001b[K\u001b[68;30H\u001b[K\u001b[69;86H\u001b[K\u001b[70;100H       \u001b[71;15H\u001b[K\u001b[72;2H\u001b[K\u001b[73;38H\u001b[K\u001b[74;2H\u001b[K\n\u001b[K\u001b[76;39H\u001b[K\u001b[77;2H\u001b[K\u001b[78;58H\u001b[K\u001b[76;3H\u001b[?25h\u001b[?2026h\u001b[0 q\u001b[?2026l\u001b[?25l\u001b[67;2H\u001b[K\u001b[68;30H\u001b[K\u001b[69;86H\u001b[K\u001b[70;100H       \u001b[71;15H\u001b[K\u001b[72;2H\u001b[K\u001b[73;38H\u001b[K\u001b[74;2H\u001b[K\n\u001b[K\u001b[76;39H\u001b[K\u001b[77;2H\u001b[K\u001b[78;58H\u001b[K\u001b[76;3H\u001b]0;â  Lucas Core v0.1\u0007\u001b[?25h\u001b[?2026h\u001b[0 q\u001b[?2026l\u001b[?25l\u001b[67;2H\u001b[K\u001b[68;30H\u001b[K\u001b[69;86H\u001b[K\u001b[70;100H       \u001b[71;15H\u001b[K\u001b[72;2H\u001b[K\u001b[73;38H\u001b[K\u001b[74;2H\u001b[K\n\u001b[K\u001b[76;39H\u001b[K\u001b[77;2H\u001b[K\u001b[78;58H\u001b[K\u001b[76;3H\u001b[?25h\u001b[?2026h\u001b[0 q\u001b[?2026l\u001b[?25l\u001b[67;2H\u001b[K\u001b[68;30H\u001b[K\u001b[69;86H\u001b[K\u001b[70;100H       \u001b[71;15H\u001b[K\u001b[72;2H\u001b[K\u001b[73;38H\u001b[K\u001b[74;2H\u001b[K\n\u001b[K\u001b[76;39H\u001b[K\u001b[77;2H\u001b[K\u001b[78;58H\u001b[K\u001b[76;3H\u001b]0;â  Lucas Core v0.1\u0007\u001b[?25h\u001b[?2026h\u001b[0 q\u001b[?2026l\u001b[?25l\u001b[67;2H\u001b[K\u001b[68;30H\u001b[K\u001b[69;86H\u001b[K\u001b[70;100H       \u001b[71;15H\u001b[K\u001b[72;2H\u001b[K\u001b[73;38H\u001b[K\u001b[74;2H\u001b[K\n\u001b[K\u001b[76;39H\u001b[K\u001b[77;2H\u001b[K\u001b[78;58H\u001b[K\u001b[76;3H\u001b[?25h\u001b[?2026h\u001b[0 q\u001b[?2026l",
+                      "preview_text":  "H       g\n       \n       \n       \n       \n       \n",
+                      "preview_has_ansi":  true,
+                      "source":  "internal",
+                      "attached":  true,
+                      "interactive":  true,
+                      "input_disabled_reason":  null,
+                      "log":  {
+                                  "path":  "data\\terminal-logs\\ceo.ansi.log",
+                                  "available":  false,
+                                  "bytes":  0,
+                                  "tail_bytes":  0,
+                                  "updated_at":  null
+                              }
+                  },
+                  {
+                      "id":  "dev-lead",
+                      "name":  "Max",
+                      "team":  "development",
+                      "cwd":  "workspaces/dev-lead/repo",
+                      "cmd":  "codex.cmd",
+                      "args":  [
+                                   "--model",
+                                   "gpt-5.5",
+                                   "--cd",
+                                   ".",
+                                   "--no-alt-screen",
+                                   "--dangerously-bypass-approvals-and-sandbox"
+                               ],
+                      "model":  "gpt-5.5",
+                      "status":  "active",
+                      "pid":  null,
+                      "created_at":  "2026-06-03T01:07:55.208190400Z",
+                      "updated_at":  "2026-06-03T02:27:24.894861300Z",
+                      "exit_code":  null,
+                      "preview":  "\u001b[38;5;6mplan.json\u001b[m, \u001b[38;5;6mdata/work-ledger.json\u001b[m, \u001b[38;5;6mdata/system-logs\u001b[m.\u001b[K\r\n\u001b[K\r\n  - Verified live state through \u001b[38;5;6m9001 \u001b[mAPI only.\u001b[K\r\n\u001b[K\r\n  Residual note: \u001b[38;5;6mscripts/start-lcc-agents.ps1 \u001b[mis the correct local bootstrap path for Caesar/Max,   \r\n  but I did not rerun it because both sessions were already active and interactive.\u001b[K\r\n\u001b[K\u001b[2m\r\nâ Worked for 3m 05s ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ\u001b[22m\r\n\u001b[K\r\n\u001b[K\u001b[1m\r\nâº\u001b[22m \u001b[2mRun /review on my current changes\u001b[22m\u001b[K\r\n\u001b[K\r\n  \u001b[38;2;246;226;183mgpt-5.5 medium\u001b[m\u001b[2m Â· \u001b[38;2;171;223;167m\u001b[22mD:\\Lucas Core v0.1\\workspaces\\dev-lead\\repo\u001b[K\u001b[18;3H\u001b[?25h\u001b[m\u001b[?2026h\u001b[0 q\u001b[?2026l\u001b[?25l\u001b[16;2H\u001b[K\n\u001b[K\u001b[18;36H\u001b[K\u001b[19;2H\u001b[K\u001b[20;63H\u001b[K\u001b[18;3H\u001b[?25h\u001b[?2026h\u001b[0 q\u001b[?2026l\u001b[?25l\u001b[16;2H\u001b[K\n\u001b[K\u001b[18;36H\u001b[K\u001b[19;2H\u001b[K\u001b[20;63H\u001b[K\u001b[18;3H\u001b[?25h",
+                      "preview_text":  "plan.json, data/work-ledger.json, data/system-logs.\r\n\r\n  - Verified live state through 9001 API only.\r\n\r\n  Residual note: scripts/start-lcc-agents.ps1 is the correct local bootstrap path for Caesar/Max,   \r\n  but I did not rerun it because both sessions were already active and interactive.\r\n\r\nâ Worked for 3m 05s ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ\r\n\r\n\r\nâº Run /review on my current changes\r\n\r\n  gpt-5.5 medium Â· D:\\Lucas Core v0.1\\workspaces\\dev-lead\\repo\n\n",
+                      "preview_has_ansi":  true,
+                      "source":  "internal",
+                      "attached":  true,
+                      "interactive":  true,
+                      "input_disabled_reason":  null,
+                      "log":  {
+                                  "path":  "data\\terminal-logs\\dev-lead.ansi.log",
+                                  "available":  false,
+                                  "bytes":  0,
+                                  "tail_bytes":  0,
+                                  "updated_at":  null
+                              }
+                  }
+              ],
+    "Count":  2
+}

@@ -1,0 +1,226 @@
+[
+  {
+    "id": "lucas-operations-progress",
+    "title": "Lucas Operations Progress",
+    "owner": "Caesar",
+    "status": "active",
+    "canvas_type": "operations-progress",
+    "members": [
+      "ceo",
+      "dev-lead",
+      "ops-recorder",
+      "qa-lead",
+      "audit-officer"
+    ],
+    "linked_issues": [
+      "ops-progress-space-20260602",
+      "ceo-9100-board-cleanup-20260602",
+      "decision-blocker-portal-20260602",
+      "terminal-buffer-instant-render-20260602",
+      "memory-system-hq",
+      "portable-release-20260603",
+      "hkl-auth-manual-handover-20260602"
+    ],
+    "linked_meetings": [],
+    "content": [
+      {
+        "id": "summary",
+        "title": "ÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ´ÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ½",
+        "body": "Ledger-first operations board for Lucas. Source of truth: data/work-ledger.json, data/agent-ops-events.jsonl, data/caesar-patrol-latest.json, and session reports. Current posture is needs_attention: terminal P0 remains a user-visible fail, 9000 PID is 44132, 9001 PID 1656 is preserved, the next CEO report is due within 5 minutes, and developer-7 remains Lucas direct only."
+      },
+      {
+        "id": "active-items",
+        "title": "ÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂ§ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ­ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂ¤ÃÂÃÂÃÂÃÂ ÃÂÃÂÃÂÃÂ­ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ­ÃÂÃÂÃÂÃÂ«ÃÂÃÂÃÂÃÂªÃÂÃÂÃÂÃÂ©",
+        "body": "- hkl-auth-manual-handover-20260602: HKL manual/handover package remains active; final scope/source inventory still pending.\n- terminal-buffer-instant-render-20260602: P0 user-visible fail. Hard-reset direction remains: grid cards must be static bounded tail/status only, with interactive terminal limited to focused/fullscreen/popout.\n- terminal-input-text-loss-20260602: reopened as P0. Korean/long text loss during composition outranks visual polish until QA proves IME-safe draft preservation and full submitted text capture.\n- memory-system-hq: non-volatile memory/restart recovery, memory API/runtime evidence pending.\n- portable-release-20260603: second-PC portability target by 2026-06-03, dry-run evidence pending.\n- decision-blocker-portal-20260602: decision/blocker portal active; freshness owned by Ops Recorder.\n- ceo-9100-board-cleanup-20260602: 9100 work now reframed as executive-board redesign after terminal P0 closure, not raw-list cleanup first."
+      },
+      {
+        "id": "blockers",
+        "title": "ÃÂÃÂÃÂÃÂ­ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¬ ÃÂÃÂÃÂÃÂ«ÃÂÃÂÃÂÃÂ¸ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ«ÃÂÃÂÃÂÃÂ¡ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂ»ÃÂÃÂÃÂÃÂ¤",
+        "body": "- terminal-buffer-instant-render-20260602 remains a user-visible fail: Lucas reports the buffer still flows/replays too much, so prior ready/done claims are invalidated.\n- terminal-input-text-loss-20260602 is P0 because Korean/long text can disappear mid-composition before ledger capture.\n- QA has not yet produced a passing focused proof for zero grid xterm previews, no replay storm, preserved Korean textarea draft, and interactive fullscreen/popout.\n- Audit keeps the Caesar emergency diff uncommitted and unratified until Max scopes the fix and QA passes.\n- 9100 raw-list board remains stale/noisy and needs redesign into a card/progress executive board after terminal P0 stabilization.\n- Memory API/runtime evidence incomplete on active runtime; QA reports memory routes/gates not fully passed.\n- Portable release lacks second-PC dry-run evidence bundle.\n- HKL package boundary still needs source inventory consolidation."
+      },
+      {
+        "id": "decisions",
+        "title": "Lucas ÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂªÃÂÃÂÃÂÃÂ²ÃÂÃÂÃÂÃÂ°ÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂ ÃÂÃÂÃÂÃÂ ÃÂÃÂÃÂÃÂ­ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¬ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ",
+        "body": "- Runtime decision recorded: 9000 may restart for UI fixes without further approval; 9001 must remain PID 1656 unless Lucas explicitly approves otherwise.\n- Terminal decision now fixed by CEO: grid live xterm is OFF. Grid cards are static bounded tail/status only; interactive terminal belongs to focused/fullscreen/popout surfaces.\n- Input-text-loss priority is above visual polish until Korean IME and long wrapped text are proven safe.\n- 9100 requirement changed: redesign as a card/progress executive board rather than a raw list once terminal P0 is stabilized.\n- Portable priority recommendation: memory/restart/ledger portability first, UI polish second.\n- HKL handover scope: Android now required; iOS/G10 included as reference unless TF identifies mandatory delivery content."
+      },
+      {
+        "id": "eta",
+        "title": "ETA",
+        "body": "- Terminal hard reset remains active; latest Max trail still assigns developer-1 owner and developer-4 QA, but visible acceptance is not yet met.\n- Terminal issues target remains visible resolution by 14:00 KST, but current status is on-track only if the next patch removes grid replay/flow and text loss together.\n- Input text loss reproduce/fix ETA: Max must keep a 10-minute reporting cadence until 14:00 KST; latest lane is still open, not done.\n- 9100 redesign is deferred behind terminal stabilization; no clean ETA should be treated as committed yet.\n- Memory/portable evidence gate: same-day collection, second-PC proof remains release blocker."
+      },
+      {
+        "id": "owners",
+        "title": "ÃÂÃÂÃÂÃÂ«ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ´ÃÂÃÂÃÂÃÂ«ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¹",
+        "body": "- Caesar: supervision, staffing, blocker/decision summary.\n- Max: terminal/input P0 assignment, review, commit gate, and 10-minute CEO updates.\n- Developer-1: terminal-tail/input technical owner support; current visible patch lane owner per Max trail.\n- Developer-8: support on terminal composer/input path and later 9100 redesign owner.\n- Developer-4 + QA Gate: focused UI/CDP/DOM/build evidence for text loss, grid no-xterm proof, and fullscreen/popout interactivity.\n- Audit Officer: policy, dirty worktree, emergency-diff commit boundary; keep current diff uncommitted until ratified.\n- Ops Recorder: this progress board, decision portal, and CEO-facing freshness.\n- Developer-7: Lucas direct only."
+      },
+      {
+        "id": "evidence",
+        "title": "ÃÂÃÂÃÂÃÂªÃÂÃÂÃÂÃÂ·ÃÂÃÂÃÂÃÂ¼ÃÂÃÂÃÂÃÂªÃÂÃÂÃÂÃÂ±ÃÂÃÂÃÂÃÂ°",
+        "body": "- Runtime PIDs: 9000 PID 44132; 9001 PID 1656 preserved.\n- data/work-ledger.json tasks: ops-progress-space-20260602, ceo-9100-board-cleanup-20260602, terminal-buffer-instant-render-20260602, terminal-input-text-loss-20260602, memory-system-hq.\n- data/caesar-patrol-latest.json at latest check remains needs_attention with idleLikeAgents=11 and recent terminal anomalies.\n- Current terminal QA evidence: data/system-logs/terminal-buffer-instant-render-20260602/main-9000.png, data/system-logs/terminal-buffer-instant-render-20260602/fullscreen-9000.png, data/system-logs/terminal-buffer-instant-render-20260602/terminal-buffer-qa.json, data/system-logs/terminal-buffer-instant-render-20260602/terminal-buffer-qa-summary.txt.\n- data/agent-ops-events.jsonl contains the latest Max/developer-1/developer-4 terminal orders and ETA trail.\n- 9100 redesign requirement recorded: card/progress executive board rather than raw list."
+      }
+    ],
+    "messages": [],
+    "created_at": "2026-06-02T04:02:10.108609Z",
+    "updated_at": "2026-06-02T05:12:29.099659500Z"
+  },
+  {
+    "id": "lucas-decision-blocker-portal",
+    "title": "Lucas Decision and Blocker Portal",
+    "owner": "Caesar",
+    "status": "active",
+    "canvas_type": "decision-portal",
+    "members": [
+      "ceo",
+      "dev-lead",
+      "ops-recorder",
+      "audit-officer",
+      "qa-lead"
+    ],
+    "linked_issues": [
+      "decision-blocker-portal-20260602",
+      "memory-system-hq",
+      "portable-release-20260603",
+      "terminal-buffer-instant-render-20260602",
+      "hkl-auth-manual-handover-20260602"
+    ],
+    "linked_meetings": [],
+    "content": [
+      {
+        "id": "decisions-needed",
+        "title": "Decisions Needed",
+        "body": "- Terminal decision is now explicit: grid live xterm is off. Grid cards must stay static bounded tail/status only; interactive terminal belongs to focused/fullscreen/popout.\n- Text-loss decision is also explicit: terminal-input-text-loss-20260602 outranks visual polish until Korean IME and long text are proven safe.\n- 9100 direction changed: redesign into a card/progress executive board rather than continuing as a raw-list cleanup once terminal P0 is stabilized.\n- Memory/portable scope remains: prioritize restart memory + ledgers first, UI polish second.\n- HKL handover: decide final manual package boundary after TF source inventory confirms Android/iOS/G10 scope."
+      },
+      {
+        "id": "blockers",
+        "title": "Current Blockers",
+        "body": "- terminal-buffer-instant-render-20260602: user-visible fail persists. Lucas still sees replay/flow problems, so prior ready claims are invalid; patch remains blocked pending new Max/developer-1/developer-4/audit evidence.\n- terminal-input-text-loss-20260602: Korean/long text can disappear mid-composition, risking loss before ledger capture; this is now terminal P0.\n- memory-system-hq: commit gate depends on QA evidence, restart-risk note, and auto-memory contract.\n- portable-release-20260603: second-PC dry-run and durable data migration proof still pending.\n- hkl-auth-manual-handover-20260602: source inventory and final package boundary still being consolidated by HKL TF."
+      },
+      {
+        "id": "memory-recovery",
+        "title": "Memory Recovery Contract",
+        "body": "Restart recovery must load, in order: AGENTS.md, boot context, command/state policies, agent boot prompts, work-ledger, ceo-command-ledger, memory-ledger/recovered context, branch decisions, latest agent ops events, relevant terminal log tails, and canvas decision portal. Terminal scrollback is evidence only, not primary memory."
+      },
+      {
+        "id": "owners",
+        "title": "Owners",
+        "body": "- Caesar: supervision, staffing, decision summary, commit gate coherence.\n- Max: implementation decomposition and developer assignment.\n- Ops Recorder: hourly report and blocker summary maintenance.\n- Audit Officer: policy/dirty-worktree/commit boundary review.\n- QA Gate: evidence gate before done/commit.\n- Developer-7: Lucas direct only, excluded from automation."
+      },
+      {
+        "id": "next-actions",
+        "title": "Next Actions",
+        "body": "1. Max reports terminal P0 owner/QA/ETA every 10 minutes until 14:00 KST, with 9000 restart allowed and 9001 PID 1656 preserved.\n2. Ops Recorder keeps this portal and Lucas Operations Progress current from ledger/events/session reports.\n3. Audit Officer keeps the Caesar emergency diff uncommitted until the scoped terminal fix is ratified and QA passes.\n4. QA Gate collects focused evidence for text-loss safety, zero grid xterm previews, no replay storm, and fullscreen/popout interactivity.\n5. 9100 redesign resumes only after terminal P0 user-visible acceptance is met."
+      }
+    ],
+    "messages": [],
+    "created_at": "2026-06-02T03:28:56.673867900Z",
+    "updated_at": "2026-06-02T14:15:00.000000000Z"
+  },
+  {
+    "id": "caesar-hourly-reports",
+    "title": "Caesar Hourly Reports",
+    "owner": "Caesar",
+    "status": "active",
+    "canvas_type": "executive-report",
+    "members": [
+      "ceo",
+      "dev-lead"
+    ],
+    "linked_issues": [
+      "caesar-hourly-reporting",
+      "portable-release-20260603",
+      "hkl-auth-manual-handover-20260602"
+    ],
+    "linked_meetings": [],
+    "content": [
+      {
+        "id": "status",
+        "title": "Current Status",
+        "body": "Report at 2026-06-02T03:20:58.034Z\n\nOperating mode: ledger-first continuous operation.\n9001 preserved. developer-7 protected for Lucas direct work.\nPatrol status: needs_attention"
+      },
+      {
+        "id": "active-ledgers",
+        "title": "Active Ledgers",
+        "body": "- hkl-auth-manual-handover-20260602: doing, priority=160\n  Lucas daily goal 2026-06-02 KST: write Heungkuk Life integrated-auth manual and prepare handover while LCC Core portability work continues. Raise four visible GPT-5.4 HKL handover TF agents on 9001. Preserve developer-7 for Lucas direct work; do not restart 9001.\n\n- portable-release-20260603: doing, priority=140\n  Lucas goal: by 2026-06-03 KST make LCC Core v0.1 portable to another PC, including HQ-style memory baseline. Release plan: docs/portable-release-plan-20260602.md. Exclude developer-7; preserve 9001 live singleton; prove fresh-clone/bootstrap/memory/ledger/terminal UX gates.\n\n- p0-terminal-stability-20260601: doing, priority=130\n  CEO directive terminal-stability-zeroth. Separate durable audit log from bounded UI replay/preview. No 9001 restart unless explicitly justified with PID before/after and context-risk note. Owners: Max, developer-1, developer-2, developer-3, developer-4.\n\n- meeting-first: doing, priority=129\n  Linked from ceo-command-ledger item meeting-first. Max owns ledger-based execution. developer-2 HQ benchmark/contract, developer-5 UI patch candidate, developer-3/developer-6 ledger link/no-data-loss, developer-4 QA/CDP gate. developer-7 is excluded and reserved for Lucas direct remote-debug only.\n\n- memory-system-hq: doing, priority=128\n  CEO -> Max memory-system-hq. Caesar implemented first-cut memory API in apps/api/src/main.rs and benchmark doc docs/hq-memory-system-benchmark-20260601.md. Max tracks follow-up assignments: API review, web recovered-context panel, auto-memory from work-ledger events, QA plan. developer-7 reserved for Lucas direct remote-debug. No commit until QA evidence and restart-risk note are ready.\n\n- mira-ledger-dev-team-up-supervision: doing, priority=121\n  ACK dev-team-up state=acknowledged owner=mira-ledger. Track Development Team P0 execution visibility, Spring MSA TF schedule/readiness, and port 9002 stability supervision. 2026-05-31 17:26 KST check: 9002 HTTP returned 200; local listener PID 28104 observed.\n\n- p0-ui-overlay-occlusion: doing, priority=119\n  Owner Dev Alpha. Acceptance: local disconnect/status overlay and ledger floating badge removed/repositioned or made draggable/dockable; no occlusion of primary controls/input/footer; position persistence if feasible.\n\n- p0-newline-audit-1410: doing, priority=118\n  All staff must inspect own terminal and subordinate terminals. Required pty lines: ACK newline-audit <role>; REPORT newline-audit status=<ok|affected|fixed|blocked> evidence=<exact terminal/session/file/test>. Scope: bottom chat input, terminal internal composer, fullscreen/modal composer, Shift+Enter newline, Enter submit, IME composing Enter, image attach/delivery path, command no-response, plan wait, Enter wait."
+      },
+      {
+        "id": "staffing",
+        "title": "Staffing",
+        "body": "- development: 9/9 active\n- executive: 1/1 active\n- hkl-handover-tf: 4/4 active\n\nHKL handover TF: 4/4 active\nDeveloper 7: active (2026-06-02T00:43:38.245104100Z)"
+      },
+      {
+        "id": "blockers",
+        "title": "Blockers",
+        "body": "- progress100NotDone=qa-cdp-policy\n- idleLikeAgents=10"
+      },
+      {
+        "id": "next-hour",
+        "title": "Next Hour",
+        "body": "- Collect Max visible REPORT for ledger operations.\n- Collect HKL handover TF artifacts and merge into manual package.\n- Continue portable-release gates: memory, restart context, second-PC readiness, terminal UX evidence.\n- Keep developer-7 excluded from automated dispatch."
+      },
+      {
+        "id": "evidence",
+        "title": "Evidence",
+        "body": "- data/caesar-patrol-latest.json\n- data/agent-ops-events.jsonl\n- data/system-logs/agent-work-dispatcher-loop.log\n- data/system-logs/terminal-tab-isolation-20260602/report.json"
+      }
+    ],
+    "messages": [
+      {
+        "id": "msg-1780370458067",
+        "author": "Caesar",
+        "body": "REPORT caesar-hourly at=2026-06-02T03:20:58.034Z state=needs_attention active_ledgers=hkl-auth-manual-handover-20260602,portable-release-20260603,p0-terminal-stability-20260601,meeting-first,memory-system-hq,mira-ledger-dev-team-up-supervision,p0-ui-overlay-occlusion,p0-newline-audit-1410 staffing=hkl_tf:4/4,dev7:active blockers=progress100NotDone=qa-cdp-policy;idleLikeAgents=10 next=collect Max/HKL TF reports and continue portable-release gates",
+        "created_at": "2026-06-02T03:20:58.067586500Z"
+      }
+    ],
+    "created_at": "2026-06-02T03:20:58.028828700Z",
+    "updated_at": "2026-06-02T03:20:58.067601200Z"
+  },
+  {
+    "id": "canvas-1780159493640",
+    "title": "LCC Core Smoke Canvas",
+    "owner": "Lucas",
+    "status": "active",
+    "canvas_type": "issue",
+    "members": [
+      "lcc-test-1"
+    ],
+    "linked_issues": [],
+    "linked_meetings": [],
+    "content": [
+      {
+        "id": "problem",
+        "title": "Problem",
+        "body": ""
+      },
+      {
+        "id": "decision",
+        "title": "Decision",
+        "body": ""
+      },
+      {
+        "id": "tasks",
+        "title": "Tasks",
+        "body": ""
+      },
+      {
+        "id": "evidence",
+        "title": "Evidence",
+        "body": ""
+      },
+      {
+        "id": "terminal-agents",
+        "title": "Terminal Agents",
+        "body": ""
+      }
+    ],
+    "messages": [
+      {
+        "id": "msg-1780159506505",
+        "author": "Lucas",
+        "body": "smoke message ok",
+        "created_at": "2026-05-30T16:45:06.505146700Z"
+      }
+    ],
+    "created_at": "2026-05-30T16:44:53.640864900Z",
+    "updated_at": "2026-05-30T16:45:06.505152400Z"
+  }
+]

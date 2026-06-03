@@ -1,0 +1,117 @@
+{
+  "version": "2026-05-31.branch-org.v1",
+  "updated_at": "2026-05-31T15:08:00+09:00",
+  "policy": {
+    "active_agent_limit": 20,
+    "storage": "file-based",
+    "restart_strategy": "sequential replacement only; no full restart while active work is in progress",
+    "branch_director": {
+      "call_sign": "Branch Director",
+      "role": "overall priority, HQ communication, review, decisions"
+    }
+  },
+  "active_slots": [
+    {
+      "slot": 1,
+      "current_session_id": "dev-lead",
+      "target_session_id": "chief-min",
+      "call_sign": "Chief Min",
+      "primary_team": "development",
+      "role": "development lead and execution board owner",
+      "restart_status": "defer_until_current_work_reports"
+    },
+    {
+      "slot": 2,
+      "current_session_id": "infra-admin",
+      "target_session_id": "han-ops",
+      "call_sign": "Han Ops",
+      "primary_team": "infrastructure",
+      "role": "session health, live ports, 6-person limit enforcement",
+      "restart_status": "defer_until_current_work_reports"
+    },
+    {
+      "slot": 3,
+      "current_session_id": "developer-8",
+      "target_session_id": "caden-android",
+      "call_sign": "Caden Android",
+      "primary_team": "development",
+      "role": "Android WebView joint certificate implementation owner",
+      "restart_status": "defer_until_current_work_reports"
+    },
+    {
+      "slot": 4,
+      "current_session_id": "developer-3",
+      "target_session_id": "seo-security",
+      "call_sign": "Seo Security",
+      "primary_team": "development",
+      "role": "security and regression review",
+      "restart_status": "defer_until_current_work_reports"
+    },
+    {
+      "slot": 5,
+      "current_session_id": "developer-5",
+      "target_session_id": "mira-ledger",
+      "call_sign": "Mira Ledger",
+      "primary_team": "strategy",
+      "role": "work ledger, Korean clarity, status visibility",
+      "restart_status": "defer_until_current_work_reports"
+    },
+    {
+      "slot": 6,
+      "current_session_id": "developer-9",
+      "target_session_id": "joon-msa",
+      "call_sign": "Joon MSA",
+      "primary_team": "strategy",
+      "role": "Spring MSA study brief and HQ learning history",
+      "restart_status": "defer_until_current_work_reports"
+    }
+  ],
+  "teams": {
+    "executive": [
+      "Branch Director",
+      "Chief Min",
+      "Han Ops"
+    ],
+    "development": [
+      "Branch Director",
+      "Chief Min",
+      "Caden Android",
+      "Seo Security",
+      "Mira Ledger",
+      "Joon MSA"
+    ],
+    "infrastructure": [
+      "Branch Director",
+      "Han Ops",
+      "Chief Min",
+      "Seo Security"
+    ],
+    "strategy": [
+      "Branch Director",
+      "Chief Min",
+      "Mira Ledger",
+      "Joon MSA"
+    ],
+    "SpringMSA TF": [
+      "Chief Min",
+      "Joon MSA",
+      "Researcher 1",
+      "Researcher 2",
+      "Researcher 3",
+      "Researcher 4"
+    ],
+    "Development Team": [
+      "Chief Min",
+      "Dev Lead",
+      "Developer 1",
+      "Developer 2",
+      "Developer 3",
+      "Developer 4"
+    ],
+    "context_management": [
+      "Chief Min",
+      "SpringMSA TF",
+      "Development Team"
+    ]
+  }
+}

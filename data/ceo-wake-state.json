@@ -1,0 +1,6 @@
+{
+  "lastCeoWakeAt": 1780446639206,
+  "lastMaxEscalationAt": 1780421054043,
+  "updatedAt": "2026-06-03T00:32:39.199Z",
+  "lastFingerprint": "{\"status\":\"ok\",\"activeTaskCount\":42,\"activeP0\":[{\"id\":\"P0-terminal-stability-operator-input-20260603\",\"status\":\"doing\",\"owner\":null,\"priority\":300},{\"id\":\"terminal-input-newline-regression-20260603\",\"status\":\"doing\",\"owner\":null,\"priority\":299},{\"id\":\"terminal-live-render-stale-until-refresh-20260603\",\"status\":\"doing\",\"owner\":null,\"priority\":298},{\"id\":\"terminal-prompt-split-api-lock-20260603\",\"status\":\"doing\",\"owner\":null,\"priority\":298},{\"id\":\"terminal-buffer-16kb-policy-20260603\",\"status\":\"doing\",\"owner\":null,\"priority\":297},{\"id\":\"terminal-scrollbar-visible-hq-20260603\",\"status\":\"doing\",\"owner\":null,\"priority\":296},{\"id\":\"terminal-chat-clipboard-image-capture-20260603\",\"status\":\"doing\",\"owner\":null,\"priority\":295},{\"id\":\"terminal-composer-overlay-polish-20260603\",\"status\":\"doing\",\"owner\":null,\"priority\":294}],\"staleOwners\":[],\"pausedWithContext\":[]}"
+}

@@ -4,7 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-lcc-core.ps1",
+    "dev:admin-web": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-lcc-core.ps1 -ElevatedWeb",
+    "dev:pm2": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-lcc-pm2.ps1",
     "web": "bun --cwd apps/web dev",
+    "ledger:9100": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-9100-ledger-board.ps1",
+    "ledger:9100:admin": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-9100-ledger-board.ps1 -Elevated",
     "build": "bun --cwd apps/web build",
     "api": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-api.ps1",
     "check": "cargo check --manifest-path apps/api/Cargo.toml"

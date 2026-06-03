@@ -141,7 +141,7 @@ function safePromptForTerminal(prompt, meta = {}) {
   const taskPart = meta.taskId ? `item=${meta.taskId}` : "item=ledger";
   const pointer = `[원장 지시 ${dispatchId}] ${taskPart}. 상세는 data/agent-ops-events.jsonl dispatchId=${dispatchId} 확인. 10분 내 item/doing/next/blocker/evidence 보고.`;
   return {
-    data: `${pointer}\r`,
+    data: pointer,
     dispatchId,
     originalLineCount: lines.length,
     originalBytes: Buffer.byteLength(original, "utf8"),
@@ -384,12 +384,36 @@ async function writePrompt(sessionId, prompt, meta = {}) {
       fullPrompt: prompt
     });
   }
+  const textResponse = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(sessionId)}/prompt-text`, {
+    method: "POST",
+    headers: { "content-type": "application/json; charset=utf-8" },
+    body: JSON.stringify({ data: encoded.data })
+  });
+  if (textResponse.ok) {
+    const submitResponse = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(sessionId)}/prompt-submit`, {
+      method: "POST",
+      headers: { "content-type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ repeat: 1 })
+    });
+    if (!submitResponse.ok) throw new Error(`${sessionId} prompt-submit failed: ${submitResponse.status} ${await submitResponse.text()}`);
+    return;
+  }
+  if (textResponse.status !== 404 && textResponse.status !== 405) {
+    throw new Error(`${sessionId} prompt-text failed: ${textResponse.status} ${await textResponse.text()}`);
+  }
   const response = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(sessionId)}/write`, {
     method: "POST",
     headers: { "content-type": "application/json; charset=utf-8" },
     body: JSON.stringify({ data: encoded.data })
   });
   if (!response.ok) throw new Error(`${sessionId} write failed: ${response.status} ${await response.text()}`);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const submitResponse = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(sessionId)}/write`, {
+    method: "POST",
+    headers: { "content-type": "application/json; charset=utf-8" },
+    body: JSON.stringify({ data: "" })
+  });
+  if (!submitResponse.ok) throw new Error(`${sessionId} fallback submit failed: ${submitResponse.status} ${await submitResponse.text()}`);
 }
 
 async function createSession(input) {

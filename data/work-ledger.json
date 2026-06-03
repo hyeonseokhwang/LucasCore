@@ -1,0 +1,1396 @@
+{
+  "tasks": [
+    {
+      "id": "year-end-tax-hourly-reminder",
+      "title": "Year-end tax hourly reminder",
+      "status": "todo",
+      "priority": 1,
+      "due_at": null,
+      "reminder_minutes": 60,
+      "last_reminded_at": null,
+      "notes": "Daily objective seed.",
+      "updated_at": "2026-06-02T15:52:03.157668700Z"
+    },
+    {
+      "id": "spring-msa-study-2000",
+      "title": "Spring MSA study 20:00",
+      "status": "todo",
+      "priority": 2,
+      "due_at": "2026-06-02T11:00:00Z",
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "20:00 KST stored as 11:00 UTC.",
+      "updated_at": "2026-06-02T15:52:03.157668700Z"
+    },
+    {
+      "id": "heungkuk-android-final-package",
+      "title": "Heungkuk Android final package",
+      "status": "todo",
+      "priority": 3,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Daily objective seed.",
+      "updated_at": "2026-06-02T15:52:03.157668700Z"
+    },
+    {
+      "id": "terminal-scrollbar-visible-hq-20260603",
+      "title": "P0 Terminal child: visible scrollbar for retained scrollback",
+      "status": "doing",
+      "priority": 296,
+      "due_at": null,
+      "reminder_minutes": 15,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Terminal Stability. Acceptance: card/fullscreen/popout expose usable scrollbar or clear xterm scroll rail for retained 16KB; wheel/manual scroll works; no one-character wrapping; evidence screenshot + DOM metrics + console.",
+      "updated_at": "2026-06-02T18:27:32.828614900Z"
+    },
+    {
+      "id": "max-team-policy-ops-resume-20260603",
+      "title": "P1 Ops child: Max resumes dev-led execution from ledger",
+      "status": "doing",
+      "priority": 278,
+      "due_at": null,
+      "reminder_minutes": 15,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Company Ops. Max inspects ledger and staffs only needed active items. Long reports go to ledger/evidence files; PTY reports stay concise.",
+      "updated_at": "2026-06-02T19:35:26.193700100Z"
+    },
+    {
+      "id": "terminal-chat-clipboard-image-capture-20260603",
+      "title": "P0 Terminal child: clipboard image capture in chat composer",
+      "status": "doing",
+      "priority": 295,
+      "due_at": null,
+      "reminder_minutes": 15,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Terminal Stability. Acceptance: paste screenshot/image into composer, visible attachment state, submit/delivery path recorded, Korean text and Enter/Shift+Enter unaffected.",
+      "updated_at": "2026-06-02T16:44:25.344347400Z"
+    },
+    {
+      "id": "terminal-composer-overlay-polish-20260603",
+      "title": "P0 Terminal child: composer overlay and bottom chrome polish",
+      "status": "doing",
+      "priority": 294,
+      "due_at": null,
+      "reminder_minutes": 15,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Terminal Stability. Acceptance: clean bottom composer layout, no overlap, helper text not intrusive, image attach button clear, screenshot/DOM/console evidence.",
+      "updated_at": "2026-06-02T16:44:25.353478700Z"
+    },
+    {
+      "id": "max-dynamic-staffing-policy-20260603",
+      "title": "P1 Ops child: Max dynamically adjusts staffing",
+      "status": "doing",
+      "priority": 277,
+      "due_at": null,
+      "reminder_minutes": 15,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Company Ops. Max decides dev staffing by active ledger demand, records owner/item/evidence/blocker/next, avoids full fleet by default.",
+      "updated_at": "2026-06-02T19:24:17.921602700Z"
+    },
+    {
+      "id": "caesar-ledger-ops-resume-20260603",
+      "title": "P1 Ops child: Caesar ledger-based operation resumed",
+      "status": "doing",
+      "priority": 279,
+      "due_at": null,
+      "reminder_minutes": 15,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Company Ops. Caesar supervises ledger/policy/QA/commit gates and records decisions thoroughly because DB/embedding memory is intentionally not used.",
+      "updated_at": "2026-06-02T17:57:04.841963900Z"
+    },
+    {
+      "id": "ledger-priority-classification-20260603",
+      "title": "P0 Ledger child: priority classification and readable view",
+      "status": "doing",
+      "priority": 288,
+      "due_at": null,
+      "reminder_minutes": 15,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Ledger/9100. Acceptance: P0/P1/P2/Paused/Done visible; owner/state/next/blocker/evidence/last update/decision-needed visible.",
+      "updated_at": "2026-06-02T19:25:05.867831200Z"
+    },
+    {
+      "id": "caesar-ledger-page-ownership-20260603",
+      "title": "P0 Ledger child: Caesar owns ledger page management",
+      "status": "doing",
+      "priority": 287,
+      "due_at": null,
+      "reminder_minutes": 15,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Ledger/9100. Caesar owns structure/readability and may appoint a secretary. Product implementation still follows Max/dev/QA gates.",
+      "updated_at": "2026-06-02T16:44:25.391269200Z"
+    },
+    {
+      "id": "commit-branch-discipline-20260603",
+      "title": "P1 Governance child: scoped commits and branch discipline",
+      "status": "doing",
+      "priority": 267,
+      "due_at": null,
+      "reminder_minutes": 15,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Governance. Commit each completed verified unit; use branches for risky workstreams; no unrelated dirty commits.",
+      "updated_at": "2026-06-02T16:44:25.473933700Z"
+    },
+    {
+      "id": "policy-management-hq-alignment-20260603",
+      "title": "P1 Governance child: policy management and mandatory ACK",
+      "status": "doing",
+      "priority": 268,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Governance. Agents must read policy/ledger and ACK before work; policy changes generate re-briefing; benchmark HQ policy handling where useful.",
+      "updated_at": "2026-06-02T16:44:25.461612500Z"
+    },
+    {
+      "id": "human-company-operations-policy-20260603",
+      "title": "P1 Governance child: human-company operating model",
+      "status": "doing",
+      "priority": 266,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Governance. Clear roles, respectful concise reporting, explicit blockers, handoffs with evidence, staffing by Max, governance by Caesar.",
+      "updated_at": "2026-06-02T16:44:25.485378700Z"
+    },
+    {
+      "id": "terminal-32kb-scrollback-guarantee-20260603",
+      "title": "Done/Superseded: 32KB scrollback requirement replaced by 16KB policy",
+      "status": "done",
+      "priority": 120,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Superseded by terminal-buffer-16kb-policy-20260603. Historical requirement retained for traceability: user must be able to scroll retained terminal space. Active target is now 16KB, not 32KB.",
+      "updated_at": "2026-06-02T16:44:25.362138700Z"
+    },
+    {
+      "id": "terminal-input-newline-regression-20260603",
+      "title": "P0 Terminal child: newline/submit regression blocks agent directives",
+      "status": "doing",
+      "priority": 299,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Terminal Stability. Active fix path is split prompt injection. Acceptance: source has separate text injection and Enter submit API/WS contracts; 9000 waits for textAck + submitAck; automation scripts use split API with legacy /write fallback only until live 9001 reload; CDP evidence confirms composer DOM value, WS ACKs, console clean, and no mojibake/newline loss. Do not close until controlled 9001 reload and 9000 runtime QA are complete.",
+      "updated_at": "2026-06-02T18:14:18.528548900Z"
+    },
+    {
+      "id": "ledger-hierarchy-taxonomy-9100-20260603",
+      "title": "P0 Ledger child: parent-child ledger taxonomy for 9100",
+      "status": "doing",
+      "priority": 289,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Ledger/9100. Acceptance: parent category -> child issue -> acceptance/evidence model; preserve IDs/history; show duplicate/merged relationships.",
+      "updated_at": "2026-06-02T16:44:25.504071400Z"
+    },
+    {
+      "id": "remove-legacy-9002-ops-references-20260603",
+      "title": "P0 Ledger child: remove stale 9002 ops assumptions",
+      "status": "doing",
+      "priority": 285,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Ledger/9100. Current control plane is 9000 web, 9001 API/PTY singleton, 9100 ledger; 9002 is historical only.",
+      "updated_at": "2026-06-02T18:14:18.479767700Z"
+    },
+    {
+      "id": "terminal-buffer-16kb-policy-20260603",
+      "title": "P0 Terminal child: retained terminal buffer policy is 16KB",
+      "status": "doing",
+      "priority": 297,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Terminal Stability. Lucas reduced volatile retained terminal space from 32KB to 16KB. Acceptance: API/web constants and tests are 16KB; retained buffer remains scrollable; durable evidence stays separate; API-side runtime requires controlled 9001 restart.",
+      "updated_at": "2026-06-02T16:44:25.321023800Z"
+    },
+    {
+      "id": "terminal-live-render-stale-until-refresh-20260603",
+      "title": "P0 Terminal child: live render must not require browser refresh",
+      "status": "doing",
+      "priority": 298,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Terminal Stability. Acceptance: terminal cards continue updating during long Codex work; reconnect/replay recovers automatically; screenshot/DOM/console/API updated_at evidence required.",
+      "updated_at": "2026-06-02T19:30:03.934556500Z"
+    },
+    {
+      "id": "agent-layout-rank-order-20260603",
+      "title": "P0 Ledger child: agent layout rank order",
+      "status": "doing",
+      "priority": 286,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Ledger/9100. Caesar fixed far-left, Max next-left, remaining agents by rank/role/active P0 need.",
+      "updated_at": "2026-06-02T16:44:25.402600800Z"
+    },
+    {
+      "id": "quality-freeze-regression-architecture-policy-20260603",
+      "title": "P1 Governance child: frozen contracts and clean architecture boundaries",
+      "status": "doing",
+      "priority": 269,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Governance. Completed features become frozen contracts; future touching changes require impacted feature IDs, regression suite, evidence, and scoped commit. Terminal input is first case study.",
+      "updated_at": "2026-06-02T18:22:12.237624600Z"
+    },
+    {
+      "id": "P0-terminal-stability-operator-input-20260603",
+      "title": "P0 Parent: Terminal Stability and Operator Input",
+      "status": "doing",
+      "priority": 300,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Parent category for immediate unblock. Children in priority order: terminal-input-newline-regression-20260603; terminal-live-render-stale-until-refresh-20260603; terminal-buffer-16kb-policy-20260603; terminal-scrollbar-visible-hq-20260603; terminal-chat-clipboard-image-capture-20260603; terminal-composer-overlay-polish-20260603. Acceptance: agents can receive concise ledger directives, terminal renders live without manual refresh, retained 16KB is scrollable, composer text/image handling is usable, evidence and commits are recorded.",
+      "updated_at": "2026-06-02T17:25:41.245602300Z"
+    },
+    {
+      "id": "P0-ledger-9100-operations-20260603",
+      "title": "P0 Parent: Ledger and 9100 Operating View",
+      "status": "doing",
+      "priority": 290,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Parent category for ledger operating system. Active children now include ledger-hierarchy-taxonomy-9100-20260603, ledger-priority-classification-20260603, caesar-ledger-page-ownership-20260603, ledger-edit-freeze-gate-20260603, ledger-event-driven-dispatch-20260603, ledger-ops-onoff-toggle-20260603, and ledger-secretary-areum-permanent-20260603. Principle: Areum curates ledger proposals, Caesar approves, event dispatcher executes after freeze/approval gates.",
+      "updated_at": "2026-06-02T17:58:22.147732500Z"
+    },
+    {
+      "id": "P1-company-operations-staffing-20260603",
+      "title": "P1 Parent: Company Operations and Staffing",
+      "status": "doing",
+      "priority": 280,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Parent category for operating rhythm. Children: caesar-ledger-ops-resume-20260603; max-team-policy-ops-resume-20260603; max-dynamic-staffing-policy-20260603; ledger-secretary-areum-20260603. Acceptance: Caesar supervises policy/ledger/QA/commit gates; Max dynamically staffs dev work; Areum supports ledger clarity and evidence collation; no idle drift.",
+      "updated_at": "2026-06-02T16:44:25.269271600Z"
+    },
+    {
+      "id": "P1-governance-quality-freeze-20260603",
+      "title": "P1 Parent: Governance, Policy, Quality Freeze",
+      "status": "doing",
+      "priority": 270,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Parent category for policy and change discipline. Children: quality-freeze-regression-architecture-policy-20260603; policy-management-hq-alignment-20260603; commit-branch-discipline-20260603; human-company-operations-policy-20260603. Acceptance: completed features have frozen contracts; touching them requires regression evidence; agents must ACK policy and work from ledger; commits are scoped by verified unit.",
+      "updated_at": "2026-06-02T16:44:25.277706900Z"
+    },
+    {
+      "id": "ledger-secretary-areum-20260603",
+      "title": "Hire Areum as Caesar ledger secretary",
+      "status": "doing",
+      "priority": 279,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Lucas authorized Caesar to appoint a secretary if needed. Areum role: ledger secretary and operating-record assistant under Caesar. Responsibilities: deduplicate ledger items without deleting history, maintain parent-child category index, summarize events/evidence, flag stale/blocked items, prepare 9100 readability checks, and keep concise Korean/ASCII-safe notes. Caesar remains final decision owner; Max remains development staffing owner.",
+      "updated_at": "2026-06-02T16:44:25.495330700Z"
+    },
+    {
+      "id": "ledger-ops-onoff-toggle-20260603",
+      "title": "P0 Ledger child: automatic ledger operations on/off toggle",
+      "status": "doing",
+      "priority": 284,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Ledger/9100. Lucas proposed an on/off mode for ledger-driven automation. Requirement: while Caesar/Areum optimize ledger structure, automatic dispatcher/wake/ops-loop must pause and must not inject PTY prompts; after optimization, it can be explicitly turned on. Implementation must be assigned through Max/dev team, not Caesar direct coding. Acceptance: visible mode state, file/API control, tools respect off mode, event log records mode changes, no PTY injection while off.",
+      "updated_at": "2026-06-02T16:52:50.128978900Z"
+    },
+    {
+      "id": "clean-architecture-refactor-plan-20260603",
+      "title": "P1 Governance child: clean architecture refactor plan after ledger optimization",
+      "status": "doing",
+      "priority": 263,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Governance. Lucas proposed refactoring confirmed code toward clean architecture after ledger optimization and newline unblock. Requirement: reduce coupling between terminal submit protocol, terminal render/replay, agent boot/dispatch, ledger store/view, and policy gates. Work must proceed via ledger/Max/developers after direct Caesar newline recovery; start with design/impact map, frozen contracts, regression suite, then scoped branches/commits.",
+      "updated_at": "2026-06-02T16:48:29.384365200Z"
+    },
+    {
+      "id": "terminal-prompt-split-api-lock-20260603",
+      "title": "P0 Terminal child: split prompt text/submit API contract LOCK",
+      "status": "doing",
+      "priority": 298,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Terminal Stability. Parent=terminal-input-newline-regression-20260603. Lucas-approved operating contract: never couple command text and Enter submit in one fragile string path. Use prompt-text for body injection and prompt-submit for Enter injection; require separate promptTextAck and promptSubmitAck before clearing composer or marking dispatch success. prompt-submit repeat=2 is emergency-only, not default, because double Enter can submit an empty command. LOCK: after QA passes, this contract is frozen; later UI/ops changes must not alter newline/submit behavior without explicit regression tests and Caesar gate.",
+      "updated_at": "2026-06-02T17:25:41.209032100Z"
+    },
+    {
+      "id": "ledger-secretary-areum-permanent-20260603",
+      "title": "P1 Operations: appoint Areum as permanent ledger secretary",
+      "status": "doing",
+      "priority": 279,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Company Operations. Areum is the dedicated ledger secretary. Responsibilities: maintain work-ledger hierarchy, deduplicate overlapping items, preserve IDs/history, classify parent/child priority, prepare proposed ledger edits, and report concise change sets to Caesar. Caesar reviews/approves; execution/agent notification happens only after Caesar approval. Areum does not directly run development work unless explicitly assigned by Caesar/Lucas.",
+      "updated_at": "2026-06-02T17:19:59.330861200Z"
+    },
+    {
+      "id": "ledger-edit-freeze-gate-20260603",
+      "title": "P0 Ledger Operations: freeze agent execution during ledger edits",
+      "status": "todo",
+      "priority": 287,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Ledger 9100 Operations. Add an operations freeze gate for ledger maintenance. During freeze, automated dispatchers and agents must not start new work from changed ledger items; agents remain in instruction-wait/heartbeat mode. Allowed actions during freeze: status report, evidence upload, blocker report, emergency Lucas/Caesar direct order. Unfreeze requires Caesar approval and an updated execution board snapshot.",
+      "updated_at": "2026-06-02T17:13:59.540699Z"
+    },
+    {
+      "id": "ledger-event-driven-dispatch-20260603",
+      "title": "P0 Ledger Operations: event-driven agent dispatch instead of polling-only ops",
+      "status": "todo",
+      "priority": 286,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Ledger 9100 Operations. Current periodic scan is insufficient. Target operating model: ledger write/update events enqueue notifications immediately to the relevant owner/agent after freeze/approval gates pass. Polling remains as watchdog/recovery only. Acceptance: event source identifies task id, owner, priority, change kind, freeze state, Caesar approval state; dispatcher sends concise pointer to agent and records ACK/evidence.",
+      "updated_at": "2026-06-02T17:13:59.546241100Z"
+    },
+    {
+      "id": "developer-policy-precommand-enforcement-20260603",
+      "title": "P0 Governance: enforce developer policy read before source-changing work",
+      "status": "todo",
+      "priority": 276,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Governance / P0 for protected contracts. Implement enforcement so developers do not merely have policy docs available; they must acknowledge relevant source-change conventions before source-changing work. Scope: dispatcher preflight, DEV_CHANGE_CHECK report, protected contract mapping, source-change guard before commit, and 9100 visibility. Reading-only inspection commands may proceed; editing/patching/formatting/commit/agent dispatch that changes behavior requires policy/convention ACK.",
+      "updated_at": "2026-06-02T17:17:37.877950300Z"
+    },
+    {
+      "id": "live-agent-policy-event-notification-20260603",
+      "title": "P0 Governance: live policy/ledger change event notification to active agents",
+      "status": "todo",
+      "priority": 275,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Governance / P0 when protected contracts change. Restarted agents read current policy at boot, but already-live agents need event notifications. Target model: any policy, protected-contract, ledger-freeze, or execution-board change emits a digest event; Areum drafts the digest, Caesar approves, dispatcher notifies active affected sessions immediately and records ACK. Polling remains watchdog only.",
+      "updated_at": "2026-06-02T17:57:04.854658Z"
+    },
+    {
+      "id": "terminal-stuck-input-autosubmit-watchdog-20260603",
+      "title": "P0 Terminal Safety: stuck input auto-submit watchdog",
+      "status": "todo",
+      "priority": 293,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Terminal Stability. Requirement from Lucas: watchdog scope is 9000-visible live terminal sessions only. Implementation should inspect 9001 /api/sessions data that backs 9000 cards, detect stable injected text stuck at prompt for threshold (default 10s), then send Enter-only submit through 9001. Do not depend on 9100. Do not touch 9002. Must avoid double-submitting active work; only act on stable prompt/input markers, record evidence, and respect protected/freeze rules. This is a safety net in addition to split prompt-text/prompt-submit ACKs.",
+      "updated_at": "2026-06-02T19:37:00.600103800Z"
+    },
+    {
+      "id": "branch-commit-pr-promotion-policy-20260603",
+      "title": "P1 Governance: branch, small commit, PR-style promotion discipline",
+      "status": "doing",
+      "priority": 268,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Governance. Lucas policy: even small development work should be committed per verified unit. Developers use task-scoped branches, produce PR-style reports, Max reviews/integrates, Caesar gates operating/runtime promotion. Avoid large mixed commits; separate unrelated ledger/UI/API/policy/generated data changes. Emergency Caesar recovery changes must be split into scoped commits after stabilization.",
+      "updated_at": "2026-06-02T17:33:33.801661300Z"
+    },
+    {
+      "id": "worker-completion-report-chain-20260603",
+      "title": "P1 Operations: worker completion report and team-lead review chain",
+      "status": "doing",
+      "priority": 274,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Company Operations. Human-style reporting chain: when a worker finishes a task, they report to their team lead, not directly to Lucas by default. Report must include task id, changed files/artifacts, tests/evidence, blocker/risk, rollback note, and next recommendation. Team lead reviews, requests fixes or accepts, updates ledger status/evidence, and escalates to Caesar only for commit/QA/promotion/decision gates. Caesar approves operating/runtime promotion and concise Lucas report.",
+      "updated_at": "2026-06-02T19:01:30.782007900Z"
+    },
+    {
+      "id": "ledger-approval-line-worker-review-request-20260603",
+      "title": "P1 Operations: ledger approval line and worker review-request authority",
+      "status": "doing",
+      "priority": 273,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Company Operations. Workers may update the ledger, but their updates are evidence/review requests/proposed status changes unless explicitly authorized. Task closure requires approval line: worker report -> team lead review -> QA if needed -> Max integration for dev tasks -> Caesar for protected contracts, commit/promotion/policy/staffing gates. Ledger should distinguish reported, lead-review, qa, qa-pass/qa-fail, and completed.",
+      "updated_at": "2026-06-02T17:37:41.453216100Z"
+    },
+    {
+      "id": "lucas-operating-profile-common-memory-20260603",
+      "title": "Global Context: Lucas operating profile and governance preferences",
+      "status": "doing",
+      "priority": 272,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P1 Governance / global operating context. Lucas is a 13-year integrated authentication developer with security background in certificate systems and incident response. Operating preferences: ledger/event/evidence-based memory, ACK and approval lines, rollback points, branch/small commit discipline, protected-contract guards, freeze gates, escalation, and system-driven wakeups. This context should be commonized for Caesar/Areum/Max and future boot policy summaries without relying on embedding memory.",
+      "updated_at": "2026-06-02T17:49:37.266307600Z"
+    },
+    {
+      "id": "future-postgresql-embedding-memory-20260603",
+      "title": "Future Memory System: PostgreSQL and embedding-backed shared memory after ops stabilization",
+      "status": "todo",
+      "priority": 190,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P2 Future Platform / Memory. Lucas plans to apply HQ-style memory after core operations are proven stable: PostgreSQL plus embedding search using OpenAI API. Until then, file/ledger remains source of truth. Future design must preserve ledger-first auditability: embeddings support retrieval and context recovery, but authoritative decisions, approvals, evidence, and task state stay in ledger/event records.",
+      "updated_at": "2026-06-02T18:16:52.215176900Z"
+    },
+    {
+      "id": "ledger-materialized-view-20260603",
+      "title": "P0 Ledger Operations: materialized execution board view",
+      "status": "doing",
+      "priority": 283,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Ledger 9100 Operations. Areum maintains data/execution-board.json as concise operating view between raw work-ledger.json and Caesar/9100. Raw ledger remains authoritative; board shows hierarchy, owners, next, blocker, evidence, stale, and decision-needed sections without dumping raw JSON.",
+      "updated_at": "2026-06-02T18:13:59.502580100Z"
+    },
+    {
+      "id": "9100-executive-dashboard-ux-20260603",
+      "title": "P0 9100 executive dashboard UX for Lucas-readable operations",
+      "status": "doing",
+      "priority": 282,
+      "due_at": null,
+      "reminder_minutes": null,
+      "last_reminded_at": null,
+      "notes": "Category=P0 Ledger 9100 Operations. Areum drafts implementation brief for Lucas-readable executive dashboard: decision-needed, P0/P1 owner map, stale/blocker risks, agent activity, QA/evidence gates, raw JSON drilldown only. Caesar approves; Max assigns implementation.",
+      "updated_at": "2026-06-02T19:25:05.764208700Z"
+    }
+  ],
+  "events": [
+    {
+      "id": "work-event-1780416361583",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T16:06:01.583713500Z",
+      "kind": "assigned",
+      "body": "Lucas ordered Caesar not to code. Registered terminal scrollbar visibility work for Max/dev team. Scope: compare HQ terminal scrollbar behavior, patch LCC card/fullscreen/popout scrollbar visibility if needed, QA with CDP screenshot/DOM/console, preserve 9001."
+    },
+    {
+      "id": "work-event-1780416361595",
+      "task_id": "max-team-policy-ops-resume-20260603",
+      "at": "2026-06-02T16:06:01.595556200Z",
+      "kind": "assigned",
+      "body": "Regular operation resumed. Max notified through dev-lead session write. First actions: recover ledger context, report 9002 unavailable, staff only active items, assign terminal-scrollbar-visible-hq-20260603, maintain QA/commit gates."
+    },
+    {
+      "id": "work-event-1780416394305",
+      "task_id": "terminal-chat-clipboard-image-capture-20260603",
+      "at": "2026-06-02T16:06:34.305502900Z",
+      "kind": "assigned",
+      "body": "Lucas requested clipboard image capture in chat. Registering for Max/development team; no Caesar code. Include QA/CDP evidence and preserve terminal input stability."
+    },
+    {
+      "id": "work-event-1780416394319",
+      "task_id": "terminal-composer-overlay-polish-20260603",
+      "at": "2026-06-02T16:06:34.319173100Z",
+      "kind": "assigned",
+      "body": "Lucas flagged bottom terminal composer visual nuisance. Registering layout polish under Max; must not break prompt preservation or terminal input semantics."
+    },
+    {
+      "id": "work-event-1780416394340",
+      "task_id": "max-dynamic-staffing-policy-20260603",
+      "at": "2026-06-02T16:06:34.340646100Z",
+      "kind": "assigned",
+      "body": "Lucas authorized Max to dynamically decide development staffing based on need. Caesar records policy; Max owns staffing decisions and assignments under ledger/QA/commit gates."
+    },
+    {
+      "id": "work-event-1780416394359",
+      "task_id": "caesar-ledger-ops-resume-20260603",
+      "at": "2026-06-02T16:06:34.359988Z",
+      "kind": "assigned",
+      "body": "Regular ledger-based operations resumed by latest Lucas instruction. Caesar will supervise, record decisions, keep QA/commit gates, and route implementation through Max/developers."
+    },
+    {
+      "id": "work-event-1780416430562",
+      "task_id": "ledger-priority-classification-20260603",
+      "at": "2026-06-02T16:07:10.562691Z",
+      "kind": "assigned",
+      "body": "Lucas requested priority-based ledger organization for readability. Registered for Max/dev team. Proposed sections: P0 Immediate, P1 Today Ops, P2 Follow-up, Paused, Done; each item must expose owner/status/next/blocker/evidence/last update/decision-needed. Caesar supervises only."
+    },
+    {
+      "id": "work-event-1780416448761",
+      "task_id": "caesar-ledger-page-ownership-20260603",
+      "at": "2026-06-02T16:07:28.761298400Z",
+      "kind": "decision",
+      "body": "Lucas directed that Caesar personally manage the ledger page and may appoint a secretary if needed. Caesar will own 9100 ledger organization/readability; Max remains development lead for implementation work and staffing."
+    },
+    {
+      "id": "work-event-1780416448769",
+      "task_id": "ledger-priority-classification-20260603",
+      "at": "2026-06-02T16:07:28.769690600Z",
+      "kind": "decision",
+      "body": "Ownership clarified: Caesar directly manages ledger page structure/readability. Implementation support may be assigned through Max or a ledger secretary if needed. Priority classification remains active."
+    },
+    {
+      "id": "work-event-1780416464162",
+      "task_id": "commit-branch-discipline-20260603",
+      "at": "2026-06-02T16:07:44.162780300Z",
+      "kind": "decision",
+      "body": "Lucas ordered per-completed-unit commits and active branch usage for rollback-safe shape management. Max must enforce scoped commits, evidence gates, and ledger-id commit messages. Caesar supervises and may manage ledger/page commits directly."
+    },
+    {
+      "id": "work-event-1780416464171",
+      "task_id": "max-dynamic-staffing-policy-20260603",
+      "at": "2026-06-02T16:07:44.171317300Z",
+      "kind": "decision",
+      "body": "Staffing/implementation assignments must include branch and commit expectations: branch per risky workstream, scoped commit per completed verified unit, no unrelated dirty changes."
+    },
+    {
+      "id": "work-event-1780416647056",
+      "task_id": "policy-management-hq-alignment-20260603",
+      "at": "2026-06-02T16:10:47.056842Z",
+      "kind": "decision",
+      "body": "Lucas directive registered: benchmark HQ policy/briefing flow and enforce mandatory POLICY_ACK before agent work. Caesar owns policy gate; Max applies to staffing and execution."
+    },
+    {
+      "id": "work-event-1780416647067",
+      "task_id": "human-company-operations-policy-20260603",
+      "at": "2026-06-02T16:10:47.067448200Z",
+      "kind": "decision",
+      "body": "Lucas directive registered: operate LCC like a real human company and treat each agent as a valued employee with clear ownership, reporting, blockers, handoffs, QA, and commits."
+    },
+    {
+      "id": "work-event-1780416647072",
+      "task_id": "terminal-32kb-scrollback-guarantee-20260603",
+      "at": "2026-06-02T16:10:47.072033500Z",
+      "kind": "decision",
+      "body": "Lucas clarified retained 32KB terminal buffer must be scrollable by user. This is P0 acceptance for terminal cards/fullscreen/popouts."
+    },
+    {
+      "id": "work-event-1780416647081",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T16:10:47.081095400Z",
+      "kind": "decision",
+      "body": "Lucas reported newline/text collapse regression blocking Max. Compare past LCC branch and HQ code; fix composer/queued-message/input wrapping path with evidence."
+    },
+    {
+      "id": "work-event-1780416689584",
+      "task_id": "ledger-hierarchy-taxonomy-9100-20260603",
+      "at": "2026-06-02T16:11:29.584852500Z",
+      "kind": "decision",
+      "body": "Caesar records Lucas directive: manage ledger hierarchically. Terminal P0 becomes parent category with child issues for newline, 32KB scrollback, scrollbar, clipboard image paste, and composer polish."
+    },
+    {
+      "id": "work-event-1780416689591",
+      "task_id": "ledger-priority-classification-20260603",
+      "at": "2026-06-02T16:11:29.591359Z",
+      "kind": "decision",
+      "body": "Priority classification is expanded to include hierarchy: big category -> small category/child task -> acceptance/evidence. 9100 must render this clearly rather than only a flat list."
+    },
+    {
+      "id": "work-event-1780417108807",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T16:18:28.807531400Z",
+      "kind": "decision",
+      "body": "Caesar emergency recovery: removed web /write body normalization, verified web tests/build and API prompt_submit tests. Respawned Max only, preserved 9001 PID, Max read root policy/ledger via absolute paths and produced POLICY_ACK. Remaining P0: later short directives still sit in Codex TUI prompt instead of reliably submitting; needs terminal PTY submit-key/input-mode RCA."
+    },
+    {
+      "id": "work-event-1780417773628",
+      "task_id": "max-team-policy-ops-resume-20260603",
+      "at": "2026-06-02T16:29:33.628419200Z",
+      "kind": "decision",
+      "body": "Caesar restored minimal development roster for P0 after Lucas observed ledger ops not running. Created/skipped developers: created=developer-1,developer-4,developer-8 skipped= failed=. 9001 PID preserved 21316->21316. Boot prompt injection is intentionally paused because terminal newline/submit regression leaves text in Codex TUI; agents are visible but must not be considered POLICY_ACK complete until prompt path is stable or manual boot is verified."
+    },
+    {
+      "id": "work-event-1780417773634",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T16:29:33.634741600Z",
+      "kind": "decision",
+      "body": "Screen evidence confirms newline/submit regression: Max prompt line retains ACK directive and literal e[201~ text. Do not inject more long boot prompts through PTY until submit path is fixed. Use session creation only for roster recovery."
+    },
+    {
+      "id": "work-event-1780417796558",
+      "task_id": "remove-legacy-9002-ops-references-20260603",
+      "at": "2026-06-02T16:29:56.558405300Z",
+      "kind": "decision",
+      "body": "Lucas corrected stale 9002 assumption. Caesar operational standard is now 9000 web, 9001 API/PTY singleton, 9100 ledger. 9002 is legacy reference only and must not be used for current control-plane decisions."
+    },
+    {
+      "id": "work-event-1780417796562",
+      "task_id": "caesar-ledger-ops-resume-20260603",
+      "at": "2026-06-02T16:29:56.562468600Z",
+      "kind": "decision",
+      "body": "Operating correction: stop treating 9002 unavailable as a current blocker. Current control plane is 9001; 9000 web and 9100 ledger are expected. Reports should not keep surfacing 9002 except as legacy cleanup."
+    },
+    {
+      "id": "work-event-1780417862893",
+      "task_id": "terminal-buffer-16kb-policy-20260603",
+      "at": "2026-06-02T16:31:02.893459100Z",
+      "kind": "decision",
+      "body": "Lucas ordered terminal retained volatile space reduced from 32KB to 16KB. Caesar will record all changes/evidence in ledger because LCC is ledger-first, not DB/embedding-memory-first."
+    },
+    {
+      "id": "work-event-1780417929242",
+      "task_id": "ledger-hierarchy-taxonomy-9100-20260603",
+      "at": "2026-06-02T16:32:09.242500100Z",
+      "kind": "decision",
+      "body": "Added P0 child terminal-live-render-stale-until-refresh-20260603 under Terminal Stability & Operator Input: Lucas must not need manual browser refresh when terminal card rendering stalls."
+    },
+    {
+      "id": "work-event-1780417956369",
+      "task_id": "agent-layout-rank-order-20260603",
+      "at": "2026-06-02T16:32:36.369226800Z",
+      "kind": "decision",
+      "body": "Lucas set fixed rank-order screen layout: Caesar leftmost, Max next-left, then remaining staff by position/role. Caesar recorded as operating/display policy."
+    },
+    {
+      "id": "work-event-1780418015397",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T16:33:35.397548Z",
+      "kind": "decision",
+      "body": "Caesar focused newline first per Lucas. Code change: API sendPrompt/write_session path restored separated body write + 300ms delay + CR submit, matching prior stable/HQ-style behavior more closely than concatenated body+CR. Tests in progress; runtime application requires 9001 process restart or equivalent controlled reload."
+    },
+    {
+      "id": "work-event-1780418096050",
+      "task_id": "terminal-buffer-16kb-policy-20260603",
+      "at": "2026-06-02T16:34:56.050668300Z",
+      "kind": "decision",
+      "body": "Buffer policy updated to 16KB. Files: apps/api/src/main.rs SESSION_LOG_VIEW_LIMIT_BYTES, TERMINAL_WS_REPLAY_LIMIT_BYTES, TERMINAL_RING_BUFFER_BYTES; apps/web/src/main.tsx TERMINAL_LOG_VIEW_LIMIT_BYTES; apps/web/src/xtermWriteQueue.ts XTERM_MAX_QUEUED_BYTES; apps/web/src/xtermWriteQueue.test.ts expectation text. Verification: rg shows product terminal buffer constants at 16KB; cargo test -p lcc-core-api --quiet passed 19/19; npm --prefix apps/web test passed 36/36; npm --prefix apps/web run build passed with existing chunk-size warning only. Runtime note: API-side 16KB requires controlled 9001 restart to apply to live sessions; web-side Vite/HMR or refresh can pick up frontend constants."
+    },
+    {
+      "id": "work-event-1780418096079",
+      "task_id": "terminal-32kb-scrollback-guarantee-20260603",
+      "at": "2026-06-02T16:34:56.079883300Z",
+      "kind": "decision",
+      "body": "Superseded by terminal-buffer-16kb-policy-20260603 per Lucas: retained volatile terminal space is now 16KB, not 32KB. Scrollbar/scrollback acceptance remains: user must be able to scroll the retained buffer."
+    },
+    {
+      "id": "work-event-1780418296535",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T16:38:16.535347700Z",
+      "kind": "evidence",
+      "body": "Historical newline audit recovered. docs/terminal-newline-validation-20260531.md defined NL-001..NL-016 including single-line submit, trailing newline trim, CRLF/bare-CR normalization, multiline LF preserve + final CR, no CSI Enter, no bracketed paste 200/201, Korean IME Enter, Shift+Enter, high-load delayed CR ordering, and target guard. Final record says 2026-05-31 16:43-16:48 KST API cargo test prompt_submit 8/8 pass, web bun test 8/8 pass, web build pass, and actual PTY injection on joon-msa/spring-msa-research-1..3 confirmed line-a/b/c with no unrelated spill. Relevant commits: 25c1090 Harden terminal newline validation; 336540c Stabilize terminal prompt submission and log memory; 85c6706 Use HQ prompt submit semantics. Stable path from 336540c wrote body first, slept 300ms, then sent CR; tests from 25c1090 explicitly forbade bracketed paste/CSI. Current Max symptom literal e[201~ plus prompt-stuck suggests later regression in paste/submit/live-terminal path, not absence of initial tests. Hand off evidence to Lucas/dev1 direct newline fix."
+    },
+    {
+      "id": "work-event-1780418440896",
+      "task_id": "quality-freeze-regression-architecture-policy-20260603",
+      "at": "2026-06-02T16:40:40.896106500Z",
+      "kind": "decision",
+      "body": "Policy registered from Lucas instruction: completed/verified features become frozen contracts. Any future work touching the contract must run the named regression suite and record evidence. Clean architecture boundary rule: terminal composer/submit protocol, terminal rendering/replay, ops dispatch/boot prompt injection, and ledger display must be separate modules/contracts; no raw PTY write bypass for prompt submission unless explicitly tested."
+    },
+    {
+      "id": "work-event-1780418440906",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T16:40:40.906799200Z",
+      "kind": "evidence",
+      "body": "Regression narrowing: post-25c1090 history shows terminal render/replay/dispatch commits d71591d, 0f12dda, 9e7e84a, e241b37, da6ce13, d9de759. Current web submit uses WS sendPrompt -> API write_to_session, which normalizes body then writes body, sleeps 300ms, sends CR. However tools/agent-work-dispatcher.cjs safePromptForTerminal returns data with trailing CR and posts to /api/sessions/:id/write; tools/non-sleeping-ops-loop.cjs also posts data `${prompt}\\r` to /write. Since /write already appends submit CR, these automation paths bypass the frozen prompt contract and may cause prompt-stuck/double-submit behavior. start-lcc-agents.ps1 now sends role entry path only, but still uses /write boot prompt injection and should be covered by regression tests before re-enable."
+    },
+    {
+      "id": "work-event-1780418665495",
+      "task_id": "ledger-secretary-areum-20260603",
+      "at": "2026-06-02T16:44:25.495324900Z",
+      "kind": "decision",
+      "body": "Areum appointed as Caesar ledger secretary. She supports ledger readability, deduplication, evidence collation, stale/blocker flags, and 9100 category hygiene. Caesar remains accountable owner."
+    },
+    {
+      "id": "work-event-1780418665504",
+      "task_id": "ledger-hierarchy-taxonomy-9100-20260603",
+      "at": "2026-06-02T16:44:25.504063900Z",
+      "kind": "decision",
+      "body": "Existing work-ledger optimized without deleting history: added parent category tasks P0 Terminal, P0 Ledger/9100, P1 Company Ops, P1 Governance; re-ranked child tasks so 9100 flat sorting is readable while preserving all task IDs/events."
+    },
+    {
+      "id": "work-event-1780418665513",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T16:44:25.513615400Z",
+      "kind": "evidence",
+      "body": "Emergency ops unblock patch applied: removed trailing CR from automation payloads sent to /write in tools/agent-work-dispatcher.cjs, tools/non-sleeping-ops-loop.cjs, tools/ceo-wake-tick.cjs, and apps/web/src/main.tsx Dev Team boot prompt path. /write remains the single submit owner. Verification: node --check for three tools passed; npm --prefix apps/web test passed 38/38. Remaining initial empty CR in web boot path is an intentional intro-dismiss submit only."
+    },
+    {
+      "id": "work-event-1780418799627",
+      "task_id": "ledger-ops-onoff-toggle-20260603",
+      "at": "2026-06-02T16:46:39.627787200Z",
+      "kind": "decision",
+      "body": "Lucas clarified PTY arbitrary injection is intentionally disabled while ledger system is being established. Caesar must not use PTY prompt injection for operations during this phase. Build on/off automation control via ledger-approved dev work; off mode means no dispatcher/wake/ops-loop terminal instruction sends."
+    },
+    {
+      "id": "work-event-1780418799636",
+      "task_id": "clean-architecture-refactor-plan-20260603",
+      "at": "2026-06-02T16:46:39.636450Z",
+      "kind": "decision",
+      "body": "Direct Caesar coding is limited to newline/submit unblock. Broader clean-architecture refactor and ops toggle implementation must be ledger-based through Max/dev team after ledger optimization."
+    },
+    {
+      "id": "work-event-1780418799646",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T16:46:39.646173800Z",
+      "kind": "decision",
+      "body": "Scope guard from Lucas: Caesar direct hands-on work is limited to newline/submit unblock only. No arbitrary PTY session injection; remaining work proceeds through ledger system and assigned developers."
+    },
+    {
+      "id": "work-event-1780418909384",
+      "task_id": "clean-architecture-refactor-plan-20260603",
+      "at": "2026-06-02T16:48:29.384355700Z",
+      "kind": "decision",
+      "body": "Development architecture policy added for all future agent boots. Files: AGENTS.md now requires docs/development-architecture-policy-20260603.md; new policy mandates clean architecture boundaries, frozen feature contracts, regression evidence, scoped commits, and future MSA readiness. Developers must report boundary touched, contract/regression suite, evidence, residual coupling risk, and next action/blocker."
+    },
+    {
+      "id": "work-event-1780419129635",
+      "task_id": "caesar-ledger-ops-resume-20260603",
+      "at": "2026-06-02T16:52:09.635258500Z",
+      "kind": "decision",
+      "body": "OPS_RESUME_READY: Ledger has been optimized into parent/child priority groups. Resume ledger-based automation using concise ledger item pointers, not arbitrary long PTY injection. First automation check should use tools/agent-work-dispatcher.cjs against 9001 and record dispatch evidence in data/agent-ops-events.jsonl."
+    },
+    {
+      "id": "work-event-1780419129663",
+      "task_id": "ledger-ops-onoff-toggle-20260603",
+      "at": "2026-06-02T16:52:09.663089400Z",
+      "kind": "decision",
+      "body": "Ledger automation restart criteria: run existing dispatcher only after ledger optimization; dispatcher must send concise pointer with item ID and evidence file path; no long boot prompts or arbitrary PTY content. Pull-based/on-off automation remains active P0 development item."
+    },
+    {
+      "id": "work-event-1780419170122",
+      "task_id": "caesar-ledger-ops-resume-20260603",
+      "at": "2026-06-02T16:52:50.122020200Z",
+      "kind": "evidence",
+      "body": "Ledger automation resumed for one verification pass. Ran tools/agent-work-dispatcher.cjs with LCC_API_BASE=http://127.0.0.1:9001. Result ok=true; reports: dev-lead blocked dispatched item=max-team-policy; developer-1 working no dispatch item=terminal-scrollback; developer-4 stale dispatched item=qa-cdp-policy; developer-8 idle dispatched item=agent-status-on-9100; manager alert sent to dev-lead. Evidence: data/agent-ops-events.jsonl dispatchIds 1780419136893-t5fw4c, 1780419136906-1tbwbq, 1780419136914-nv2kt8, 1780419136924-1hrf4e. Limitation: dispatcher still uses legacy rolePlan/ceo-command-ledger item mapping and mojibake text; it is not yet a clean pull-based work-ledger parent/child scheduler."
+    },
+    {
+      "id": "work-event-1780419170128",
+      "task_id": "ledger-ops-onoff-toggle-20260603",
+      "at": "2026-06-02T16:52:50.128970400Z",
+      "kind": "evidence",
+      "body": "Automation design gap observed during resume: current dispatcher can send concise ledger pointers after CR fix, but ownership selection still comes from legacy rolePlan/ceo-command-ledger and produces mojibake in fullPrompt/compactPreview. Required next implementation: scheduler reads optimized work-ledger parent/child priorities, assigns by owner/role/category, exposes mode on 9100, supports off/observe/on, and avoids terminal dispatch storm."
+    },
+    {
+      "id": "work-event-1780420210164",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T17:10:10.164828500Z",
+      "kind": "evidence",
+      "body": "Caesar emergency implementation: split terminal prompt injection into text and submit contracts. Source changes: apps/api/src/main.rs adds /api/sessions/:id/prompt-text, /api/sessions/:id/prompt-submit and WS promptText/promptSubmit ACKs with optional submit repeat 1..2; apps/web/src/main.tsx sends promptText then 300ms settle then promptSubmit and waits for separate ACKs; tools/agent-work-dispatcher.cjs, tools/ceo-wake-tick.cjs, tools/non-sleeping-ops-loop.cjs, scripts/start-lcc-agents.ps1 prefer split API with /write fallback. Verification: cargo test -p lcc-core-api --quiet passed 19/19; npm --prefix apps/web test passed 36/36; npm --prefix apps/web run build passed with existing chunk warning; node --check ops scripts passed; start-lcc-agents.ps1 parse passed. Runtime note: live 9001 must be controlled-reloaded before new split endpoints are available on 9000."
+    },
+    {
+      "id": "work-event-1780420352691",
+      "task_id": "terminal-prompt-split-api-lock-20260603",
+      "at": "2026-06-02T17:12:32.691890100Z",
+      "kind": "decision",
+      "body": "Lucas approved split command injection policy for newline-critical paths: text delivery and Enter submit are separate operations. Ledger directive: prompt-text injects normalized body only; prompt-submit injects Enter only and returns a distinct ACK. 9000 and automation must wait for both ACKs before success. repeat=2 submit is allowed only as emergency/manual option, not normal default. Once runtime QA passes, lock this contract so later development cannot regress newline handling without explicit tests and Caesar approval."
+    },
+    {
+      "id": "work-event-1780420367074",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T17:12:47.074910Z",
+      "kind": "ledger-update",
+      "body": "Next ledger-based actions: Max reviews split API diff; Developer 1 reviews API/web ACK contract; Developer 4 prepares and runs 9000 CDP runtime QA after controlled 9001 reload; Developer 8 reviews ops script split/fallback and 9001-only policy. Caesar owns final lock/commit gate."
+    },
+    {
+      "id": "work-event-1780420439568",
+      "task_id": "ledger-secretary-areum-permanent-20260603",
+      "at": "2026-06-02T17:13:59.568193700Z",
+      "kind": "organization",
+      "body": "Lucas proposed permanent ledger secretary Areum. Decision recorded: Areum maintains ledger structure and proposes changes; Caesar receives, approves, and triggers execution. Ledger edits require a freeze gate so agents wait instead of acting on unstable ledger state. Operating direction shifts from polling-only periodic checks to event-driven notifications, with polling retained as watchdog/recovery."
+    },
+    {
+      "id": "work-event-1780420439579",
+      "task_id": "P0-ledger-9100-operations-20260603",
+      "at": "2026-06-02T17:13:59.579740300Z",
+      "kind": "ledger-update",
+      "body": "New operating model dependencies: implement ledger edit freeze gate before broad automated dispatch; implement event-driven dispatch so ledger changes notify owners immediately after Caesar approval. During freeze, agents may heartbeat/report evidence/blockers but must not start new ledger-derived work."
+    },
+    {
+      "id": "work-event-1780420472581",
+      "task_id": "terminal-prompt-split-api-lock-20260603",
+      "at": "2026-06-02T17:14:32.581906700Z",
+      "kind": "evidence",
+      "body": "Manual API submit test per Lucas: attempted /api/sessions/:id/prompt-submit for dev-lead, developer-1, developer-4, developer-8; live 9001 rejected because split endpoint is not loaded yet, confirming controlled 9001 reload is still required. Fallback /api/sessions/:id/write with empty data succeeded for all four targets, manually pressing Enter on queued instructions."
+    },
+    {
+      "id": "work-event-1780420657877",
+      "task_id": "developer-policy-precommand-enforcement-20260603",
+      "at": "2026-06-02T17:17:37.877944200Z",
+      "kind": "decision",
+      "body": "Implementation direction from Lucas/Caesar: policy docs are insufficient unless enforced before work. Add a policy preflight gate for developers: assignment includes current protected-contract digest; developer must emit DEV_CHANGE_CHECK before source edits; Max/Caesar approval required for protected contracts; source-change guard maps changed files to contracts and blocks commit without ledger evidence; 9100 shows pending approvals/freeze state. Do not require rereading full docs before every read-only inspection command, but require policy/convention check before source-changing commands and before commit."
+    },
+    {
+      "id": "work-event-1780420681415",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T17:18:01.415425200Z",
+      "kind": "reported",
+      "body": "Max report: assigned developer-1 to terminal input/newline RCA and developer-4 to QA via 9001 /write fallback. Source review: apps/api exposes prompt-text/prompt-submit routes and promptTextAck/promptSubmitAck; web uses WS promptText then promptSubmit; agent-work-dispatcher and ceo-wake-tick default 9001 and fallback to /write on 404/405; non-sleeping-ops-loop still defaults LCC_SESSION_API to 9002 and is a no-9002 risk. Verification: cargo prompt tests 8/8; apps/web terminal tests 36/36; git diff --check scoped files warnings only; 9001 PID 21316 health ok; live 9001 prompt-text returns 404; 9002 unreachable. Next: wait for developer reports, then either patch 9002 default risk or schedule controlled 9001 reload only with Lucas/Max gate."
+    },
+    {
+      "id": "work-event-1780420767474",
+      "task_id": "live-agent-policy-event-notification-20260603",
+      "at": "2026-06-02T17:19:27.474796Z",
+      "kind": "decision",
+      "body": "Clarified with Lucas: session restart boot reads solve policy freshness for new/restarted agents. Gap is already-live sessions. Required implementation is event-driven notification: policy/ledger/protected-contract changes produce digest events, Areum prepares, Caesar approves, affected live agents are notified immediately and must ACK before protected work continues."
+    },
+    {
+      "id": "work-event-1780420767485",
+      "task_id": "ledger-secretary-areum-permanent-20260603",
+      "at": "2026-06-02T17:19:27.485058800Z",
+      "kind": "organization",
+      "body": "Areum role registered in data/agent-boot-prompts.json as Caesar ledger secretary and policy-change clerk. Areum owns ledger hierarchy proposals, dedupe, protected-contract digest preparation, live policy/ledger event notification drafts, and freeze-state clerical control; Caesar remains approval and execution gate."
+    },
+    {
+      "id": "work-event-1780420799330",
+      "task_id": "ledger-secretary-areum-permanent-20260603",
+      "at": "2026-06-02T17:19:59.330856Z",
+      "kind": "evidence",
+      "body": "Areum spawned on 9001 as executive ledger secretary. Workspace: workspaces/areum/repo. Boot prompt sent via /api/sessions/areum/write because live 9001 split prompt endpoints are not loaded yet. Areum must ACK policy, then prepare ledger/policy event digest process; Caesar remains approval/execution gate."
+    },
+    {
+      "id": "work-event-1780421042177",
+      "task_id": "terminal-prompt-split-api-lock-20260603",
+      "at": "2026-06-02T17:24:02.177321500Z",
+      "kind": "evidence",
+      "body": "Systemic fallback submit updated per Lucas: when split prompt endpoints are unavailable, agent-work-dispatcher, ceo-wake-tick, and non-sleeping-ops-loop now send legacy /write text, wait 300ms, then send legacy /write empty data as explicit Enter submit. This keeps the intended text-injection + Enter-stamp model even before controlled 9001 reload loads prompt-text/prompt-submit."
+    },
+    {
+      "id": "work-event-1780421125664",
+      "task_id": "live-agent-policy-event-notification-20260603",
+      "at": "2026-06-02T17:25:25.664404500Z",
+      "kind": "evidence",
+      "body": "Removed obsolete ceo-wake-tick fallback stale rule that hardcoded ops-loop-first-cut owner=developer-3. That stale item was not an actual work-ledger task and kept CEO_WAKE in attention even after current Areum/Max operating model was established. Remaining wake status should reflect real ledger/session state only."
+    },
+    {
+      "id": "work-event-1780421141209",
+      "task_id": "terminal-prompt-split-api-lock-20260603",
+      "at": "2026-06-02T17:25:41.209018600Z",
+      "kind": "risk",
+      "body": "Controlled 9001 reload assessment: necessary to activate source-only split prompt REST routes because live 9001 PID 21316 returns 404 for /api/sessions/:id/prompt-text while source registers prompt-text/prompt-submit. Risk: 9001 is singleton PTY backend; reload can lose live Codex session state/previews and interrupt agents. Required order if approved: freeze dispatch/wake loops; capture /api/sessions, health, current PID, and key previews; notify Caesar/Max/developer-1/developer-4/developer-8/Areum; run cargo tests/build; stop old PID; start same port 9001; verify health/routes; respawn only Caesar+Max then needed workers from ledger; run CDP/DOM/console QA; record PID before/after. No reload performed in this turn."
+    },
+    {
+      "id": "work-event-1780421141245",
+      "task_id": "P0-terminal-stability-operator-input-20260603",
+      "at": "2026-06-02T17:25:41.245595800Z",
+      "kind": "assigned",
+      "body": "Max confirmed outstanding P0 owner map after OPS_WAKE: developer-1 owns terminal-input-newline-regression and split prompt RCA; developer-4 owns QA/reload checklist; developer-8 owns stale ops-loop/9002 reference recovery plus live-render/buffer impact review; Areum owns live policy/event notification digest and freeze gate draft for Caesar approval. 9001 preserved, developer-7 protected."
+    },
+    {
+      "id": "work-event-1780421141263",
+      "task_id": "live-agent-policy-event-notification-20260603",
+      "at": "2026-06-02T17:25:41.263570800Z",
+      "kind": "assigned",
+      "body": "Areum assigned to draft live-policy/event notification digest and freeze gate for Caesar approval. Required draft: affected agents, trigger types, freeze allowed actions, unfreeze condition, ACK tracking, evidence fields, and event-driven notification outline. Areum does not run dev work."
+    },
+    {
+      "id": "work-event-1780421141293",
+      "task_id": "remove-legacy-9002-ops-references-20260603",
+      "at": "2026-06-02T17:25:41.293422200Z",
+      "kind": "assigned",
+      "body": "Max reassigned stale/missing owner gap: developer-3 is not live in 9001 sessions, so ops-loop-first-cut / stale 9002 live-loop review is reassigned to active developer-8. Constraints: preserve 9001 PID 21316, do not touch developer-7, report item/doing/next/blocker/evidence. Evidence: data/ceo-wake-latest.json staleOwners developer-3/ops-loop-first-cut/reassigned-owner-missing; 9001 sessions show developer-8 active."
+    },
+    {
+      "id": "work-event-1780421222834",
+      "task_id": "terminal-stuck-input-autosubmit-watchdog-20260603",
+      "at": "2026-06-02T17:27:02.834579400Z",
+      "kind": "decision",
+      "body": "Lucas requested session-level watchdog: if injected text is present but Enter was not applied and the input text remains unchanged for an interval such as 10 seconds, send Enter-only submit. Implement as 9001-only watchdog using preview stability, prompt/input markers, threshold state, evidence logging, and freeze/protected-agent awareness."
+    },
+    {
+      "id": "work-event-1780421243869",
+      "task_id": "terminal-stuck-input-autosubmit-watchdog-20260603",
+      "at": "2026-06-02T17:27:23.869569100Z",
+      "kind": "ledger-update",
+      "body": "Scope clarified: stuck-input auto-submit watchdog is for 9000 terminal sessions only. It should read the same 9001 session state that drives 9000 cards and apply Enter-only submit through 9001; 9100 is only evidence/visibility, not the detection surface."
+    },
+    {
+      "id": "work-event-1780421405765",
+      "task_id": "terminal-stuck-input-autosubmit-watchdog-20260603",
+      "at": "2026-06-02T17:30:05.765530900Z",
+      "kind": "evidence",
+      "body": "Implemented tools/terminal-stuck-input-watchdog.cjs. Scope: 9000-visible sessions via 9001 /api/sessions. Detection: active non-protected session, latest prompt/input line stable, operational markers present, idle suggestions/Working state excluded. Threshold default 10s, interval default 5s. Action: Enter-only submit through /prompt-submit when live API supports it, otherwise /write empty fallback. Evidence logs: data/terminal-stuck-input-watchdog-events.jsonl and state file."
+    },
+    {
+      "id": "work-event-1780421613795",
+      "task_id": "branch-commit-pr-promotion-policy-20260603",
+      "at": "2026-06-02T17:33:33.795461300Z",
+      "kind": "decision",
+      "body": "Policy recorded from Lucas: use task branches and small verified commits; finish work in development branch first, PR-style review by Max, then Caesar gate before operating/runtime promotion. This reduces rollback risk and prevents unrelated dirty changes from entering operational builds."
+    },
+    {
+      "id": "work-event-1780421613801",
+      "task_id": "branch-commit-pr-promotion-policy-20260603",
+      "at": "2026-06-02T17:33:33.801654700Z",
+      "kind": "evidence",
+      "body": "Updated AGENTS.md and docs/developer-source-change-conventions-20260603.md with branch/small-commit/PR-style promotion rule."
+    },
+    {
+      "id": "work-event-1780421631049",
+      "task_id": "terminal-stuck-input-autosubmit-watchdog-20260603",
+      "at": "2026-06-02T17:33:51.049585900Z",
+      "kind": "evidence",
+      "body": "Applied stuck-input watchdog now. 9000 Vite restarted and listening again on port 9000. Watchdog one-shot submitted Enter-only via /write empty fallback for developer-1, developer-4, developer-8, and areum after stable candidate age exceeded threshold. Persistent node watchdog started from data/system-logs/terminal-stuck-input-watchdog-runner.cmd with 5s interval and 10s threshold."
+    },
+    {
+      "id": "work-event-1780421791675",
+      "task_id": "worker-completion-report-chain-20260603",
+      "at": "2026-06-02T17:36:31.675208300Z",
+      "kind": "organization",
+      "body": "Lucas clarified company-style reporting. Required chain: worker finishes -> reports to team lead with evidence -> team lead reviews/accepts or returns fixes -> team lead updates ledger and escalates only gate decisions to Caesar -> Caesar approves commit/promotion/Lucas report. Ledger status should distinguish worker-reported, lead-review, accepted, qa-pass, completed."
+    },
+    {
+      "id": "work-event-1780421861444",
+      "task_id": "ledger-approval-line-worker-review-request-20260603",
+      "at": "2026-06-02T17:37:41.444637200Z",
+      "kind": "organization",
+      "body": "Lucas clarified approval-line model: practical workers can edit the ledger to submit reports/evidence and request review, similar to sending a formal report. They cannot unilaterally close work. Closure requires approval through team lead/QA/Max/Caesar depending on gate. Direct team-lead notification should accompany the ledger report, like telling the lead that the report was sent."
+    },
+    {
+      "id": "work-event-1780421861453",
+      "task_id": "ledger-approval-line-worker-review-request-20260603",
+      "at": "2026-06-02T17:37:41.453209200Z",
+      "kind": "evidence",
+      "body": "Updated docs/developer-source-change-conventions-20260603.md with Ledger Authority And Approval Line section."
+    },
+    {
+      "id": "work-event-1780422134401",
+      "task_id": "max-team-policy-ops-resume-20260603",
+      "at": "2026-06-02T17:42:14.401638100Z",
+      "kind": "reported",
+      "body": "REPORT max-team-policy-ops-resume-20260603 state=reported owner=Max\nOutstanding P0 owner map: P0 Terminal parent -> Max coordination; terminal-input-newline-regression + terminal-prompt-split-api-lock -> developer-1 RCA, developer-4 QA; terminal-live-render, terminal-buffer-16kb, terminal-scrollbar, terminal-chat-clipboard, terminal-composer-polish -> developer-8 triage/patch candidates with developer-4 QA after priority split; P0 Ledger/9100 parent -> Caesar/Areum structure approval, Max assigns dev implementation; remove-legacy-9002-ops-references -> developer-8; live-agent-policy-event-notification + freeze gate -> Areum draft, Caesar approval.\nWaiting workers: developer-1 reported and is at prompt; developer-8 reported and is at prompt; developer-4 appears waiting/stale for QA checklist/report; Areum appears working but no final digest observed; Caesar is live; developer-7 remains protected and untouched.\nNeeds Caesar decision: approve or defer controlled 9001 reload to activate source split prompt REST routes; approve freeze/unfreeze gate and Areum digest model; confirm whether to patch non-sleeping-ops-loop 9002 default before reload; decide P0 terminal child priority order after newline/split route activation.\nNext dispatch: send developer-8 patch for tools/non-sleeping-ops-loop.cjs API default to 9001; wake developer-4 for explicit QA checklist; request Areum final digest/freeze proposal; hold 9001 reload until Caesar/Lucas approval. Evidence: 9001 PID 21316 health ok, /prompt-text still 404, ceo-wake-latest status ok staleOwners=[], active P0 still listed, 6 sessions active."
+    },
+    {
+      "id": "work-event-1780422169345",
+      "task_id": "live-agent-policy-event-notification-20260603",
+      "at": "2026-06-02T17:42:49.345265700Z",
+      "kind": "reported",
+      "body": "Caesar received Areum direct report: REPORT live-agent-policy-event-notification-20260603 state=reported owner=areum evidence=data/work-ledger.json event=work-event-1780421899001 next=Caesar approval for digest/freeze gate blocker=none. Verification note: referenced event id work-event-1780421899001 was not present in current 9001 work-ledger response, so approval is pending until Areum records or re-sends the actual digest/freeze gate draft body."
+    },
+    {
+      "id": "work-event-1780422218103",
+      "task_id": "live-agent-policy-event-notification-20260603",
+      "at": "2026-06-02T17:43:38.103191200Z",
+      "kind": "reported",
+      "body": "Areum digest/freeze gate draft for Caesar approval.\nitem=live-agent-policy-event-notification-20260603\nstatus=draft-ready; no development work run.\n\nAffected agents:\n- ceo: Caesar approval/gate owner.\n- dev-lead: Max assignment/review/integration owner.\n- developer-1: terminal newline/split contract reviewer.\n- developer-4: QA/CDP/runtime evidence owner.\n- developer-8: ops script/9001-only/fallback reviewer.\n- areum: ledger secretary, digest drafter, ACK/evidence clerk.\n\nDigest trigger types:\n- policy file change: AGENTS.md, branch boot context, command-chain policy, agent-state policy, architecture policy, source-change conventions, boot prompts.\n- protected-contract change: terminal newline/submit, terminal render/replay/scrollback, ledger freeze/approval/event dispatch, policy ACK boot, commit/QA gates, persisted ledger/task schema, staffing/respawn/startup scripts.\n- ledger state change: new P0/P1 task, owner change, status change, blocker change, evidence/QA event, parent-child taxonomy change.\n- execution-board change: active owner roster, stale/missing owner, reassignment, freeze/unfreeze, controlled 9001 reload decision.\n- emergency override: Lucas/Caesar direct order, security containment, runtime visibility/control loss.\n\nFreeze allowed actions:\n- ACK assigned/received digest.\n- heartbeat with item/doing/next/blocker/evidence.\n- report blocker, evidence, residual risk, or completed review to assigned lead.\n- read-only inspection needed to prepare report/evidence.\n- emergency Lucas/Caesar direct order.\n\nFreeze blocked actions:\n- starting new ledger-derived development work.\n- broad dispatcher/wake/ops-loop PTY prompting.\n- protected-contract source edit without DEV_CHANGE_CHECK and Caesar/Max approval.\n- commit, runtime promotion, or controlled 9001 reload without gate approval.\n- long arbitrary PTY injection or raw PTY bypass.\n\nUnfreeze condition:\n- Caesar approval id recorded.\n- updated execution-board snapshot names active owner/task/blocker/evidence.\n- affected-agent digest sent.\n- ACK tracking started for each affected agent.\n- required regression/evidence fields named.\n- Max confirms owner assignment path for any development follow-up.\n\nACK tracking fields:\n- digest_id\n- task_id\n- agent_id\n- role\n- sent_at\n- ack_at\n- ack_state: pending|acknowledged|blocked|stale\n- blocker\n- evidence\n- next\n- approver\n\nEvidence fields:\n- ledger_event_id\n- policy_or_doc_path\n- protected_contract\n- affected_files_or_modules if known\n- owner\n- approval_id\n- regression_plan\n- runtime_endpoint_status\n- session_list_snapshot\n- notification_dispatch_id\n- ack_event_id\n- residual_risk\n\nEvent notification outline:\n1. Detect trigger from policy/ledger/protected-contract/runtime gate change.\n2. Areum prepares concise digest with affected agents, contract impact, required ACK, and evidence fields.\n3. Caesar approves or returns changes.\n4. If approved and not frozen-blocked, dispatcher sends concise pointer only: digest_id, task_id, action, evidence path.\n5. Each affected agent replies ACK in PTY and/or ledger event.\n6. Areum records ACK matrix and stale/missing ACKs.\n7. Max assigns development follow-up only after unfreeze/approval conditions are met.\n8. Polling remains watchdog/recovery only; event notification is primary.\n\nnext=Caesar review/approval or requested edits.\nblocker=none.\nevidence=recorded through live 9001 work-ledger API because prior file-only event was not visible in current 9001 ledger."
+    },
+    {
+      "id": "work-event-1780422577266",
+      "task_id": "lucas-operating-profile-common-memory-20260603",
+      "at": "2026-06-02T17:49:37.266294400Z",
+      "kind": "decision",
+      "body": "Lucas clarified his background: 13-year integrated authentication developer, security background in certificate systems and incident response. This explains and validates the preferred operating model: not just docs, but enforceable controls, ACKs, evidence, approval lines, event-driven memory, rollback, branch/PR discipline, and incident-style recovery. Record as shared operating context for Caesar/Areum/Max and future agent boot digests."
+    },
+    {
+      "id": "work-event-1780422610028",
+      "task_id": "future-postgresql-embedding-memory-20260603",
+      "at": "2026-06-02T17:50:10.028837600Z",
+      "kind": "decision",
+      "body": "Lucas stated future plan: after confirming LCC runs smoothly, apply HQ-like memory system using PostgreSQL plus embeddings via OpenAI API. Current phase intentionally stays ledger/file based to force disciplined records. Future memory must augment, not replace, ledger audit trail and approval/evidence records."
+    },
+    {
+      "id": "work-event-1780423024841",
+      "task_id": "caesar-ledger-ops-resume-20260603",
+      "at": "2026-06-02T17:57:04.841955100Z",
+      "kind": "decision",
+      "body": "Caesar decision 2026-06-02T17:57:04.803Z: use materialized execution view for autonomous operations. Raw data/work-ledger.json remains authoritative audit log; routine operations should read data/execution-board.json and narrow task/event queries, not dump full JSON to terminals. Current generated view shows active=40, p0=10, p1=26, unowned=40. Areum owns view hygiene/dedupe proposal; Max owns owner mapping and dispatch from the view."
+    },
+    {
+      "id": "work-event-1780423024854",
+      "task_id": "live-agent-policy-event-notification-20260603",
+      "at": "2026-06-02T17:57:04.854651800Z",
+      "kind": "decision",
+      "body": "Caesar approves Areum draft work-event-1780422218103 as the operating basis for digest/freeze gate. Effective rule: policy/ledger/protected-contract changes generate digest; Areum prepares; Caesar approves; affected agents ACK before protected work or broad dispatch continues. This approval is for operating process, not source completion."
+    },
+    {
+      "id": "work-event-1780423102071",
+      "task_id": "ledger-materialized-view-20260603",
+      "at": "2026-06-02T17:58:22.071324Z",
+      "kind": "reported",
+      "body": "REPORT ledger-materialized-view-20260603 state=reported owner=Max\nSource board: data/execution-board.json generated_at=2026-06-02T17:56:01.644Z counts active=40 P0=10 P1=26 unowned=40.\nOwner map assigned from board: P0 Terminal Stability parent -> Max coordination; terminal-input-newline-regression and terminal-prompt-split-api-lock -> developer-1 RCA/source-runtime mismatch owner plus developer-4 QA owner; terminal live-render/buffer/scrollbar/chat-image/composer/stuck-autosubmit -> held under P0 Terminal queue, implementation not expanded until newline/reload decision, developer-8 may triage cross-cutting terminal/ops impacts only; P0 Ledger/9100 parent -> Caesar decision owner, Areum materialized-view/secretary owner, Max routes implementation only after Caesar approval; remove-legacy-9002-ops-references -> developer-8 immediate implementation/review owner; ledger-edit-freeze-gate/live-policy-event notification -> Areum draft, Caesar approval.\nWorkers dispatched now: developer-8 assigned only non-sleeping-ops-loop 9002 default drift; developer-4 assigned QA checklist; Areum reminded on execution-board/freeze/digest proposal. No extra workers spawned; developer-7 preserved.\nDecision gates: Caesar/Lucas must approve controlled 9001 reload; Caesar must approve freeze/unfreeze gate and materialized-view ownership semantics before event-driven dispatch; Max can proceed with dev8 9002 default patch candidate without reload if scope stays tools/non-sleeping-ops-loop.cjs.\nEvidence: 9001 health ok; PID 21316 preserved; data/execution-board.json exists and is untracked/generated_by=ceo; tools/non-sleeping-ops-loop.cjs is untracked/dirty in this workspace, so developer-8 must inspect before patch; dispatch delivered via 9001 /write to developer-8, developer-4, Areum."
+    },
+    {
+      "id": "work-event-1780423102104",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T17:58:22.104226200Z",
+      "kind": "assigned",
+      "body": "Max dispatch from execution-board: developer-4 owns QA checklist for P0 Terminal Stability. Required: current fallback verification, post-controlled-reload split ACK verification, composer DOM/newline/no-overlap, console clean, screenshots/CDP, and 9001 PID before/after. No 9001 restart authorized."
+    },
+    {
+      "id": "work-event-1780423102147",
+      "task_id": "P0-ledger-9100-operations-20260603",
+      "at": "2026-06-02T17:58:22.147710900Z",
+      "kind": "assigned",
+      "body": "Max dispatch from execution-board: Areum owns materialized execution view clarity and freeze/digest proposal; Caesar approves ledger semantics and freeze/unfreeze. Max will not route P0 Ledger/9100 implementation until Caesar approves."
+    },
+    {
+      "id": "work-event-1780423102164",
+      "task_id": "remove-legacy-9002-ops-references-20260603",
+      "at": "2026-06-02T17:58:22.164670500Z",
+      "kind": "assigned",
+      "body": "Max dispatch from execution-board: developer-8 owns immediate review/patch candidate for tools/non-sleeping-ops-loop.cjs 9002 default drift. Required default order: LCC_API_BASE, then LCC_SESSION_API, then http://127.0.0.1:9001. Preserve 9001 PID 21316; do not touch developer-7; report before commit gate."
+    },
+    {
+      "id": "work-event-1780423104375",
+      "task_id": "ledger-materialized-view-20260603",
+      "at": "2026-06-02T17:58:24.375681600Z",
+      "kind": "reported",
+      "body": "Areum proposal for data/execution-board.json materialized operating view.\nitem=ledger-materialized-view-20260603\nstatus=proposal-ready; no product code run.\n\nPurpose:\n- data/work-ledger.json remains authoritative audit log.\n- data/execution-board.json is the concise operating view for Caesar/Areum/Max/9100.\n- The view must show what to do next without dumping raw tasks/events.\n\nProposed top-level sections:\n- generated_at: ISO timestamp.\n- source: data/work-ledger.json plus live 9001 /api/work-ledger when applicable.\n- source_event_high_watermark: latest work-ledger event id included.\n- policy_mode: normal|freeze|approval-pending|emergency.\n- counts: active, p0, p1, p2, paused, done, unowned, stale, decision_needed, blocked.\n- hierarchy: parent categories with child task ids and rollup status.\n- active: concise rows sorted by priority, parent, stale state.\n- stale: rows with missing heartbeat/report, missing owner, old updated_at, or waiting prompt.\n- decision_needed: rows needing Caesar/Max/Lucas approval, owner assignment, freeze/unfreeze, reload, QA/commit gate.\n- blocked: rows with explicit blocker and requested decision.\n- dedupe_candidates: overlapping tasks/events that should be linked or merged without deleting history.\n- approvals: pending/approved/rejected gate records.\n- ack_matrix: digest/task ACK state by affected agent.\n- evidence_index: recent evidence pointers only, not raw evidence body.\n\nProposed hierarchy/dedupe fields per row:\n- id\n- parent_id\n- parent_title\n- category: P0 Terminal|P0 Ledger|P1 Ops|P1 Governance|etc.\n- priority_band: P0|P1|P2|Paused|Done\n- duplicate_of: task id or null\n- related_ids: compact list of linked task/event ids\n- merge_action: keep|link|supersede|split|needs_caesar_decision\n- history_preserved: true\n- rationale: one concise sentence\n\nProposed operating columns per row:\n- id\n- title\n- status\n- priority\n- owner\n- lead: Caesar|Max|Areum|developer-x|QA\n- doing\n- next\n- blocker\n- evidence\n- last_event_id\n- last_event_at\n- last_report_age_minutes\n- stale_reason\n- decision_needed: true|false\n- protected_contract: terminal-submit|terminal-render|ledger-gate|policy-ack|commit-qa|none\n- approval_state: none|pending|max-approved|caesar-approved|returned\n- dispatch_allowed: true|false\n\nStale section criteria:\n- owner missing on active P0/P1 task.\n- no report/heartbeat within policy window for active owner.\n- task status doing but next/blocker/evidence empty.\n- live session missing for named owner.\n- assignment event exists but no later acknowledged/reported event.\n- decision-needed item older than configured threshold.\n\nDecision-needed section criteria:\n- controlled 9001 reload or runtime promotion.\n- freeze/unfreeze change.\n- protected contract touch or regression gate.\n- owner reassignment for active P0/P1.\n- commit/QA acceptance.\n- dedupe/supersede proposal that affects visible hierarchy.\n\nEvidence rules:\n- Store paths/event ids, not large raw logs.\n- Evidence field should be a compact array: work_event_id, file path, endpoint check, screenshot path, test/build result, session snapshot id.\n- The board should include enough evidence to route work, not enough to replace the ledger.\n\nMaintenance rule:\n- Areum maintains hierarchy, dedupe proposals, stale/decision-needed visibility.\n- Max owns owner mapping and dispatch from the view.\n- Caesar approves freeze/unfreeze, protected-contract gates, hierarchy changes that affect operating policy, and completion/promotion.\n\nnext=Caesar review of proposed execution-board view contract; after approval, Areum can update execution-board hygiene and Max can use it for owner mapping.\nblocker=needs Caesar approval before treating this as enforced operating contract.\nevidence=data/execution-board.json exists generated_at=2026-06-02T17:56:01.644Z; current counts active=40 p0=10 p1=26 unowned=40; Caesar decision work-event-1780423024841 assigned materialized execution view; Caesar approved digest/freeze gate in work-event-1780423024854."
+    },
+    {
+      "id": "work-event-1780423209354",
+      "task_id": "ledger-materialized-view-20260603",
+      "at": "2026-06-02T18:00:09.354907100Z",
+      "kind": "decision",
+      "body": "Caesar approval: Areum proposal work-event-1780423104375 is accepted as the enforced execution-board operating contract. data/work-ledger.json remains authoritative raw audit; data/execution-board.json is the concise materialized operating view for Caesar/Areum/Max/9100 and must avoid raw terminal/log body dumps. Required sections: counts, hierarchy, active, stale, decision_needed, blocked, dedupe_candidates, approvals, ack_matrix, evidence_index. Areum owns view hygiene/dedupe/stale-decision visibility; Max owns owner mapping and dispatch; Caesar owns freeze/reload/protected-contract/promotion gates."
+    },
+    {
+      "id": "work-event-1780423209368",
+      "task_id": "max-team-policy-ops-resume-20260603",
+      "at": "2026-06-02T18:00:09.368265500Z",
+      "kind": "decision",
+      "body": "Caesar decision from Max report work-event-1780423102071: approve Max owner-map direction for current P0/P1 routing. Proceed with developer-8 scoped review/patch candidate for tools/non-sleeping-ops-loop.cjs 9002 default drift, developer-4 QA checklist, developer-1 newline/split RCA. Hold broad terminal child implementation and controlled 9001 reload until explicit gate approval. 9001 PID 21316 must be preserved; developer-7 remains protected."
+    },
+    {
+      "id": "work-event-1780423226348",
+      "task_id": "ledger-materialized-view-20260603",
+      "at": "2026-06-02T18:00:26.348148100Z",
+      "kind": "decision",
+      "body": "Caesar approval work-event-1780423209368 binds execution-board owner map: materialize concise owner fields/sections only; avoid raw JSON bloat. Max coordinates with Areum; Caesar remains approval gate for freeze/reload/broad terminal work."
+    },
+    {
+      "id": "work-event-1780423226374",
+      "task_id": "max-team-policy-ops-resume-20260603",
+      "at": "2026-06-02T18:00:26.374194800Z",
+      "kind": "decision",
+      "body": "Caesar approved owner-map direction via approval=work-event-1780423209368. Proceed only with scoped developer-8 9002-default drift candidate, developer-4 QA checklist, developer-1 newline/split RCA. Hold controlled 9001 reload and broad terminal child implementation until explicit gate. Coordinate with Areum so owner map appears in execution-board without raw JSON bloat."
+    },
+    {
+      "id": "work-event-1780423237772",
+      "task_id": "ledger-materialized-view-20260603",
+      "at": "2026-06-02T18:00:37.772662Z",
+      "kind": "reported",
+      "body": "Areum owner-map semantics proposal for data/execution-board.json.\nitem=ledger-materialized-view-20260603\nstate=proposal-ready; approval basis=work-event-1780423209354; no product code run.\n\nGoal:\n- Reduce unowned/stale counts in data/execution-board.json by making ownership explicit and reviewable.\n- Preserve data/work-ledger.json as raw history; never rewrite/delete historical tasks/events to make the board look clean.\n- Treat execution-board owner fields as a materialized operating layer derived from ledger events, Caesar approvals, Max assignments, and live session state.\n\nOwner-map semantics:\n- owner: accountable current worker or coordinator for the row.\n- lead: review/assignment authority; normally Caesar for governance/freeze, Max for dev execution, Areum for ledger clarity, developer-4 for QA.\n- owner_source: explicit-ledger-event|caesar-decision|max-assignment|role-default|derived-parent|unassigned.\n- owner_confidence: confirmed|inferred|missing|conflict.\n- owner_status: active|waiting|stale|blocked|missing-session|protected|done.\n- assignable: true only when freeze/approval gates allow dispatch and protected-contract approval is satisfied.\n- assignment_state: unassigned|assigned|acknowledged|doing|reported|lead-review|accepted|qa-pass|completed|blocked|stopped.\n- next_owner: who must act next: Caesar|Max|Areum|developer-x|QA|Lucas.\n\nDerivation priority:\n1. Latest explicit work-ledger event with assigned/acknowledged/doing/reported/blocked/completed state.\n2. Caesar approval/decision event for governance, freeze, protected-contract, or hierarchy policy.\n3. Max assignment event for development execution rows.\n4. Role-default mapping for stable operating duties: Areum ledger clarity, Max dev assignment, developer-4 QA, Caesar gate approvals.\n5. Parent-derived owner only when child has no explicit owner and parent ownership is unambiguous.\n6. Otherwise owner remains null and row appears in unowned.\n\nConflict handling:\n- If two live owners are assigned to the same row without lead clarification, mark owner_confidence=conflict and decision_needed=true.\n- If owner exists but live session is missing, owner_status=missing-session and next_owner=Max unless Caesar owns the gate.\n- If owner is stale but task is protected/frozen, do not auto-reassign; mark decision_needed=true.\n- If a task is superseded/duplicate, preserve original owner in history and set merge_action=link|supersede with Caesar review when visible hierarchy changes.\n\nStale reduction rules:\n- Unowned count drops only when owner_source is explicit, approved, or stable role-default.\n- Stale count drops only after fresh ACK/heartbeat/report or approved stop/reassign event.\n- Board generation may propose owners but must label them inferred until Max/Caesar confirms.\n- Max assignments should create or reference ledger events so board owner fields are traceable.\n\nRequired owner-map columns:\n- id, parent_id, priority_band, status, owner, lead, owner_source, owner_confidence, owner_status, assignment_state, next_owner, next, blocker, evidence, last_event_id, last_event_at, stale_reason, decision_needed, protected_contract, approval_state, dispatch_allowed.\n\nDecision-needed section additions:\n- unowned P0/P1 with no role-default owner.\n- inferred owner awaiting Max confirmation.\n- conflicting owner assignments.\n- missing live session for active owner.\n- protected-contract row without approval_state=caesar-approved|max-approved as required.\n- stale report beyond policy window with dispatch_allowed=false.\n\nEvidence rules:\n- Each materialized owner must point to source_event_id or source_rule.\n- Evidence remains compact: event id, endpoint status, session id, file path, test/screenshot path if relevant.\n- Do not paste raw task/event bodies into terminal previews.\n\nOperating handoff:\n- Areum maintains the owner-map clarity proposal, stale/decision-needed sections, and dedupe/hierarchy hygiene.\n- Max uses the board to assign dev work and must write assignment events that reduce unowned/stale counts.\n- Caesar approves owner semantics, freeze/unfreeze, protected-contract gates, and hierarchy changes.\n\nnext=Caesar/Max use approved semantics for next execution-board refresh; Areum can apply hygiene proposals after approval without raw JSON dumps.\nblocker=none after Caesar approval; implementation/automation changes still require Max dev assignment.\nevidence=contract approved by work-event-1780423209354; previous proposal work-event-1780423104375; current execution-board is working owner map view per Max update."
+    },
+    {
+      "id": "work-event-1780423359907",
+      "task_id": "terminal-live-render-stale-until-refresh-20260603",
+      "at": "2026-06-02T18:02:39.907769Z",
+      "kind": "risk",
+      "body": "Lucas observed popout/fullscreen refresh causing the same Caesar grid terminal to visually refresh/replay from top to bottom. Likely source: each XtermPreview mount opens a websocket, sends attach requestReplay=true, calls term.reset() on open, and writes replay with resetBefore=true. If popout/fullscreen refresh causes the grid card component to remount or resubscribe, the card clears and replays too. Also fullscreen resize can affect shared PTY dimensions. Required fix: isolate popout/fullscreen replay lifecycle from grid card; card should not clear/replay on sibling popout refresh; consider card requestReplay=false after initial mount or stable terminal instance cache; resize should be owner/view scoped. Buffer policy recommendation: card preview 2-4KB, fullscreen/log modal 8KB, durable logs/evidence files separate."
+    },
+    {
+      "id": "work-event-1780423494024",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T18:04:54.024675300Z",
+      "kind": "decision",
+      "body": "Lucas clarified terminal retained buffer/scroll requirement: visible terminal should scroll up through the retained volatile buffer, but browser card scrollbar/wheel still appears dead. Current 8KB may still look visually long because it is byte-based and ANSI/Korean/wrapping inflate rows. Required ledger task: restore usable xterm scrollback/viewport scrollbar for retained buffer; separate card preview vs fullscreen/log policy. Proposed policy: card 2-4KB visible replay, fullscreen/log 8KB, durable audit logs separate. Acceptance: wheel/scrollbar works on card and fullscreen, can scroll through retained replay without grid clear/replay side effects, screenshot + DOM metrics for .xterm-viewport scrollHeight/clientHeight/scrollTop, console clean."
+    },
+    {
+      "id": "work-event-1780423518938",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T18:05:18.938373700Z",
+      "kind": "assigned",
+      "body": "Caesar triage for Lucas scrollback complaint: source shows API replay/ring constants at 8KB, but web xterm is configured with TERMINAL_SCROLLBACK_LINES = 24 in apps/web/src/main.tsx. This likely makes the visible xterm buffer too shallow even when replay bytes exist; CSS already tries overflow-y: scroll for .xterm-viewport. Required fix proposal: separate byte replay from xterm row retention; set card xterm scrollback to a usable row count (recommend card 200 lines, fullscreen/popout 500 lines) while keeping card replay bytes small (2-4KB) and fullscreen/log bytes 8KB; verify .xterm-viewport scrollHeight > clientHeight and wheel/scrollbar works. Also prevent popout/fullscreen refresh from clearing grid card replay. Assign through Max/dev; Caesar does not directly code this non-emergency UI fix."
+    },
+    {
+      "id": "work-event-1780423539481",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T18:05:39.481846300Z",
+      "kind": "assigned",
+      "body": "Max ACK for Caesar triage event=work-event-1780423518938. Scope: terminal-scrollbar-visible-hq-20260603. Requirement: API replay/ring may stay 8KB; web xterm scrollback at apps/web/src/main.tsx is too low (24 lines). Proposed targets: card scrollback 200 rows, fullscreen/popout 500 rows, card replay 2-4KB, fullscreen/log 8KB; preserve durable logs. QA evidence must include .xterm-viewport scrollHeight/clientHeight/scrollTop, wheel/scrollbar, screenshot, console clean, and no popout refresh clearing grid card. 9001 reload not authorized."
+    },
+    {
+      "id": "work-event-1780423589226",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T18:06:29.226107500Z",
+      "kind": "assigned",
+      "body": "Max dispatch: developer-8 owns scoped web xterm scrollback patch candidate. Confirmed current bottleneck: apps/web/src/main.tsx:140 TERMINAL_SCROLLBACK_LINES=24; xterm instances use that constant at main.tsx:2587 and main.tsx:3003; replay/output trimming uses tailTerminalLines at main.tsx:2766/2796. Target: card xterm scrollback 200 rows; fullscreen/popout/log xterm scrollback 500 rows; card replay 2-4KB if needed, fullscreen/log 8KB; preserve durable logs; no 9001 reload; no broad terminal child implementation. Developer-8 must inspect dirty web files before editing and report before commit gate."
+    },
+    {
+      "id": "work-event-1780423589267",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T18:06:29.267702500Z",
+      "kind": "assigned",
+      "body": "Max dispatch: developer-4 owns QA checklist/evidence for terminal-scrollbar-visible-hq-20260603. Required after patch: .xterm-viewport scrollHeight/clientHeight/scrollTop for card and fullscreen/popout; wheel and manual scrollbar proof; screenshot; console clean; viewport note; and proof popout refresh does not clear grid card. Preserve 9001 PID 21316; no reload."
+    },
+    {
+      "id": "work-event-1780423950049",
+      "task_id": "terminal-stuck-input-autosubmit-watchdog-20260603",
+      "at": "2026-06-02T18:12:30.049164500Z",
+      "kind": "evidence",
+      "body": "Caesar direct P0 guard fix: rewrote tools/terminal-stuck-input-watchdog.cjs to use stable prompt-tail hash detection over 12 lines, recognize DECISION/REPORT/ACK/HEARTBEAT/DEV_CHANGE_* operational prompts, exclude ceo and developer-7 from auto-submit protection, and submit Enter-only after unchanged tail exceeds threshold. Restarted watchdog runner; active node PID 29348. Verification: node --check passed; dry-run one-shot passed; live restart done."
+    },
+    {
+      "id": "work-event-1780423950065",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T18:12:30.065012Z",
+      "kind": "evidence",
+      "body": "Caesar direct buffer/scrollback adjustment per Lucas: API attach replay now accepts replayBytes with card cap 4KB and max/fullscreen 8KB; web card replay requests 4KB and xterm scrollback 200 rows; fullscreen/popout replay 8KB and xterm scrollback 500 rows; log view scrollback 500 rows. Verification: cargo test -p lcc-core-api --quiet passed 19/19; npm --prefix apps/web test passed 36/36; npm --prefix apps/web run build passed with existing chunk-size warning. rustfmt unavailable in local toolchain."
+    },
+    {
+      "id": "work-event-1780423952422",
+      "task_id": "ledger-materialized-view-20260603",
+      "at": "2026-06-02T18:12:32.422389400Z",
+      "kind": "reported",
+      "body": "Areum report: execution-board owner-map coordination status.\nitem=ledger-materialized-view-20260603\napproval=work-event-1780423209368\nstate=reported; no development routing or broad terminal work started.\n\nCurrent board status:\n- data/execution-board.json is already the working concise owner-map view.\n- It contains concise sections only: counts, hierarchy, active, stale, decision_needed, blocked, dedupe_candidates, approvals, ack_matrix, evidence_index, and owner_map_semantics.\n- Active rows include owner/lead/next/blocker/evidence plus owner_source, owner_confidence, owner_status, assignment_state, next_owner, decision_needed, protected_contract, approval_state, and dispatch_allowed.\n- Raw work-ledger history remains in data/work-ledger.json; terminal previews and large event bodies are not copied into the board.\n\nMax coordination semantics:\n- Max should use data/execution-board.json for assignment decisions.\n- Max assignment events should be written back to work-ledger so the board can reduce unowned/stale counts through traceable source events.\n- Areum maintains clarity/hierarchy/dedupe/stale/decision-needed hygiene.\n- Caesar remains approval gate for freeze, reload, protected-contract, hierarchy policy, promotion, and broad terminal work.\n\nNext board hygiene target:\n- Replace remaining missing-owner P0/P1 rows only with explicit source_event_id or stable role-default mapping.\n- Keep inferred owners labeled inferred until Max/Caesar confirms.\n- Keep decision_needed rows concise and approval-oriented: owner assignment, protected gate, reload/freeze, QA/commit, or hierarchy decision.\n\nnext=Max uses owner-map view for assignment events; Areum monitors unowned/stale/decision-needed sections and proposes hygiene updates without raw JSON dumps.\nblocker=none.\nevidence=data/execution-board.json parsed successfully; current board source_event_high_watermark=work-event-1780423237772; owner_map_semantics present; Caesar approval reference work-event-1780423209368 recorded in current decision stream; prior Areum events work-event-1780423104375 and work-event-1780423237772."
+    },
+    {
+      "id": "work-event-1780423991901",
+      "task_id": "ledger-materialized-view-20260603",
+      "at": "2026-06-02T18:13:11.901341Z",
+      "kind": "reported",
+      "body": "Max acknowledged Areum report for ledger-materialized-view-20260603. Areum evidence: data/work-ledger.json event=work-event-1780423952422. Direction accepted: Max will use data/execution-board.json owner-map for traceable assignment events; Areum monitors stale/decision-needed hygiene. blocker=none."
+    },
+    {
+      "id": "work-event-1780424025923",
+      "task_id": "ledger-materialized-view-20260603",
+      "at": "2026-06-02T18:13:45.923783200Z",
+      "kind": "decision",
+      "body": "Caesar decision from Areum report work-event-1780423952422: approved owner-map assignment semantics. Max must use data/execution-board.json for assignment decisions and must write assignment/ack/reported events back to work-ledger with traceable source_event_id so execution-board can reduce unowned/stale counts. Areum monitors hierarchy/dedupe/stale/decision-needed hygiene and proposes updates without raw JSON dumps. Caesar remains gate for freeze/reload/protected-contract/hierarchy policy/promotion."
+    },
+    {
+      "id": "work-event-1780424039502",
+      "task_id": "ledger-materialized-view-20260603",
+      "at": "2026-06-02T18:13:59.502573900Z",
+      "kind": "decision",
+      "body": "Caesar approved execution-board owner-map assignment contract. approval=work-event-1780424025923. Max must use data/execution-board.json owner-map for assignments. Each assignment must create/reference a work-ledger event with source_event_id so board can reduce unowned/stale counts. Broad terminal child work remains held; continue only dev8 9002 drift, dev4 QA, dev1 RCA."
+    },
+    {
+      "id": "work-event-1780424058479",
+      "task_id": "remove-legacy-9002-ops-references-20260603",
+      "at": "2026-06-02T18:14:18.479760900Z",
+      "kind": "assigned",
+      "body": "source_event_id=work-event-1780424025923 owner=developer-8 item=remove-legacy-9002-ops-references-20260603. Assignment from data/execution-board.json owner-map: continue scoped 9002 default drift candidate only. next=inspect/patch candidate for tools/non-sleeping-ops-loop.cjs default order LCC_API_BASE -> LCC_SESSION_API -> http://127.0.0.1:9001; blocker=none; evidence=Caesar approval work-event-1780424025923, prior dispatch work-event-1780423102164, 9001 PID 21316 preserved."
+    },
+    {
+      "id": "work-event-1780424058505",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T18:14:18.505237800Z",
+      "kind": "assigned",
+      "body": "source_event_id=work-event-1780424025923 owner=developer-4 item=terminal-input-newline-regression-20260603. Assignment from data/execution-board.json owner-map: continue scoped QA checklist only. next=produce checklist/evidence template for current /write fallback and post-reload split ACK verification; blocker=controlled 9001 reload held by Caesar gate; evidence=Caesar approval work-event-1780424025923, prior QA dispatch work-event-1780423102104, 9001 PID 21316 preserved."
+    },
+    {
+      "id": "work-event-1780424058528",
+      "task_id": "terminal-input-newline-regression-20260603",
+      "at": "2026-06-02T18:14:18.528540700Z",
+      "kind": "assigned",
+      "body": "source_event_id=work-event-1780424025923 owner=developer-1 item=terminal-input-newline-regression-20260603. Assignment from data/execution-board.json owner-map: continue scoped newline/split RCA only. next=final concise RCA with source/runtime mismatch, reload prerequisites, residual risk; blocker=live 9001 split REST route not active until approved reload; evidence=Caesar approval work-event-1780424025923, dev1 prior RCA report in terminal, 9001 PID 21316 preserved."
+    },
+    {
+      "id": "work-event-1780424212200",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T18:16:52.200671800Z",
+      "kind": "decision",
+      "body": "Caesar verified live 9001 still sends 32768-byte replay regardless of requested replayBytes=1024/4096/8192, so source buffer policy is not active in runtime. Lucas explicitly ordered applying 8KB/card policy quickly; controlled 9001 reload will proceed after snapshots. Snapshots: data/system-logs/pre-9001-reload-sessions-20260603.json, pre-9001-reload-health-20260603.json, pre-9001-reload-diff-20260603.patch. Pre-reload PID=21316."
+    },
+    {
+      "id": "work-event-1780424212215",
+      "task_id": "future-postgresql-embedding-memory-20260603",
+      "at": "2026-06-02T18:16:52.215169700Z",
+      "kind": "decision",
+      "body": "Lucas/Caesar architecture note: agent activity history (who did what, when, evidence, reports, dispatches, ACKs, state changes) should be a common raw operational event store separate from semantic memory/retrieval. Later DB adoption should split: operational audit/event DB for ledger/activity views, and memory/embedding retrieval DB for contextual recall. The operational DB remains authoritative for activity timelines; embeddings augment search only."
+    },
+    {
+      "id": "work-event-1780424532223",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T18:22:12.223422400Z",
+      "kind": "evidence",
+      "body": "Runtime-adjustable terminal buffer policy applied without 9001 reload. Live 9001 still returns 32768-byte replay when probed, so 9000 web now enforces client-side replay cap: card 4KB, fullscreen/popout 8KB, with localStorage override keys lcc.terminal.cardReplayBytes, lcc.terminal.fullscreenReplayBytes, lcc.terminal.cardScrollbackLines, lcc.terminal.fullscreenScrollbackLines. Web restarted on port 9000 PID 4964. Verification: npm web tests 36/36, web build passed, cargo tests 19/19, 9000 health ok. 9001 PID 21316 preserved."
+    },
+    {
+      "id": "work-event-1780424532237",
+      "task_id": "quality-freeze-regression-architecture-policy-20260603",
+      "at": "2026-06-02T18:22:12.237618600Z",
+      "kind": "decision",
+      "body": "Policy update from Lucas/Caesar: future development should prefer runtime-adjustable limits/configs for operationally sensitive behavior so 9001 restart is not a blocker. Added Runtime Adjustability section to docs/development-architecture-policy-20260603.md. Memory/DB note remains separate: operational activity event store differs from semantic memory/embedding retrieval."
+    },
+    {
+      "id": "work-event-1780424580237",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T18:23:00.237071800Z",
+      "kind": "reported",
+      "body": "Max acknowledged Caesar-applied runtime-adjustable client cap for terminal-scrollbar-visible-hq-20260603. source/evidence=work-event-1780424532223. 9000 restarted PID 4964; 9001 reload remains held. Next: collect developer-4 QA on card/fullscreen .xterm-viewport scroll metrics, wheel/scrollbar, screenshot, console clean, and popout/grid preservation; continue execution-board owner-map operation."
+    },
+    {
+      "id": "work-event-1780424651799",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T18:24:11.799552Z",
+      "kind": "acknowledged",
+      "body": "Max acknowledged Caesar-applied runtime-adjustable client cap event work-event-1780424532223. 9000 restarted PID 4964, 9001 reload held, developer-4 dispatched for card/fullscreen scroll metrics QA and evidence. Owner-map operation continues through execution-board trace events."
+    },
+    {
+      "id": "work-event-1780424852828",
+      "task_id": "terminal-scrollbar-visible-hq-20260603",
+      "at": "2026-06-02T18:27:32.828606600Z",
+      "kind": "evidence",
+      "body": "Adjusted runtime terminal card replay default from 4KB to 1KB per Lucas. Fullscreen/popout remains 8KB. 9000 restarted and healthy with node PID 13588. Web tests 36/36 passed and web build passed with existing chunk warning."
+    },
+    {
+      "id": "work-event-1780424852849",
+      "task_id": "terminal-stuck-input-autosubmit-watchdog-20260603",
+      "at": "2026-06-02T18:27:32.849687Z",
+      "kind": "evidence",
+      "body": "Adjusted stuck-input Enter guard to 2s threshold and 1s polling interval. Detection now uses last prompt tail or last 12 lines if prompt marker is garbled; ceo and developer-7 remain protected from auto-submit. Watchdog restarted with node PID 14228. node --check and dry-run passed."
+    },
+    {
+      "id": "work-event-1780425245325",
+      "task_id": "9100-executive-dashboard-ux-20260603",
+      "at": "2026-06-02T18:34:05.325297400Z",
+      "kind": "reported",
+      "body": "Areum implementation brief for Lucas-readable 9100 executive dashboard.\nitem=9100-executive-dashboard-ux-20260603\nstate=brief-ready; no product implementation run.\n\nProblem from CDP evidence:\n- Current 9100 page is a ledger-management MVP, not an executive operating dashboard.\n- CDP report shows directives=0, agents=0, progressBars=0, consoleEvents=[], screenshot captured.\n- Korean text renders as mojibake in body sample/title, so Lucas readability is not acceptable.\n- Current table exposes broad task rows and JSON detail behavior; executive view should summarize decisions and risk first, with raw JSON drilldown only.\n\nDashboard objective:\n- First viewport answers: What needs a decision, who owns P0/P1, what is stale/blocked, which agents are active, what evidence/QA gate is missing, and what Caesar/Max must do next.\n- Raw work-ledger remains authoritative; execution-board.json is the dashboard source; raw JSON is behind drilldown only.\n\nRequired layout sections:\n1. Executive summary band\n- counts: P0, P1, decision_needed, stale, blocked, unowned, active agents, QA pending.\n- policy mode: normal|freeze|approval-pending|emergency.\n- latest source_event_high_watermark and generated_at.\n\n2. Decision-needed queue\n- columns: item, priority_band, owner, next_owner, decision_type, protected_contract, approval_state, evidence.\n- order: Caesar/Lucas gates first, then Max owner assignments, then QA/commit gates.\n- action labels: approve, return, assign owner, freeze/unfreeze, reload decision, QA gate.\n\n3. P0/P1 owner map\n- grouped by parent category: P0 Terminal, P0 Ledger, P1 Ops, P1 Governance.\n- columns: item, owner, lead, assignment_state, next, blocker, evidence, dispatch_allowed.\n- show unowned/stale as risk badges, not buried in raw table rows.\n\n4. Stale/blocker risks\n- columns: item, stale_reason, owner_status, last_event_at, next_owner, required action.\n- stale causes: missing_owner, missing_report, missing_session, protected_gate_pending, blocked_waiting_decision.\n\n5. Agent activity strip\n- active sessions: Caesar, Max, Areum, developer-1, developer-4, developer-8.\n- show role, current item, last ACK/report if available, and stale/missing indicator.\n- no raw terminal preview bodies in default view.\n\n6. QA/evidence gates\n- rows for protected contracts and UI/runtime gates.\n- columns: gate, owner, required evidence, latest evidence pointer, status.\n- include screenshot/CDP, DOM/text, console, viewport, test/build, endpoint status, PID/reload evidence as compact pointers only.\n\n7. Raw JSON drilldown only\n- collapsed per item; opened manually.\n- show source task/event ids and compact evidence links first.\n- raw event/task JSON hidden behind explicit expand/download controls.\n\nData source rules:\n- Primary source: data/execution-board.json.\n- Drilldown source: /api/work-ledger task/event query by id, not full raw dump.\n- Evidence source: compact file paths/event ids from evidence_index and row evidence fields.\n- Do not render terminal previews, large event bodies, or entire work-ledger JSON in the main dashboard.\n\nReadability requirements:\n- Lucas-readable Korean labels must render correctly; no mojibake.\n- Fixed labels may be bilingual where useful: Decision Needed / ???? ??, Owner / ??, Evidence / ??.\n- Use concise status chips instead of long paragraphs.\n- First viewport must show decision queue and P0/P1 owner risk without scrolling through raw table rows.\n\nAcceptance / QA evidence:\n- CDP screenshot for 9100 dashboard desktop viewport.\n- DOM/text check for decision-needed, P0/P1 owner map, stale risks, agent activity, QA/evidence gates.\n- Console check clean.\n- Verify raw JSON appears only after drilldown interaction.\n- Verify no mojibake/replacement chars in key headings/labels.\n- Evidence paths recorded in work-ledger and execution-board evidence_index.\n\nImplementation ownership proposal:\n- Areum: dashboard information architecture and field hygiene.\n- Caesar: approves dashboard contract and protected gate semantics.\n- Max: assigns developer implementation after approval.\n- Developer implementer: 9100 UI changes only after Max assignment; no broad terminal work.\n- Developer-4/QA: CDP screenshot, DOM/text, console, raw-drilldown-only verification.\n\nnext=Caesar review, then Max assigns implementation owner from execution-board; Areum continues field hygiene.\nblocker=needs Caesar/Max approval before implementation routing.\nevidence=data/system-logs/ceo-ledger-9100-cdp/ceo-ledger-9100-report.json; data/system-logs/ceo-ledger-9100-cdp/ceo-ledger-9100.png; data/execution-board.json counts active=41 p0=10 p1=27 unowned=15 stale=15 decision_needed=30."
+    },
+    {
+      "id": "work-event-1780425286549",
+      "task_id": "9100-executive-dashboard-ux-20260603",
+      "at": "2026-06-02T18:34:46.549774700Z",
+      "kind": "reported",
+      "body": "Max acknowledged Areum report for 9100-executive-dashboard-ux-20260603. Areum evidence=data/work-ledger.json event=work-event-1780425245325 cdp=data/system-logs/ceo-ledger-9100-cdp. Next gate=Caesar review then Max assignment. blocker=needs Caesar/Max approval before implementation routing. No implementation assigned yet; 9001 preserved."
+    },
+    {
+      "id": "work-event-1780425286567",
+      "task_id": "max-team-policy-ops-resume-20260603",
+      "at": "2026-06-02T18:34:46.567763700Z",
+      "kind": "reported",
+      "body": "Max acknowledged Areum UX report cross-reference: item=9100-executive-dashboard-ux-20260603 event=work-event-1780425245325 cdp=data/system-logs/ceo-ledger-9100-cdp. Await Caesar review before Max routes implementation."
+    },
+    {
+      "id": "work-event-1780425409054",
+      "task_id": "9100-executive-dashboard-ux-20260603",
+      "at": "2026-06-02T18:36:49.054180100Z",
+      "kind": "decision",
+      "body": "source_event_id=work-event-1780425324358537 owner=Max item=9100-executive-dashboard-ux-20260603. Caesar approved Areum brief work-event-1780425245325 as UX contract. Scoped implementation decomposition: one implementer only, developer-8, for 9100-only dashboard refactor in tools/ceo-ledger-board-server.cjs. Required panels: decision-needed queue, P0/P1 owner map, stale/blocker risks, agent activity strip, QA/evidence gates, raw JSON drilldown only. Data source: data/execution-board.json primary plus targeted work-ledger drilldowns. QA owner=developer-4. Preserve 9001; 9000/9100 restart allowed only for UI evidence if needed. blocker=none for assignment; implementation must stay 9100-only."
+    },
+    {
+      "id": "work-event-1780425409054",
+      "task_id": "9100-executive-dashboard-ux-20260603",
+      "at": "2026-06-02T18:36:49.054426800Z",
+      "kind": "assigned",
+      "body": "source_event_id=work-event-1780425324358537 owner=developer-4 item=9100-executive-dashboard-ux-20260603. QA assignment: verify developer-8 9100 dashboard implementation. Mandatory evidence: Korean readability/mojibake check, CDP screenshot, DOM/text checks for decision-needed/P0-P1 owner map/stale risks/agent activity/QA gates/raw JSON drilldown only, console clean, viewport note, and evidence paths recorded. Preserve 9001."
+    },
+    {
+      "id": "work-event-1780425409088",
+      "task_id": "9100-executive-dashboard-ux-20260603",
+      "at": "2026-06-02T18:36:49.088127500Z",
+      "kind": "assigned",
+      "body": "source_event_id=work-event-1780425324358537 owner=developer-8 item=9100-executive-dashboard-ux-20260603. Assignment: implement scoped 9100-only executive dashboard in tools/ceo-ledger-board-server.cjs. Do not touch 9001/API/terminal runtime. Use data/execution-board.json as primary source and targeted work-ledger drilldowns for raw JSON only. Required panels: decision-needed queue, P0/P1 owner map, stale/blocker risks, agent activity strip, QA/evidence gates, raw JSON drilldown only. Must fix Korean readability/mojibake in labels/headings. next=inspect current server, propose/patch minimal dashboard refactor, then hand to dev4 QA. blocker=existing file has mojibake and raw table/drilldown behavior; keep scope narrow. evidence=Areum brief work-event-1780425245325, Caesar approval work-event-1780425324358537, current source tools/ceo-ledger-board-server.cjs."
+    },
+    {
+      "id": "work-event-1780425876004",
+      "task_id": "9100-executive-dashboard-ux-20260603",
+      "at": "2026-06-02T18:44:36.004031400Z",
+      "kind": "heartbeat",
+      "body": "source_event_id=work-event-1780425828963418 owner=Max item=9100-executive-dashboard-ux-20260603. OPS_WAKE received with deadline=2026-06-03T08:00:00+09:00. Max is checking developer-8 active implementation state and developer-4 QA readiness; 9001 preserve gate active."
+    },
+    {
+      "id": "work-event-1780425903655",
+      "task_id": "9100-executive-dashboard-ux-20260603",
+      "at": "2026-06-02T18:45:03.655983Z",
+      "kind": "reported",
+      "body": "source_event_id=work-event-1780425828963418 owner=Max item=9100-executive-dashboard-ux-20260603. Status report within 2 min: developer-8 is active and has produced scoped 9100-only implementation candidate in tools/ceo-ledger-board-server.cjs; dev8 evidence says required panels are implemented, /api/execution-board and targeted /api/work-ledger drilldown exposed, node --check passed, and no 9001/API/terminal runtime usage remains in that file. developer-4 QA is ready with checklist and has now been handed the implementation candidate for CDP/DOM/console/Korean-readability verification. next=developer-4 executes QA; if needed, restart 9100 only and record PID before/after; blocker=QA not yet complete; evidence=developer-8 session updated_at=2026-06-02T18:44:18Z; developer-4 checklist data/system-logs/9100-executive-dashboard-ux-20260603/qa-checklist.md; git status shows tools/ceo-ledger-board-server.cjs modified; 9001 PID 21316 healthy."
+    },
+    {
+      "id": "work-event-1780426890721",
+      "task_id": "ledger-priority-classification-20260603",
+      "at": "2026-06-02T19:01:30.721759700Z",
+      "kind": "assigned",
+      "body": "source_event_id=ops-wake-max-team-policy-ops-resume-20260603-20260603T1900Z owner=areum item=ledger-priority-classification-20260603. Max assignment for safe parallel P1 ledger-readability hygiene: propose compact priority/owner/state labels for 9100 from data/execution-board.json without raw JSON bloat. No source edits, no second ledger, no 9001 restart/touch, do not block developer-4 QA. next=Areum report field hygiene proposal. blocker=none. evidence=data/execution-board.json missing owner/stale board fields and Areum active session."
+    },
+    {
+      "id": "work-event-1780426890753",
+      "task_id": "max-team-policy-ops-resume-20260603",
+      "at": "2026-06-02T19:01:30.753488200Z",
+      "kind": "reported",
+      "body": "source_event_id=ops-wake-max-team-policy-ops-resume-20260603-20260603T1900Z owner=Max item=max-team-policy-ops-resume-20260603. Used data/execution-board.json to select safe parallel work. Held protected terminal contracts and broad 9100/ledger implementation. Kept developer-8 on 9100 fix/implementation and developer-4 on QA. Added active owners: developer-1 for worker-completion-report-chain-20260603 and Areum for ledger-priority-classification-20260603. next=collect reports and keep 9100 QA first. blocker=none for assignments; 9100 QA still in progress. evidence=data/execution-board.json counts active=41 p0=10 p1=27 unowned=15 stale=15 decision_needed=30; sessions developer-1/developer-4/developer-8/areum active; 9001 PID 21316 healthy."
+    },
+    {
+      "id": "work-event-1780426890781",
+      "task_id": "worker-completion-report-chain-20260603",
+      "at": "2026-06-02T19:01:30.781997500Z",
+      "kind": "assigned",
+      "body": "source_event_id=ops-wake-max-team-policy-ops-resume-20260603-20260603T1900Z owner=developer-1 item=worker-completion-report-chain-20260603. Max assignment for safe parallel P1 ops work: produce worker completion/report chain proposal only. No source edits, no 9001 restart/touch, no terminal contract work, no interruption of 9100 QA. next=developer-1 report proposal with evidence/blocker/residual risk/next. blocker=none. evidence=data/execution-board.json unowned/stale filter and active session developer-1."
+    },
+    {
+      "id": "work-event-1780428137795",
+      "task_id": "terminal-live-render-stale-until-refresh-20260603",
+      "at": "2026-06-02T19:22:17.795860800Z",
+      "kind": "evidence",
+      "body": "Caesar direct ops: restored terminal fleet card full-height behavior after livePreview regression; kept card PTY resize observe-only/fullscreen resize-capable; removed static preview word-break vertical text issue; web tests 36/36 and build passed; restarted 9000 only PID 28308 while 9001 PID stayed 21316; terminal quality screenshots ok at data/system-logs/terminal-9000-cdp/terminal-quality-2026-06-02T19-11-18-713Z.png and terminal-quality-2026-06-02T19-21-44-457Z.png; started periodic terminal-quality watcher PID 27800; fixed watchdog LCC BOOT recognition and restarted PID 30352; spawned dev5/dev6 primary extra workers, dev2/dev3 quarantine/support due preview quality."
+    },
+    {
+      "id": "work-event-1780428243585",
+      "task_id": "terminal-live-render-stale-until-refresh-20260603",
+      "at": "2026-06-02T19:24:03.585640600Z",
+      "kind": "assigned",
+      "body": "source_event_id=caesar-staffing-20260603T1922Z owner=developer-5 item=terminal-live-render-stale-until-refresh-20260603. Assignment: terminal fleet readability/isolation plus terminal quality screenshot/logging follow-up. Evidence-first only unless Max approves source edits. Inspect 9000 live terminal cards/popout across active sessions; capture screenshot/log evidence for readability, isolation, stale rendering, console errors, and unnecessary rerender/replay when opening one terminal. Do not touch/reload 9001; do not alter terminal submit/newline contract; keep developer-2/developer-3 quarantine untouched. next=developer-5 reports item/doing/next/blocker/evidence. blocker=none. evidence=data/execution-board.json P0 terminal-render stale item; developer-5 POLICY_ACK active; 9001 PID 21316 preserved."
+    },
+    {
+      "id": "work-event-1780428243597",
+      "task_id": "ledger-priority-classification-20260603",
+      "at": "2026-06-02T19:24:03.597760800Z",
+      "kind": "assigned",
+      "body": "source_event_id=caesar-staffing-20260603T1922Z owner=developer-6 item=ledger-priority-classification-20260603. Assignment: 9100 dashboard second-pass plus ledger owner-map hygiene. Inspect data/execution-board.json and tools/ceo-ledger-board-server.cjs; propose or make narrow 9100-only improvement if clearly safe: owner-map readability, P0/P1 priority labels, stale/unowned visibility, no raw JSON bloat. Coordinate with Areum; no second ledger. Do not touch/reload 9001; do not touch terminal contracts. If editing, run node --check and hand to developer-4 QA. next=developer-6 reports item/doing/next/blocker/evidence. blocker=none. evidence=data/execution-board.json P1 ledger readable-view stale item; developer-6 POLICY_ACK active; 9001 PID 21316 preserved."
+    },
+    {
+      "id": "work-event-1780428243620",
+      "task_id": "max-team-policy-ops-resume-20260603",
+      "at": "2026-06-02T19:24:03.620275300Z",
+      "kind": "reported",
+      "body": "source_event_id=caesar-staffing-20260603T1922Z owner=Max item=max-team-policy-ops-resume-20260603. Staffing update applied: active sessions=10. Primary additional implementers assigned: developer-5 to terminal-live-render-stale-until-refresh-20260603 for terminal fleet readability/isolation and quality screenshot/logging evidence; developer-6 to ledger-priority-classification-20260603 for 9100 second-pass/ledger owner-map hygiene. developer-2 and developer-3 kept in quarantine/support until preview/ACK quality is clean. Existing owners remain: developer-8 9100 implementation/fix, developer-4 QA, developer-1 newline/RCA/report-chain, Areum field hygiene. blocker=none for dispatch; 9001 reload explicitly held. evidence=data/execution-board.json counts active=41 p0=10 p1=27 unowned=15 stale=15; sessions developer-5/developer-6 active and POLICY_ACK; 9001 PID 21316 healthy/preserved."
+    },
+    {
+      "id": "work-event-1780428257921",
+      "task_id": "max-dynamic-staffing-policy-20260603",
+      "at": "2026-06-02T19:24:17.921596300Z",
+      "kind": "evidence",
+      "body": "Caesar staffing correction: spawned additional workers via 9001 API without 9001 reload. Active sessions=10. Developer-3/5/6 reached POLICY_ACK and are usable; developer-2 reached ACK but reported repo mirror path mismatch, support/quarantine until cleared. Corrected Max API-shape mistake: /api/sessions returns array directly, not .value. Instructed Max to assign dev5 ledger/owner-map hygiene, dev6 terminal quality/watchdog evidence, dev3 9100 UX second-pass or fleet readability QA. Watchdog latest check alerts=0. 9001 health ok sessions=10."
+    },
+    {
+      "id": "work-event-1780428305653",
+      "task_id": "max-team-policy-ops-resume-20260603",
+      "at": "2026-06-02T19:25:05.653488100Z",
+      "kind": "reported",
+      "body": "source_event_id=caesar-api-shape-correction-20260603T1924Z owner=Max item=max-team-policy-ops-resume-20260603. Applied correction: live GET /api/sessions returns array directly, use $sessions=@(Invoke-RestMethod http://127.0.0.1:9001/api/sessions), not .value. Corrected concrete owner map: developer-5=ledger-priority-classification-20260603 ledger/owner-map hygiene; developer-6=terminal-stuck-input-autosubmit-watchdog-20260603 terminal quality/watchdog evidence; developer-3=9100-executive-dashboard-ux-20260603 dashboard UX second-pass. developer-2 remains support-only due repo mirror path mismatch. Prior dev5/dev6 swapped assignment events are superseded, history preserved. blocker=none for dispatch; 9001 reload held. evidence=developer-3/5/6 POLICY_ACK previews, execution-board active P0/P1 items, 9001 PID 21316 healthy/preserved."
+    },
+    {
+      "id": "work-event-1780428305666",
+      "task_id": "terminal-stuck-input-autosubmit-watchdog-20260603",
+      "at": "2026-06-02T19:25:05.666276900Z",
+      "kind": "assigned",
+      "body": "source_event_id=caesar-api-shape-correction-20260603T1924Z owner=developer-6 item=terminal-stuck-input-autosubmit-watchdog-20260603. Corrected assignment supersedes prior developer-5 terminal routing and prior developer-6 ledger routing. Developer-6 owns terminal quality/watchdog evidence: verify watchdog behavior from live 9000/9001 data and existing logs, check terminal-stuck-input-watchdog events, terminal-tail samples, active sessions, console/screenshot evidence where feasible. Evidence-first only; source edits require Max approval after evidence. Do not touch/reload 9001 and do not alter terminal submit/newline contract. next=developer-6 report item/doing/next/blocker/evidence. blocker=none. evidence=Caesar API shape correction, developer-6 POLICY_ACK active, execution-board P0 terminal watchdog item, 9001 PID 21316 preserved."
+    },
+    {
+      "id": "work-event-1780428305685",
+      "task_id": "9100-executive-dashboard-ux-20260603",
+      "at": "2026-06-02T19:25:05.685905600Z",
+      "kind": "assigned",
+      "body": "source_event_id=caesar-api-shape-correction-20260603T1924Z owner=developer-3 item=9100-executive-dashboard-ux-20260603. Assignment: 9100 dashboard UX second-pass QA/review. Inspect running 9100 and tools/ceo-ledger-board-server.cjs only. Verify executive first viewport, decision-needed queue, P0/P1 owner map, stale/blocker risks, agent activity, QA/evidence gates, raw JSON hidden until drilldown, Korean readability/no mojibake, console clean. Do not touch/reload 9001; do not touch terminal contracts. Prefer evidence/report first; proposed changes must remain 9100-only and go through Max/developer-4 QA. next=developer-3 report item/doing/next/blocker/evidence. blocker=none. evidence=Caesar API shape correction, developer-3 POLICY_ACK active, 9100 UX contract events, 9001 PID 21316 preserved."
+    },
+    {
+      "id": "work-event-1780428305703",
+      "task_id": "ledger-priority-classification-20260603",
+      "at": "2026-06-02T19:25:05.703438300Z",
+      "kind": "assigned",
+      "body": "source_event_id=caesar-api-shape-correction-20260603T1924Z owner=developer-5 item=ledger-priority-classification-20260603. Corrected assignment supersedes prior developer-6 routing for this item. Developer-5 owns ledger/owner-map hygiene: inspect data/execution-board.json and 9100 owner-map presentation; propose or make narrow 9100-only/readability hygiene if clearly safe for P0/P1 labels, owner_status/assignment_state visibility, stale/unowned badges, and no raw JSON bloat. Coordinate with Areum; no second ledger. Do not touch/reload 9001. If editing, run node --check and hand to developer-4 QA. next=developer-5 report item/doing/next/blocker/evidence. blocker=none. evidence=Caesar API shape correction, developer-5 POLICY_ACK active, execution-board P1 ledger readable-view item, 9001 PID 21316 preserved."
+    },
+    {
+      "id": "work-event-1780428603934",
+      "task_id": "terminal-live-render-stale-until-refresh-20260603",
+      "at": "2026-06-02T19:30:03.934550Z",
+      "kind": "evidence",
+      "body": "Terminal quality screenshot watcher repaired: removed mojibake-corrupted replacement-char check, added explicit mojibake detection, node --check passed, one-shot capture ok with terminalCards=10 consoleErrorEvents=0 problems=[] screenshot=data/system-logs/terminal-9000-cdp/terminal-quality-2026-06-02T19-29-38-017Z.png. Restarting periodic watcher on new code; 9001 untouched."
+    },
+    {
+      "id": "work-event-1780428926193",
+      "task_id": "max-team-policy-ops-resume-20260603",
+      "at": "2026-06-02T19:35:26.193691500Z",
+      "kind": "evidence",
+      "body": "Caesar direct wake: ledger assignment events existed but developer-3/5/6 terminal previews had not clearly advanced after boot. Re-sent direct OPS_WAKE prompts with event IDs work-event-1780428305685, work-event-1780428305703, work-event-1780428305666 and 10-minute report expectation. 9001 untouched; empty-submit fallback used after write."
+    },
+    {
+      "id": "work-event-1780429020600",
+      "task_id": "terminal-stuck-input-autosubmit-watchdog-20260603",
+      "at": "2026-06-02T19:37:00.600094100Z",
+      "kind": "evidence",
+      "body": "Post-wake verification: developer-3/5/6 updated_at advanced after direct OPS_WAKE. Watchdog one-shot alerts=[] and 9001 health ok sessions=10. Developer-6 is working and observed terminal-card visual degradation distinct from watchdog inactivity; corrected /api/sessions array-vs-.value shape again. Developer-3/5 previews visually corrupted but working, so keep under terminal quality follow-up."
+    }
+  ]
+}

@@ -87,14 +87,7 @@ function Get-AgentBootPrompt {
   param([string]$AgentId)
 
   $promptPath = Join-Path $Root "data\agent-boot-prompts.json"
-  $rolePrompt = ""
-  if (Test-Path -LiteralPath $promptPath) {
-    $prompts = Get-Content -LiteralPath $promptPath -Raw | ConvertFrom-Json
-    $entry = $prompts.PSObject.Properties[$AgentId]
-    if ($entry) {
-      $rolePrompt = [string]$entry.Value
-    }
-  }
+  $roleEntry = "data/agent-boot-prompts.json::$AgentId"
 
   return @(
     "[LCC BOOT POLICY - MUST READ BEFORE WORK]"
@@ -105,7 +98,7 @@ function Get-AgentBootPrompt {
     "4. Read docs/agent-state-management-policy-20260531.md if present."
     "5. Read data/ceo-command-ledger.json and data/work-ledger.json."
     "6. Read data/agent-boot-prompts.json and follow your own role entry."
-    "Role entry: $rolePrompt"
+    "Role entry path: $roleEntry"
     "Rules: 9001 startup begins with Caesar and Max. Caesar/Max inspect the ledger before spawning workers. Workers are spawned only for needed active ledger items. Do not code before POLICY_ACK unless Lucas gives a direct emergency instruction."
     "Reply first with: POLICY_ACK agent=<id> role=<role> read=<files> mode=<normal|lucas-direct|emergency> ledger_item=<id|none> next=<first action> blocker=<none|...>"
   ) -join "`n"
@@ -115,13 +108,34 @@ function Send-AgentBootPrompt {
   param([string]$AgentId)
 
   $prompt = Get-AgentBootPrompt -AgentId $AgentId
+  function Submit-AgentPromptFallback {
+    param([string]$TargetAgentId)
+    try {
+      Invoke-RestMethod -Uri "$ApiUrl/api/sessions/$TargetAgentId/prompt-submit" -Method Post -ContentType "application/json" -Body (@{ repeat = 1 } | ConvertTo-Json -Compress) -TimeoutSec 10 | Out-Null
+      return "prompt-submit"
+    } catch {
+      Invoke-RestMethod -Uri "$ApiUrl/api/sessions/$TargetAgentId/write" -Method Post -ContentType "application/json" -Body (@{ data = "" } | ConvertTo-Json -Compress) -TimeoutSec 10 | Out-Null
+      return "write-empty-fallback"
+    }
+  }
+
   try {
     Start-Sleep -Seconds 8
-    Invoke-RestMethod -Uri "$ApiUrl/api/sessions/$AgentId/write" -Method Post -ContentType "application/json" -Body (@{ data = "" } | ConvertTo-Json -Compress) -TimeoutSec 10 | Out-Null
+    $initialSubmitMethod = Submit-AgentPromptFallback -TargetAgentId $AgentId
     Start-Sleep -Seconds 2
-    Invoke-RestMethod -Uri "$ApiUrl/api/sessions/$AgentId/write" -Method Post -ContentType "application/json" -Body (@{ data = $prompt } | ConvertTo-Json -Compress) -TimeoutSec 20 | Out-Null
+    try {
+      Invoke-RestMethod -Uri "$ApiUrl/api/sessions/$AgentId/prompt-text" -Method Post -ContentType "application/json" -Body (@{ data = $prompt } | ConvertTo-Json -Compress) -TimeoutSec 20 | Out-Null
+      Start-Sleep -Milliseconds 300
+      $bootSubmitMethod = Submit-AgentPromptFallback -TargetAgentId $AgentId
+    } catch {
+      Invoke-RestMethod -Uri "$ApiUrl/api/sessions/$AgentId/write" -Method Post -ContentType "application/json" -Body (@{ data = $prompt } | ConvertTo-Json -Compress) -TimeoutSec 20 | Out-Null
+      Start-Sleep -Milliseconds 300
+      $bootSubmitMethod = Submit-AgentPromptFallback -TargetAgentId $AgentId
+    }
     Write-AgentOpsLog -Event "boot_prompt.sent" -AgentId $AgentId -Status "sent" -Message "policy-first boot prompt submitted" -Data @{
       api_url = $ApiUrl
+      initial_submit_method = $initialSubmitMethod
+      boot_submit_method = $bootSubmitMethod
     }
   } catch {
     Write-AgentOpsLog -Event "boot_prompt.failed" -AgentId $AgentId -Status "error" -Message $_.Exception.Message -Data @{

@@ -9,7 +9,7 @@ This file is the restart-safe context for branch agents.
 - Agent cap remains 20 unless Lucas changes it.
 - Branch Director coordinates and reviews; agents execute assigned roles.
 - File-based context is the source of truth until DB storage is introduced.
-- Policy-first startup is mandatory: every system loop, bootstrap script, and agent session must read this context and the command-chain policy before issuing or executing work.
+- Policy-first startup is mandatory: every system loop, bootstrap script, and agent session must read this context, the command-chain policy, and `docs/lucas-initiative-operating-principles-20260603.md` before issuing or executing work.
 - Restart memory recovery is mandatory: after reading policy, Caesar/Max/agents must search the relevant ledgers, decision logs, recent evidence files, and session state for their current lane, then continue from the latest verified state instead of waiting silently.
 - When port 9001 is restored or restarted, bootstrap only Caesar (`ceo`) and Max (`dev-lead`) by default; worker agents are spawned only after Caesar/Max inspect the ledger and identify required capacity.
 - Do not rely on terminal scrollback as memory. Use file ledgers, decision logs, terminal log tails, evidence artifacts, and API session state as restart memory.
@@ -97,6 +97,7 @@ This file is the restart-safe context for branch agents.
 8. `lcc-hq-communication-test-report-20260531.md`
 9. `docs/branch-inbound-ops.md`
 10. `D:\안드로이드이슈배포\android_joint_cert_task_full_report_ascii_20260531_0308.md` when working Android
+11. `docs/lucas-initiative-operating-principles-20260603.md`
 
 ## Today Timeline
 

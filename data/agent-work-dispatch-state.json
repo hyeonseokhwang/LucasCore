@@ -1,0 +1,109 @@
+{
+  "dev-lead": {
+    "lastDispatchAt": 1780419136834,
+    "lastTaskId": "max-team-policy",
+    "lastReason": "stale-or-unclear",
+    "lastStateKey": "blocked:max-team-policy",
+    "lastReceiptLoggedForDispatchAt": 1780406647945,
+    "lastInputAnomalyKey": "working-text-fragmented:o\n─ Worked for 1m 25s ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\n› Improve documentation in @filename\ngpt-5.5 medium · D:\\Lucas Core v0.1\\workspaces\\dev-lead\\repo"
+  },
+  "developer-7": {
+    "lastDispatchAt": 1780259374889,
+    "lastTaskId": "heungkuk-final-source",
+    "lastReason": "stale-or-unclear",
+    "lastStateKey": "working:heungkuk-final-source",
+    "lastReceiptLoggedForDispatchAt": 1780259374889
+  },
+  "developer-3": {
+    "lastDispatchAt": 1780406464647,
+    "lastTaskId": "ledger-management",
+    "lastReason": "stale-or-unclear",
+    "lastStateKey": "working:ledger-management",
+    "lastReceiptLoggedForDispatchAt": 1780406464647,
+    "lastInputAnomalyKey": "working-text-fragmented:tsx against\nHQ TerminalToolbar.tsx and report keep/rework/revert with evidence.\n◦ Working (29s • esc to interrupt)\n› Find and fix a bug in @filename\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-3\\repo\n•Woring31\nrkin\n◦orkin3\norki"
+  },
+  "developer-6": {
+    "lastDispatchAt": 1780406739184,
+    "lastTaskId": "ledger-management",
+    "lastReason": "stale-or-unclear",
+    "lastStateKey": "blocked:ledger-management",
+    "lastReceiptLoggedForDispatchAt": 1780406739184,
+    "lastInputAnomalyKey": "working-text-fragmented:nagement status=working progress=25\nnext_action=verify_existing_ledger_items_preserved_and_lin\nk_labels_safe\n• agent: developer-6\ntask: ledger-management\n› Summarize recent commits\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-6…"
+  },
+  "updatedAt": "2026-06-02T16:52:16.834Z",
+  "developer-2": {
+    "lastDispatchAt": 1780406739184,
+    "lastTaskId": "meeting-first",
+    "lastReason": "stale-or-unclear",
+    "lastStateKey": "idle:meeting-first",
+    "lastReceiptLoggedForDispatchAt": 1780406739184,
+    "lastInputAnomalyKey": "working-text-fragmented:safety\",\"agentId\":\"developer-2\",\"dispatchId\":\"17804063\n… +63 lines (ctrl + t to view transcript)\n◦ Working (1m 30s • esc to interrupt)\n› Implement {feature}\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-2\\repoor\nrk\nki\nin\nng\n1\ng\n•"
+  },
+  "developer-4": {
+    "lastDispatchAt": 1780419136834,
+    "lastTaskId": "qa-cdp-policy",
+    "lastReason": "stale-or-unclear",
+    "lastStateKey": "stale:qa-cdp-policy",
+    "lastReceiptLoggedForDispatchAt": 1780406739184,
+    "lastInputAnomalyKey": "working-text-fragmented:gent-ops-events.jsonl dispatchId=1780392618512-4c07tr 확인. 10분 내 item/doing/next/blocker/evidence 보고.\n• Working (0s • esc to interrupt)\n› Write tests for @filename\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-4\\repoki\nin\nng\ng\n◦\n1"
+  },
+  "developer-8": {
+    "lastDispatchAt": 1780419136834,
+    "lastTaskId": "agent-status-on-9100",
+    "lastReason": "stale-or-unclear",
+    "lastStateKey": "idle:agent-status-on-9100",
+    "lastReceiptLoggedForDispatchAt": 1780406739184,
+    "lastInputAnomalyKey": "codex-queue-prompt,working-text-fragmented,dispatch-stuck-in-input-box:t-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-8\\repo             W          Wo                    or\n•rk          ki                    in                    Wng          Wog                    or2          rk                    ki"
+  },
+  "developer-1": {
+    "lastStateKey": "working:terminal-scrollback",
+    "lastDispatchAt": 1780406831050,
+    "lastTaskId": "terminal-scrollback",
+    "lastReason": "waiting-signal",
+    "lastReceiptLoggedForDispatchAt": 1780406647945,
+    "lastInputAnomalyKey": "working-text-fragmented:se /skills to list available skills\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-1\\repo\n• Working (0s • esc to interrupt)\n› Use /skills to list available skills\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-1\\repo\n◦\nW"
+  },
+  "developer-5": {
+    "lastStateKey": "idle:meeting-first",
+    "lastDispatchAt": 1780406739184,
+    "lastTaskId": "meeting-first",
+    "lastReason": "waiting-signal",
+    "lastReceiptLoggedForDispatchAt": 1780406739184,
+    "lastInputAnomalyKey": "working-text-fragmented:nly이며, apps/\nweb/src/main.tsx와 apps/web/src/styles.css의\nMeetingWorkspace static UI diff는 유지 중입니다. 모바일 스\n크린샷은 아직 확보하지 못했고, CDP/스크린샷 evidence 전에는\n완료 처리하지 않겠습니다.\n› Implement {feature}\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\developer-5…"
+  },
+  "__managerAlert": {
+    "lastAlertAt": 1780419136834,
+    "targetId": "dev-lead",
+    "idleLikeCount": 3
+  },
+  "hkl-handover-tf-4": {
+    "lastDispatchAt": 1780381055762,
+    "lastTaskId": "hkl-auth-manual-handover-20260602",
+    "lastReason": "stale-or-unclear",
+    "lastStateKey": "blocked:hkl-auth-manual-handover-20260602",
+    "lastReceiptLoggedForDispatchAt": 1780380871915,
+    "lastInputAnomalyKey": "working-text-fragmented:80363269442-yg2bmz\" \"D:\\Lucas Core v0.1\\data\\agent-ops-events.jsonl\"\n└ (no output)\n• Working (5m 10s • esc to interrupt)\n› Improve documentation in @filename\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\hkl-handover-tf-4\\repoin\nng\n◦\ng\n•\n1"
+  },
+  "hkl-handover-tf-1": {
+    "lastDispatchAt": 1780404740614,
+    "lastTaskId": "hkl-auth-manual-handover-20260602",
+    "lastReason": "waiting-signal",
+    "lastStateKey": "blocked:hkl-auth-manual-handover-20260602",
+    "lastReceiptLoggedForDispatchAt": 1780404740614,
+    "lastInputAnomalyKey": "working-text-fragmented:lable skills\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\hkl-handover-tf-1\\repoki\nin\nng\n• item=hkl-auth-manual-handover-20260602\n› Use /skills to list available skills\ngpt-5.4 medium · D:\\Lucas Core v0.1\\workspaces\\hkl-handover-tf-1\\repo"
+  },
+  "hkl-handover-tf-2": {
+    "lastDispatchAt": 1780381055762,
+    "lastTaskId": "hkl-auth-manual-handover-20260602",
+    "lastReason": "waiting-signal",
+    "lastStateKey": "blocked:hkl-auth-manual-handover-20260602",
+    "lastReceiptLoggedForDispatchAt": 1780380871915
+  },
+  "hkl-handover-tf-3": {
+    "lastDispatchAt": 1780381055762,
+    "lastTaskId": "hkl-auth-manual-handover-20260602",
+    "lastReason": "stale-or-unclear",
+    "lastStateKey": "blocked:hkl-auth-manual-handover-20260602",
+    "lastReceiptLoggedForDispatchAt": 1780380871915
+  }
+}
