@@ -1468,21 +1468,93 @@ textarea {
   margin: 0;
   padding: 8px 9px;
   overflow: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   word-break: normal;
   background: #070c15;
   color: #dbe7f6;
   font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, "Segoe UI Symbol", "Noto Sans Symbols 2", monospace;
   font-size: 12px;
-  line-height: 1.25;
+  line-height: 1.28;
   scrollbar-gutter: stable;
   scrollbar-color: #4d6386 #0b1321;
   scrollbar-width: auto;
+  tab-size: 4;
 }
 
 .terminal-snapshot-preview.fullscreen {
   padding: 10px 12px;
   font-size: 13px;
+  line-height: 1.3;
+}
+
+.terminal-snapshot-line {
+  min-height: 1.28em;
+  color: #dbe7f6;
+}
+
+.terminal-snapshot-line.is-blank {
+  min-height: 0.72em;
+}
+
+.terminal-snapshot-line.is-prompt {
+  color: #f8fafc;
+  font-weight: 650;
+}
+
+.terminal-snapshot-line.is-prompt::first-letter {
+  color: #7dd3fc;
+}
+
+.terminal-snapshot-line.is-running,
+.terminal-snapshot-line.is-working {
+  color: #c4d4eb;
+}
+
+.terminal-snapshot-line.is-ran,
+.terminal-snapshot-line.is-edited {
+  color: #d9e7fb;
+}
+
+.terminal-snapshot-line.is-warning {
+  color: #facc15;
+}
+
+.terminal-snapshot-line.is-status {
+  color: #f8d675;
+  font-weight: 650;
+}
+
+.terminal-snapshot-line.is-report {
+  color: #c4b5fd;
+  font-weight: 650;
+}
+
+.terminal-snapshot-line.is-output {
+  color: #9fb0c8;
+}
+
+.terminal-snapshot-line.is-list {
+  color: #dbe7f6;
+}
+
+.terminal-token.token-model {
+  color: #f8d675;
+  font-weight: 650;
+}
+
+.terminal-token.token-path {
+  color: #9be9a8;
+}
+
+.terminal-token.token-url {
+  color: #7dd3fc;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.terminal-token.token-kv {
+  color: #67e8f9;
 }
 
 .xterm-preview .xterm-viewport,
@@ -1829,6 +1901,10 @@ textarea {
   min-height: 0;
   overflow: hidden;
   background: #070c15;
+}
+
+.terminal-popout-page.has-attachments {
+  grid-template-rows: 42px minmax(0, 1fr) 64px 40px 26px;
 }
 
 .terminal-popout-page > .xterm-preview {

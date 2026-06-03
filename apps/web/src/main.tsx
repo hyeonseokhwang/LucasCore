@@ -762,18 +762,31 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
   const [error, setError] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [composerFocused, setComposerFocused] = useState(false);
+  const [attachments, setAttachments] = useState<TerminalImageAttachment[]>([]);
+  const [expandedAttachment, setExpandedAttachment] = useState<TerminalImageAttachment | null>(null);
   const promptRef = useRef("");
   const sendingRef = useRef(false);
+  const attachmentsRef = useRef<TerminalImageAttachment[]>([]);
   const pendingRefreshRef = useRef(false);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const targetRef = useRef(sessionId);
   const composerActiveRef = useRef(false);
   const session = sessions.find((item) => item.id === sessionId);
-  const composerActive = composerFocused || isSending || prompt.trim().length > 0;
+  const composerActive = composerFocused || isSending || prompt.trim().length > 0 || attachments.length > 0;
 
   useEffect(() => {
     targetRef.current = target;
   }, [target]);
+
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    return () => {
+      attachmentsRef.current.forEach((attachment) => URL.revokeObjectURL(attachment.url));
+    };
+  }, []);
 
   useEffect(() => {
     composerActiveRef.current = composerActive;
@@ -814,16 +827,54 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
     refresh({ force: true }).catch((err) => setError(String(err)));
   }, [composerActive, refresh]);
 
+  function addImageFiles(files: ArrayLike<File> | null | undefined) {
+    if (!files) return;
+    const nextAttachments = Array.from(files)
+      .filter((file) => file.type.startsWith("image/"))
+      .map((file) => ({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        name: file.name || "pasted-image",
+        type: file.type || "image/*",
+        size: file.size,
+        url: URL.createObjectURL(file)
+      }));
+    if (!nextAttachments.length) return;
+    setAttachments((current) => [...current, ...nextAttachments]);
+  }
+
+  function removeAttachment(attachmentId: string) {
+    setAttachments((current) => {
+      const removed = current.find((attachment) => attachment.id === attachmentId);
+      if (removed) URL.revokeObjectURL(removed.url);
+      return current.filter((attachment) => attachment.id !== attachmentId);
+    });
+    setExpandedAttachment((current) => (current?.id === attachmentId ? null : current));
+  }
+
+  function handlePromptChange(value: string) {
+    promptRef.current = value;
+    setPrompt(value);
+  }
+
   async function send() {
     const nextPrompt = normalizePromptForSubmit(promptRef.current);
     if (!nextPrompt.trim() || sendingRef.current) return;
     sendingRef.current = true;
     setIsSending(true);
-    const payload = target === sessionId ? nextPrompt : `[FROM ${sessionId} TO ${target}] ${nextPrompt}`;
+    const attachmentNote = attachments.length
+      ? `\n\n[첨부 이미지: ${attachments.map((attachment) => attachment.name).join(", ")}]`
+      : "";
+    const payloadText = `${nextPrompt}${attachmentNote}`;
+    const payload = target === sessionId ? payloadText : `[FROM ${sessionId} TO ${target}] ${payloadText}`;
     try {
       await sendTerminalPrompt(target, payload);
       promptRef.current = "";
       setPrompt("");
+      setAttachments((current) => {
+        current.forEach((attachment) => URL.revokeObjectURL(attachment.url));
+        return [];
+      });
+      setExpandedAttachment(null);
       await refresh({ force: true });
     } finally {
       sendingRef.current = false;
@@ -832,7 +883,7 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <main className={`terminal-popout-page ${composerActive ? "composer-dirty" : ""}`}>
+    <main className={`terminal-popout-page ${composerActive ? "composer-dirty" : ""} ${attachments.length > 0 ? "has-attachments" : ""}`}>
       <header>
         <div>
           <span className="status-dot" />
@@ -841,9 +892,11 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
           {session?.team && <em>{session.team}</em>}
           {session?.model && <em>{session.model}</em>}
         </div>
-        <button className="icon" onClick={() => window.close()} title="팝업 닫기">
-          <X size={16} />
-        </button>
+        <div className="card-actions">
+          <button className="icon" onClick={() => window.close()} title="팝업 닫기">
+            <X size={16} />
+          </button>
+        </div>
       </header>
       {error ? (
         <div className="error">{error}</div>
@@ -854,8 +907,33 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
           Loading terminal output...
         </pre>
       )}
-      <footer>
-        <select value={target} onChange={(event) => setTarget(event.target.value)}>
+      {attachments.length > 0 && (
+        <div className="terminal-attachment-strip" onMouseDown={stopTerminalTileFooterMouseDown}>
+          {attachments.map((attachment) => (
+            <div key={attachment.id} className="terminal-attachment-tile">
+              <button
+                className="terminal-attachment-preview"
+                type="button"
+                onClick={() => setExpandedAttachment(attachment)}
+                title="첨부 이미지 확대"
+              >
+                <img src={attachment.url} alt={attachment.name} />
+              </button>
+              <span>{attachment.name}</span>
+              <button
+                className="terminal-attachment-remove"
+                type="button"
+                onClick={() => removeAttachment(attachment.id)}
+                title="첨부 제거"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <footer aria-busy={isSending} onMouseDown={stopTerminalTileFooterMouseDown}>
+        <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
           {(sessions.length ? sessions : [{ id: sessionId, name: sessionId } as Session]).map((item) => (
             <option key={item.id} value={item.id}>
               {item.name}
@@ -870,9 +948,13 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
             setComposerFocused(true);
           }}
           onBlur={() => setComposerFocused(false)}
-          onChange={(event) => {
-            promptRef.current = event.target.value;
-            setPrompt(event.target.value);
+          onChange={(event) => handlePromptChange(event.target.value)}
+          onPaste={(event) => {
+            if (!clipboardItemsContainImage(event.clipboardData?.items)) return;
+            const files = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
+            if (!files.length) return;
+            event.preventDefault();
+            addImageFiles(files);
           }}
           onKeyDown={(event) => {
             if (shouldSubmitTerminalTileComposer(event)) {
@@ -881,11 +963,24 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
           }}
           placeholder="지시 입력"
         />
-        <button className="primary icon" onClick={send} title="전송" disabled={isSending || !prompt.trim()}>
+        <button className="primary icon" onMouseDown={stopTerminalTileFooterMouseDown} onClick={send} title="전송" disabled={isSending || !prompt.trim()}>
           <Send size={15} />
         </button>
       </footer>
       <div className="workspace-path">{session?.cwd ?? ""}</div>
+      {expandedAttachment && (
+        <div className="terminal-image-modal" role="dialog" aria-modal="true" onMouseDown={() => setExpandedAttachment(null)}>
+          <div className="terminal-image-panel" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <strong>{expandedAttachment.name}</strong>
+              <button className="icon" type="button" onClick={() => setExpandedAttachment(null)} title="닫기">
+                <X size={16} />
+              </button>
+            </header>
+            <img src={expandedAttachment.url} alt={expandedAttachment.name} />
+          </div>
+        </div>
+      )}
     </main>
   );
 }
