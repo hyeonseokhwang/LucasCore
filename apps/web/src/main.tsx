@@ -34,7 +34,8 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import React, { FormEvent, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { normalizePromptForSubmit } from "./terminalPrompt";
-import { repairTerminalStreamForXterm, tailTerminalLines } from "./terminalReplay";
+import { TERMINAL_RENDER_LINE_LIMIT, repairTerminalStreamForXterm, sanitizeTerminalPreviewForSummary, tailTerminalLines } from "./terminalReplay";
+import { clipboardItemsContainImage } from "./terminalCardComposer";
 import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
 import {
   enqueueTerminalWriteItems,
@@ -101,7 +102,7 @@ const WS_ORIGIN =
   VITE_ENV.VITE_LCC_WS_ORIGIN ||
   API_ORIGIN.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
 const TERMINAL_SCROLLBACK_LINES = 500;
-const TERMINAL_FOCUSED_REPLAY_BYTES = 32 * 1024;
+const TERMINAL_VIEW_REPLAY_BYTES = 8 * 1024;
 const activeTerminalComposerKeys = new Set<string>();
 const terminalComposerSubscribers = new Set<() => void>();
 
@@ -2097,10 +2098,47 @@ const TerminalCard = React.memo(function TerminalCard({
   const [logText, setLogText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [composerFocused, setComposerFocused] = useState(false);
+  const [attachments, setAttachments] = useState<TerminalImageAttachment[]>([]);
+  const [expandedAttachment, setExpandedAttachment] = useState<TerminalImageAttachment | null>(null);
   const promptRef = useRef("");
   const sendingRef = useRef(false);
-  const composerDirty = composerFocused || isSending || prompt.trim().length > 0;
+  const attachmentsRef = useRef<TerminalImageAttachment[]>([]);
+  const composerDirty = composerFocused || isSending || prompt.trim().length > 0 || attachments.length > 0;
   useTerminalComposerActivity(`card:${session.id}`, composerDirty);
+
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    return () => {
+      attachmentsRef.current.forEach((attachment) => URL.revokeObjectURL(attachment.url));
+    };
+  }, []);
+
+  function addImageFiles(files: ArrayLike<File> | null | undefined) {
+    if (!files) return;
+    const nextAttachments = Array.from(files)
+      .filter((file) => file.type.startsWith("image/"))
+      .map((file) => ({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        name: file.name || "pasted-image",
+        type: file.type || "image/*",
+        size: file.size,
+        url: URL.createObjectURL(file)
+      }));
+    if (!nextAttachments.length) return;
+    setAttachments((current) => [...current, ...nextAttachments]);
+  }
+
+  function removeAttachment(attachmentId: string) {
+    setAttachments((current) => {
+      const removed = current.find((attachment) => attachment.id === attachmentId);
+      if (removed) URL.revokeObjectURL(removed.url);
+      return current.filter((attachment) => attachment.id !== attachmentId);
+    });
+    setExpandedAttachment((current) => (current?.id === attachmentId ? null : current));
+  }
 
   function handlePromptChange(value: string) {
     promptRef.current = value;
@@ -2112,11 +2150,20 @@ const TerminalCard = React.memo(function TerminalCard({
     if (!nextPrompt.trim() || sendingRef.current) return;
     sendingRef.current = true;
     setIsSending(true);
-    const payload = target === session.id ? nextPrompt : `[FROM ${session.id} TO ${target}] ${nextPrompt}`;
+    const attachmentNote = attachments.length
+      ? `\n\n[첨부 이미지: ${attachments.map((attachment) => attachment.name).join(", ")}]`
+      : "";
+    const payloadText = `${nextPrompt}${attachmentNote}`;
+    const payload = target === session.id ? payloadText : `[FROM ${session.id} TO ${target}] ${payloadText}`;
     try {
       await sendTerminalPrompt(target, payload);
       promptRef.current = "";
       setPrompt("");
+      setAttachments((current) => {
+        current.forEach((attachment) => URL.revokeObjectURL(attachment.url));
+        return [];
+      });
+      setExpandedAttachment(null);
       await onChanged();
     } finally {
       sendingRef.current = false;
@@ -2189,7 +2236,32 @@ const TerminalCard = React.memo(function TerminalCard({
           </button>
         </div>
       </header>
-      <XtermPreview sessionId={session.id} status={session.status} variant="card" isVisible={true} />
+      <StaticTerminalPreview session={session} />
+      {attachments.length > 0 && (
+        <div className="terminal-attachment-strip" onMouseDown={stopTerminalTileFooterMouseDown}>
+          {attachments.map((attachment) => (
+            <div key={attachment.id} className="terminal-attachment-tile">
+              <button
+                className="terminal-attachment-preview"
+                type="button"
+                onClick={() => setExpandedAttachment(attachment)}
+                title="첨부 이미지 확대"
+              >
+                <img src={attachment.url} alt={attachment.name} />
+              </button>
+              <span>{attachment.name}</span>
+              <button
+                className="terminal-attachment-remove"
+                type="button"
+                onClick={() => removeAttachment(attachment.id)}
+                title="첨부 제거"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <footer aria-busy={isSending} onMouseDown={stopTerminalTileFooterMouseDown}>
         <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
           {sessions.map((item) => (
@@ -2207,6 +2279,13 @@ const TerminalCard = React.memo(function TerminalCard({
           }}
           onBlur={() => setComposerFocused(false)}
           onChange={(event) => handlePromptChange(event.target.value)}
+          onPaste={(event) => {
+            if (!clipboardItemsContainImage(event.clipboardData?.items)) return;
+            const files = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
+            if (!files.length) return;
+            event.preventDefault();
+            addImageFiles(files);
+          }}
           onKeyDown={(event) => {
             if (shouldSubmitTerminalTileComposer(event)) {
               send().catch(console.error);
@@ -2219,6 +2298,19 @@ const TerminalCard = React.memo(function TerminalCard({
         </button>
       </footer>
       <div className="workspace-path">{session.cwd}</div>
+      {expandedAttachment && (
+        <div className="terminal-image-modal" role="dialog" aria-modal="true" onMouseDown={() => setExpandedAttachment(null)}>
+          <div className="terminal-image-panel" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <strong>{expandedAttachment.name}</strong>
+              <button className="icon" type="button" onClick={() => setExpandedAttachment(null)} title="닫기">
+                <X size={16} />
+              </button>
+            </header>
+            <img src={expandedAttachment.url} alt={expandedAttachment.name} />
+          </div>
+        </div>
+      )}
       {logOpen && (
         <div className="log-modal" role="dialog" aria-modal="true">
           <div className="log-panel">
@@ -2234,143 +2326,27 @@ const TerminalCard = React.memo(function TerminalCard({
   );
 });
 
-function StaticTerminalPreview({ session }: { session: Session }) {
-  const text = tailTerminalLines(session.preview || session.preview_text || "아직 표시할 터미널 출력이 없습니다.\r\n", 20);
+function StaticTerminalPreview({ session, variant = "card" }: { session: Session; variant?: "card" | "fullscreen" }) {
+  const rawText = tailTerminalLines(
+    session.preview_text || session.preview || "아직 표시할 터미널 출력이 없습니다.\r\n",
+    TERMINAL_RENDER_LINE_LIMIT
+  );
+  const text = sanitizeTerminalPreviewForSummary(rawText) || "아직 표시할 터미널 출력이 없습니다.";
 
   return (
-    <pre className="static-terminal-preview" aria-label={`${session.name} terminal preview`}>
-      {renderAnsiPreview(text)}
+    <pre className={`static-terminal-preview ${variant}`} aria-label={`${session.name} terminal preview`}>
+      {text}
     </pre>
   );
 }
 
-type AnsiPreviewState = {
-  fg?: string;
-  bold: boolean;
+type TerminalImageAttachment = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  url: string;
 };
-
-const ansiForegroundClasses: Record<number, string> = {
-  30: "ansi-fg-black",
-  31: "ansi-fg-red",
-  32: "ansi-fg-green",
-  33: "ansi-fg-yellow",
-  34: "ansi-fg-blue",
-  35: "ansi-fg-magenta",
-  36: "ansi-fg-cyan",
-  37: "ansi-fg-white",
-  90: "ansi-fg-bright-black",
-  91: "ansi-fg-bright-red",
-  92: "ansi-fg-bright-green",
-  93: "ansi-fg-bright-yellow",
-  94: "ansi-fg-bright-blue",
-  95: "ansi-fg-bright-magenta",
-  96: "ansi-fg-bright-cyan",
-  97: "ansi-fg-bright-white"
-};
-
-const ansi256ForegroundClasses: Record<number, string> = {
-  0: "ansi-fg-black",
-  1: "ansi-fg-red",
-  2: "ansi-fg-green",
-  3: "ansi-fg-yellow",
-  4: "ansi-fg-blue",
-  5: "ansi-fg-magenta",
-  6: "ansi-fg-cyan",
-  7: "ansi-fg-white",
-  8: "ansi-fg-bright-black",
-  9: "ansi-fg-bright-red",
-  10: "ansi-fg-bright-green",
-  11: "ansi-fg-bright-yellow",
-  12: "ansi-fg-bright-blue",
-  13: "ansi-fg-bright-magenta",
-  14: "ansi-fg-bright-cyan",
-  15: "ansi-fg-bright-white"
-};
-
-function ansiPreviewClassName(state: AnsiPreviewState) {
-  return [state.fg, state.bold ? "ansi-bold" : ""].filter(Boolean).join(" ");
-}
-
-function applyAnsiSgr(state: AnsiPreviewState, params: string) {
-  const codes = params.length ? params.split(";").map((part) => Number.parseInt(part || "0", 10)) : [0];
-  for (let index = 0; index < codes.length; index += 1) {
-    const code = codes[index];
-    if (!Number.isFinite(code)) continue;
-    if (code === 0) {
-      state.fg = undefined;
-      state.bold = false;
-    } else if (code === 1) {
-      state.bold = true;
-    } else if (code === 22) {
-      state.bold = false;
-    } else if (code === 39) {
-      state.fg = undefined;
-    } else if (ansiForegroundClasses[code]) {
-      state.fg = ansiForegroundClasses[code];
-    } else if (code === 38 && codes[index + 1] === 5) {
-      const color = codes[index + 2];
-      state.fg = ansi256ForegroundClasses[color] || state.fg;
-      index += 2;
-    } else if (code === 38 && codes[index + 1] === 2) {
-      index += 4;
-    } else if (code === 48 && codes[index + 1] === 5) {
-      index += 2;
-    } else if (code === 48 && codes[index + 1] === 2) {
-      index += 4;
-    }
-  }
-}
-
-function renderAnsiPreview(value: string) {
-  const output: React.ReactNode[] = [];
-  const state: AnsiPreviewState = { bold: false };
-  let buffer = "";
-  let segmentIndex = 0;
-
-  function pushBuffer() {
-    if (!buffer) return;
-    const className = ansiPreviewClassName(state);
-    output.push(
-      <span key={segmentIndex++} className={className || undefined}>
-        {buffer}
-      </span>
-    );
-    buffer = "";
-  }
-
-  for (let index = 0; index < value.length; index += 1) {
-    const char = value[index];
-    if (char !== "\x1b") {
-      if ((char >= "\x00" && char <= "\x08") || char === "\x0b" || char === "\x0c" || (char >= "\x0e" && char <= "\x1f") || char === "\x7f") {
-        continue;
-      }
-      buffer += char;
-      continue;
-    }
-
-    const next = value[index + 1];
-    if (next === "[") {
-      const match = value.slice(index + 2).match(/^([0-?]*)([ -/]*)([@-~])/);
-      if (match) {
-        pushBuffer();
-        if (match[3] === "m") applyAnsiSgr(state, match[1]);
-        index += 1 + match[0].length;
-        continue;
-      }
-    }
-    if (next === "]") {
-      const bellEnd = value.indexOf("\x07", index + 2);
-      const stEnd = value.indexOf("\x1b\\", index + 2);
-      const nextEnd = bellEnd === -1 ? stEnd : stEnd === -1 ? bellEnd : Math.min(bellEnd, stEnd);
-      if (nextEnd !== -1) {
-        index = nextEnd + (value.startsWith("\x1b\\", nextEnd) ? 1 : 0);
-        continue;
-      }
-    }
-  }
-  pushBuffer();
-  return output;
-}
 
 function FullscreenTerminalModal({
   session,
@@ -2443,7 +2419,7 @@ function FullscreenTerminalModal({
             <X size={16} />
           </button>
         </header>
-        <XtermPreview sessionId={session.id} status={session.status} variant="fullscreen" />
+        <StaticTerminalPreview session={session} variant="fullscreen" />
         <footer onMouseDown={stopTerminalTileFooterMouseDown}>
           <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
             {sessions.map((item) => (
@@ -2735,7 +2711,7 @@ const XtermPreview = React.memo(function XtermPreview({
         type: "attach",
         sessionId,
         requestReplay: true,
-        replayBytes: variant === "fullscreen" ? TERMINAL_FOCUSED_REPLAY_BYTES : undefined,
+        replayBytes: TERMINAL_VIEW_REPLAY_BYTES,
         cols: term.cols,
         rows: term.rows
       });

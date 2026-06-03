@@ -49,9 +49,9 @@ struct TerminalSession {
     writer: Box<dyn Write + Send>,
 }
 
-const TERMINAL_SCREEN_BUFFER_BYTES: usize = 32 * 1024;
+const TERMINAL_SCREEN_BUFFER_BYTES: usize = 8 * 1024;
 const SESSION_PREVIEW_LIMIT_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
-const TERMINAL_VOLATILE_BUFFER_MAX_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
+const TERMINAL_VOLATILE_BUFFER_MAX_BYTES: usize = 64 * 1024;
 const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
 const SESSION_LOG_MAX_TAIL_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
 const TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
@@ -1615,15 +1615,15 @@ mod tests {
 
     #[test]
     fn terminal_replay_limit_matches_hq_tail_policy() {
-        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 32 * 1024);
-        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 32 * 1024);
-        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 32 * 1024);
-        assert_eq!(super::SESSION_LOG_VIEW_LIMIT_BYTES, 32 * 1024);
-        assert_eq!(super::SESSION_LOG_MAX_TAIL_BYTES, 32 * 1024);
+        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 8 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 8 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 8 * 1024);
+        assert_eq!(super::SESSION_LOG_VIEW_LIMIT_BYTES, 8 * 1024);
+        assert_eq!(super::SESSION_LOG_MAX_TAIL_BYTES, 8 * 1024);
         assert_eq!(super::TERMINAL_LOG_ROTATE_BYTES, 512 * 1024);
         assert_eq!(super::TERMINAL_LOG_FLUSH_INTERVAL_MS, 50);
         assert_eq!(super::TERMINAL_LOG_FLUSH_CHUNK_BYTES, 50 * 1024);
-        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 32 * 1024);
+        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 8 * 1024);
     }
 
     #[test]

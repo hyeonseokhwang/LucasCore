@@ -1355,6 +1355,10 @@ textarea {
   overflow: hidden;
 }
 
+.terminal-card:has(.terminal-attachment-strip) {
+  grid-template-rows: 34px minmax(0, 1fr) 64px 40px 26px;
+}
+
 .terminal-card.selected {
   border-color: #5d79ff;
   box-shadow: 0 0 0 1px rgba(93, 121, 255, 0.45), 0 12px 24px rgba(8, 13, 23, 0.28);
@@ -1463,9 +1467,9 @@ textarea {
   height: 100%;
   margin: 0;
   padding: 10px;
-  overflow: hidden;
-  white-space: pre-wrap;
-  word-break: break-word;
+  overflow: auto;
+  white-space: pre;
+  word-break: normal;
   background: #070c15;
   color: #cbd7ea;
   font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
@@ -1473,72 +1477,10 @@ textarea {
   line-height: 1.35;
 }
 
-.static-terminal-preview .ansi-bold {
-  font-weight: 700;
-}
-
-.static-terminal-preview .ansi-fg-black {
-  color: #6b7280;
-}
-
-.static-terminal-preview .ansi-fg-red {
-  color: #ff8b8b;
-}
-
-.static-terminal-preview .ansi-fg-green {
-  color: #7ee787;
-}
-
-.static-terminal-preview .ansi-fg-yellow {
-  color: #f2cc60;
-}
-
-.static-terminal-preview .ansi-fg-blue {
-  color: #79c0ff;
-}
-
-.static-terminal-preview .ansi-fg-magenta {
-  color: #d2a8ff;
-}
-
-.static-terminal-preview .ansi-fg-cyan {
-  color: #56d4dd;
-}
-
-.static-terminal-preview .ansi-fg-white {
-  color: #e5edf7;
-}
-
-.static-terminal-preview .ansi-fg-bright-black {
-  color: #8b949e;
-}
-
-.static-terminal-preview .ansi-fg-bright-red {
-  color: #ffa198;
-}
-
-.static-terminal-preview .ansi-fg-bright-green {
-  color: #9be9a8;
-}
-
-.static-terminal-preview .ansi-fg-bright-yellow {
-  color: #f7d56e;
-}
-
-.static-terminal-preview .ansi-fg-bright-blue {
-  color: #a5d6ff;
-}
-
-.static-terminal-preview .ansi-fg-bright-magenta {
-  color: #e2c5ff;
-}
-
-.static-terminal-preview .ansi-fg-bright-cyan {
-  color: #76e3ea;
-}
-
-.static-terminal-preview .ansi-fg-bright-white {
-  color: #ffffff;
+.static-terminal-preview.fullscreen {
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.32;
 }
 
 .xterm-preview .xterm-viewport,
@@ -1582,6 +1524,121 @@ textarea {
 .terminal-card footer {
   border-top: 1px solid #283851;
   min-width: 0;
+}
+
+.terminal-attachment-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-top: 1px solid #283851;
+  background: #0f1a2c;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.terminal-attachment-tile {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 110px) 22px;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  max-width: 190px;
+  height: 50px;
+  padding: 4px;
+  border: 1px solid #30435f;
+  border-radius: 6px;
+  background: #101d31;
+}
+
+.terminal-attachment-preview {
+  width: 52px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid #3b5274;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #070c15;
+}
+
+.terminal-attachment-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.terminal-attachment-tile span {
+  min-width: 0;
+  color: #c9d7ea;
+  font-size: 11px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-attachment-remove {
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: 1px solid rgba(248, 113, 113, 0.38);
+  border-radius: 999px;
+  background: rgba(127, 29, 29, 0.48);
+  color: #fecaca;
+}
+
+.terminal-image-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(3, 7, 18, 0.84);
+}
+
+.terminal-image-panel {
+  width: min(1120px, 96vw);
+  height: min(820px, 92vh);
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid #31435f;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #070c15;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+}
+
+.terminal-image-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid #31435f;
+  background: #172338;
+}
+
+.terminal-image-panel header strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-image-panel > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #050913;
 }
 
 .workspace-path {
