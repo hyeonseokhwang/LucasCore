@@ -37,6 +37,7 @@ import { normalizePromptForSubmit } from "./terminalPrompt";
 import { tailTerminalLines } from "./terminalReplay";
 import { clipboardItemsContainImage } from "./terminalCardComposer";
 import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
+import { enqueueTerminalWriteItems, shiftTerminalWriteItem, type TerminalWriteItem } from "./xtermWriteQueue";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
@@ -186,10 +187,7 @@ function sessionsMatch(prev: Session[], next: Session[]) {
       a.status !== b.status ||
       a.pid !== b.pid ||
       a.created_at !== b.created_at ||
-      a.updated_at !== b.updated_at ||
       a.exit_code !== b.exit_code ||
-      a.preview !== b.preview ||
-      a.preview_text !== b.preview_text ||
       a.args.length !== b.args.length
     ) {
       return false;
@@ -901,7 +899,7 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
       {error ? (
         <div className="error">{error}</div>
       ) : session ? (
-        <HqTerminalPreview sessionId={session.id} status={session.status} variant="fullscreen" />
+        <HqTerminalPreview sessionId={session.id} status={session.status} />
       ) : (
         <pre className="terminal-snapshot-preview fullscreen" aria-label="Loading terminal output">
           Loading terminal output...
@@ -2551,6 +2549,10 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   const socketRef = useRef<WebSocket | null>(null);
   const attachedRef = useRef(false);
   const inputQueueRef = useRef<string[]>([]);
+  const writeQueueRef = useRef<TerminalWriteItem[]>([]);
+  const queuedWriteBytesRef = useRef(0);
+  const writeDrainScheduledRef = useRef(false);
+  const writeDrainRafRef = useRef<number | null>(null);
   const userScrolledUpRef = useRef(false);
   const programmaticScrollRef = useRef(false);
   const isVisibleRef = useRef(isVisible);
@@ -2655,6 +2657,39 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
         socket.addEventListener("open", () => socket.send(text), { once: true });
       }
     };
+    const drainWriteQueue = () => {
+      writeDrainRafRef.current = null;
+      const shifted = shiftTerminalWriteItem(writeQueueRef.current, queuedWriteBytesRef.current);
+      writeQueueRef.current = shifted.queue;
+      queuedWriteBytesRef.current = shifted.queuedBytes;
+      const item = shifted.item;
+      if (!item) {
+        writeDrainScheduledRef.current = false;
+        return;
+      }
+      term.write(item.data, () => {
+        item.onDrained?.();
+        if (item.stickToBottom) scrollToBottom();
+        if (writeQueueRef.current.length > 0) {
+          writeDrainRafRef.current = window.requestAnimationFrame(drainWriteQueue);
+        } else {
+          writeDrainScheduledRef.current = false;
+        }
+      });
+    };
+    const enqueueWrite = (data: string, item: Omit<TerminalWriteItem, "data">) => {
+      if (!data) {
+        item.onDrained?.();
+        return;
+      }
+      const next = enqueueTerminalWriteItems(writeQueueRef.current, queuedWriteBytesRef.current, data, item);
+      writeQueueRef.current = next.queue;
+      queuedWriteBytesRef.current = next.queuedBytes;
+      if (!writeDrainScheduledRef.current) {
+        writeDrainScheduledRef.current = true;
+        writeDrainRafRef.current = window.requestAnimationFrame(drainWriteQueue);
+      }
+    };
 
     const socket = new WebSocket(terminalWsUrl());
     socketRef.current = socket;
@@ -2692,19 +2727,24 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       }
       if (message.type === "replay") {
         term.reset();
-        term.write(String(message.data ?? ""));
-        scheduleFit([0, 120, 360]);
-        window.setTimeout(scrollToBottom, 300);
+        writeQueueRef.current = [];
+        queuedWriteBytesRef.current = 0;
+        enqueueWrite(String(message.data ?? ""), {
+          kind: "replay",
+          stickToBottom: true,
+          onDrained: () => {
+            scheduleFit([0, 120, 360]);
+            scrollToBottom();
+          }
+        });
         return;
       }
       if (message.type === "output") {
-        term.write(String(message.data ?? ""));
-        scrollToBottom();
+        enqueueWrite(String(message.data ?? ""), { kind: "output", stickToBottom: true });
         return;
       }
       if (message.type === "exit") {
-        term.write("\r\n\x1b[31m[Process exited]\x1b[0m\r\n");
-        scrollToBottom();
+        enqueueWrite("\r\n\x1b[31m[Process exited]\x1b[0m\r\n", { kind: "system", stickToBottom: true });
       }
     });
     socket.addEventListener("error", () => undefined);
@@ -2733,6 +2773,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     return () => {
       viewport?.removeEventListener("scroll", handleViewportScroll);
       window.removeEventListener("resize", fitAndResize);
+      if (writeDrainRafRef.current !== null) window.cancelAnimationFrame(writeDrainRafRef.current);
       cancelInitialFit();
       resizeObserver.disconnect();
       dataDisposable.dispose();
@@ -2743,6 +2784,10 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       socketRef.current = null;
       attachedRef.current = false;
       inputQueueRef.current = [];
+      writeQueueRef.current = [];
+      queuedWriteBytesRef.current = 0;
+      writeDrainScheduledRef.current = false;
+      writeDrainRafRef.current = null;
     };
   }, [sessionId, status, variant]);
 
