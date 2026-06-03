@@ -4,8 +4,6 @@
   Bot,
   Boxes,
   CalendarCheck,
-  ChevronDown,
-  ChevronRight,
   CheckCircle2,
   ClipboardList,
   Clock3,
@@ -32,9 +30,10 @@
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import React, { FormEvent, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { encodePromptForPtySubmit, normalizePromptForSubmit } from "./terminalPrompt";
+import { normalizePromptForSubmit } from "./terminalPrompt";
 import { sanitizeTerminalPreviewForSummary, tailTerminalLines } from "./terminalReplay";
 import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
 import {
@@ -92,16 +91,6 @@ const SESSION_GROUPS = [
         session: true
       }))
     ]
-  },
-  {
-    filter: "hkl-handover-tf",
-    label: "HKL Handover TF",
-    members: Array.from({ length: 4 }, (_, index) => ({
-      id: `hkl-handover-tf-${index + 1}`,
-      name: `HKL TF ${index + 1}`,
-      role: "Heungkuk Life manual and handover support",
-      session: true
-    }))
   }
 ];
 const SESSION_GROUP_BY_FILTER = new Map(SESSION_GROUPS.map((group) => [group.filter, group]));
@@ -111,7 +100,8 @@ const API_ORIGIN = VITE_ENV.VITE_LCC_API_ORIGIN || window.location.origin;
 const WS_ORIGIN =
   VITE_ENV.VITE_LCC_WS_ORIGIN ||
   API_ORIGIN.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
-const TERMINAL_SCROLLBACK_LINES = 300;
+const TERMINAL_SCROLLBACK_LINES = 500;
+const TERMINAL_FOCUSED_REPLAY_BYTES = 1024;
 const activeTerminalComposerKeys = new Set<string>();
 const terminalComposerSubscribers = new Set<() => void>();
 
@@ -510,34 +500,33 @@ function sendTerminalProtocol(sessionId: string, payload: Record<string, unknown
   });
 }
 
-function sendTerminalInput(sessionId: string, data: string) {
-  return sendTerminalProtocol(sessionId, { type: "input", data });
-}
-
 function waitForTerminalInputFlush() {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, 300));
+  return new Promise<void>((resolve) => window.setTimeout(resolve, 120));
 }
 
 async function sendTerminalPrompt(sessionId: string, prompt: string) {
-  const data = encodePromptForPtySubmit(prompt);
+  const body = normalizePromptForSubmit(prompt);
   writeTerminalDiagnostic("terminal_prompt_submit_start", {
     sessionId,
     promptBytes: prompt.length,
     promptLineCount: prompt.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").length,
-    encodedBytes: data.length,
-    encodedHasNewline: /[\r\n]/.test(data),
+    textBytes: body.length,
     promptPreview: prompt.slice(0, 180)
   });
   try {
-    await sendTerminalInput(sessionId, data);
+    if (body) {
+      await sendTerminalProtocol(sessionId, { type: "promptText", prompt: body });
+      await waitForTerminalInputFlush();
+    }
+    await sendTerminalProtocol(sessionId, { type: "promptSubmit", repeat: 1 });
     writeTerminalDiagnostic("terminal_prompt_submit_done", {
       sessionId,
-      encodedBytes: data.length
+      textBytes: body.length
     });
   } catch (error) {
     writeTerminalDiagnostic("terminal_prompt_submit_failed", {
       sessionId,
-      encodedBytes: data.length,
+      textBytes: body.length,
       error: error instanceof Error ? error.message : String(error)
     });
     throw error;
@@ -592,6 +581,7 @@ function terminalRectSnapshot(element: HTMLElement | null) {
 }
 
 function writeTerminalDiagnostic(type: string, details: Record<string, unknown> = {}) {
+  if (localStorage.getItem(TERMINAL_DIAGNOSTICS_STORAGE_KEY) !== "enabled") return;
   try {
     const raw = localStorage.getItem(TERMINAL_DIAGNOSTICS_STORAGE_KEY);
     const events = raw ? (JSON.parse(raw) as unknown[]) : [];
@@ -744,6 +734,28 @@ function readTerminalPopoutSessionId() {
   return params.get("popout") || params.get("terminalPopout") || "";
 }
 
+function readTerminalFullscreenSessionId() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("fullscreen") || params.get("terminalFullscreen") || "";
+}
+
+function writeTerminalFullscreenSessionId(sessionId: string | null) {
+  const url = new URL(window.location.href);
+  if (sessionId) url.searchParams.set("fullscreen", sessionId);
+  else url.searchParams.delete("fullscreen");
+  url.searchParams.delete("terminalFullscreen");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function blurActiveXtermHelper() {
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active.classList.contains("xterm-helper-textarea")) {
+    active.blur();
+    return;
+  }
+  document.querySelectorAll<HTMLTextAreaElement>("textarea.xterm-helper-textarea").forEach((item) => item.blur());
+}
+
 function App() {
   const popoutSessionId = readTerminalPopoutSessionId();
   if (popoutSessionId) return <TerminalPopoutPage sessionId={popoutSessionId} />;
@@ -852,7 +864,10 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
         <textarea
           rows={1}
           value={prompt}
-          onFocus={() => setComposerFocused(true)}
+          onFocus={() => {
+            blurActiveXtermHelper();
+            setComposerFocused(true);
+          }}
           onBlur={() => setComposerFocused(false)}
           onChange={(event) => {
             promptRef.current = event.target.value;
@@ -889,7 +904,7 @@ function ShellApp() {
   const [error, setError] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [topbarCollapsed, setTopbarCollapsed] = useState(false);
-  const [collapsedSessionGroups, setCollapsedSessionGroups] = useState<Record<string, boolean>>({});
+  const [terminalsLayerMounted, setTerminalsLayerMounted] = useState(() => view === "terminals");
   const [composerActivityVersion, setComposerActivityVersion] = useState(0);
   const pendingRefreshRef = useRef(false);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
@@ -988,6 +1003,10 @@ function ShellApp() {
   }, [deferredVisibleSessions, selectedSessionId, view]);
 
   useEffect(() => {
+    if (view === "terminals") setTerminalsLayerMounted(true);
+  }, [view]);
+
+  useEffect(() => {
     try {
       if (selectedSessionId) sessionStorage.setItem(TERMINAL_RECENT_SESSION_STORAGE_KEY, selectedSessionId);
       else sessionStorage.removeItem(TERMINAL_RECENT_SESSION_STORAGE_KEY);
@@ -1067,43 +1086,12 @@ function ShellApp() {
           {SESSION_GROUPS.map((group) => {
             const liveCount = group.members.filter((member) => member.session && sessionIds.has(member.id)).length;
             const sessionCount = group.members.filter((member) => member.session).length;
-            const collapsed = Boolean(collapsedSessionGroups[group.filter]);
             return (
-              <div className={`session-group ${collapsed ? "collapsed" : ""}`} key={group.filter}>
-                <button
-                  className={`filter group-filter ${filter === group.filter ? "active" : ""}`}
-                  onClick={() => selectTerminalFilter(group.filter)}
-                  type="button"
-                >
-                  <Users size={14} />
-                  <span>{group.label}</span>
-                  <strong>{liveCount}/{sessionCount}</strong>
-                  <span
-                    className="group-collapse"
-                    role="button"
-                    tabIndex={0}
-                    title={collapsed ? "그룹 펼치기" : "그룹 접기"}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setCollapsedSessionGroups((current) => ({
-                        ...current,
-                        [group.filter]: !current[group.filter]
-                      }));
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter" && event.key !== " ") return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setCollapsedSessionGroups((current) => ({
-                        ...current,
-                        [group.filter]: !current[group.filter]
-                      }));
-                    }}
-                  >
-                    {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                  </span>
+              <div className="session-group" key={group.filter}>
+                <button className={`filter group-filter ${filter === group.filter ? "active" : ""}`} onClick={() => selectTerminalFilter(group.filter)}>
+                  <Users size={14} /> {group.label} <strong>{liveCount}/{sessionCount}</strong>
                 </button>
-                <div className="group-members" aria-label={`${group.label} members`} hidden={collapsed}>
+                <div className="group-members" aria-label={`${group.label} members`}>
                   {group.members.map((member) => (
                     <span key={member.id} className={member.session && sessionIds.has(member.id) ? "online" : "offline"} title={member.role}>
                       {member.name}
@@ -1197,35 +1185,49 @@ function ShellApp() {
 
         {error && <div className="error">{error}</div>}
 
-        {view === "terminals" ? (
-          <>
-            <CreateSession sessions={sessions} onCreated={refresh} onShowDevTeam={() => selectTerminalFilter("development-team")} />
-            <TerminalGrid
-              sessions={deferredVisibleSessions}
-              allSessions={sessions}
-              onChanged={refresh}
-              layout={terminalLayout}
-              selectedSessionId={selectedSessionId}
-              onSelectSession={setSelectedSessionId}
+        <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {terminalsLayerMounted && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: view === "terminals" ? "flex" : "none",
+                flexDirection: "column",
+                minHeight: 0
+              }}
+            >
+              <CreateSession sessions={sessions} onCreated={refresh} onShowDevTeam={() => selectTerminalFilter("development-team")} />
+              <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+                <TerminalGrid
+                  sessions={deferredVisibleSessions}
+                  allSessions={sessions}
+                  onChanged={refresh}
+                  layout={terminalLayout}
+                  selectedSessionId={selectedSessionId}
+                  onSelectSession={setSelectedSessionId}
+                />
+              </div>
+            </div>
+          )}
+
+          {view === "meetings" ? (
+            <MeetingWorkspace
+              channel={selectedMeeting}
+              channels={mockMeetingChannels}
+              messages={mockMeetingMessages}
+              ledgerLabels={mockLedgerLabels}
+              onSelectChannel={setSelectedMeetingId}
             />
-          </>
-        ) : view === "meetings" ? (
-          <MeetingWorkspace
-            channel={selectedMeeting}
-            channels={mockMeetingChannels}
-            messages={mockMeetingMessages}
-            ledgerLabels={mockLedgerLabels}
-            onSelectChannel={setSelectedMeetingId}
-          />
-        ) : (
-          <CanvasWorkspace
-            canvas={selectedCanvas}
-            sessions={sessions}
-            onChanged={async () => {
-              await refresh();
-            }}
-          />
-        )}
+          ) : view === "canvas" ? (
+            <CanvasWorkspace
+              canvas={selectedCanvas}
+              sessions={sessions}
+              onChanged={async () => {
+                await refresh();
+              }}
+            />
+          ) : null}
+        </div>
       </section>
     </main>
   );
@@ -1849,7 +1851,7 @@ function CreateSession({
   );
 }
 
-function TerminalGrid({
+const TerminalGrid = React.memo(function TerminalGrid({
   sessions,
   allSessions,
   onChanged,
@@ -1894,12 +1896,11 @@ function TerminalGrid({
           onChanged={onChanged}
           selected={selectedSessionId === session.id}
           onSelectSession={onSelectSession}
-          livePreview={selectedSessionId === session.id}
         />
       ))}
     </div>
   );
-}
+});
 
 function MeetingWorkspace({
   channel,
@@ -2040,25 +2041,23 @@ function MeetingWorkspace({
   );
 }
 
-function TerminalCard({
+const TerminalCard = React.memo(function TerminalCard({
   session,
   sessions,
   onChanged,
   selected,
-  onSelectSession,
-  livePreview
+  onSelectSession
 }: {
   session: Session;
   sessions: Session[];
   onChanged: () => Promise<void>;
   selected: boolean;
   onSelectSession: (sessionId: string) => void;
-  livePreview: boolean;
 }) {
   const [prompt, setPrompt] = useState("");
   const [target, setTarget] = useState(session.id);
   const [logOpen, setLogOpen] = useState(false);
-  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [fullscreenOpen, setFullscreenOpen] = useState(() => readTerminalFullscreenSessionId() === session.id);
   const [logText, setLogText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [composerFocused, setComposerFocused] = useState(false);
@@ -2116,6 +2115,16 @@ function TerminalCard({
     );
   }
 
+  function openFullscreen() {
+    writeTerminalFullscreenSessionId(session.id);
+    setFullscreenOpen(true);
+  }
+
+  function closeFullscreen() {
+    writeTerminalFullscreenSessionId(null);
+    setFullscreenOpen(false);
+  }
+
   return (
     <article
       className={`terminal-card ${session.status} ${selected ? "selected" : ""} ${composerDirty ? "composer-dirty" : ""}`}
@@ -2130,10 +2139,10 @@ function TerminalCard({
           {composerDirty && <span className="composer-state">Editing</span>}
         </div>
         <div className="card-actions">
-          <button title="터미널 크게 보기" onMouseDown={stopTerminalTileFooterMouseDown} onClick={() => setFullscreenOpen(true)}>
+          <button title="터미널 크게 보기" onMouseDown={stopTerminalTileFooterMouseDown} onClick={openFullscreen}>
             <Maximize2 size={13} />
           </button>
-          <button title="화면 안에서 크게 보기" onMouseDown={stopTerminalTileFooterMouseDown} onClick={() => setFullscreenOpen(true)}>
+          <button title="화면 안에서 크게 보기" onMouseDown={stopTerminalTileFooterMouseDown} onClick={openFullscreen}>
             <PanelTopOpen size={13} />
           </button>
           <button title="팝업으로 보기" onMouseDown={stopTerminalTileFooterMouseDown} onClick={openPopout}>
@@ -2150,11 +2159,7 @@ function TerminalCard({
           </button>
         </div>
       </header>
-      {selected || livePreview ? (
-        <XtermPreview sessionId={session.id} status={session.status} />
-      ) : (
-        <StaticTerminalPreview session={session} />
-      )}
+      <StaticTerminalPreview session={session} />
       <footer aria-busy={isSending} onMouseDown={stopTerminalTileFooterMouseDown}>
         <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
           {sessions.map((item) => (
@@ -2166,7 +2171,10 @@ function TerminalCard({
         <textarea
           rows={1}
           value={prompt}
-          onFocus={() => setComposerFocused(true)}
+          onFocus={() => {
+            blurActiveXtermHelper();
+            setComposerFocused(true);
+          }}
           onBlur={() => setComposerFocused(false)}
           onChange={(event) => handlePromptChange(event.target.value)}
           onKeyDown={(event) => {
@@ -2182,7 +2190,7 @@ function TerminalCard({
       </footer>
       <div className="workspace-path">{session.cwd}</div>
       {fullscreenOpen && (
-        <FullscreenTerminalModal session={session} sessions={sessions} onClose={() => setFullscreenOpen(false)} onChanged={onChanged} />
+        <FullscreenTerminalModal session={session} sessions={sessions} onClose={closeFullscreen} onChanged={onChanged} />
       )}
       {logOpen && (
         <div className="log-modal" role="dialog" aria-modal="true">
@@ -2197,17 +2205,144 @@ function TerminalCard({
       )}
     </article>
   );
-}
+});
 
 function StaticTerminalPreview({ session }: { session: Session }) {
-  const preview = sanitizeTerminalPreviewForSummary(session.preview_text || session.preview || "");
-  const text = tailTerminalLines(preview || "아직 표시할 터미널 출력이 없습니다.\r\n", 20);
+  const text = tailTerminalLines(session.preview || session.preview_text || "아직 표시할 터미널 출력이 없습니다.\r\n", 20);
 
   return (
     <pre className="static-terminal-preview" aria-label={`${session.name} terminal preview`}>
-      {text}
+      {renderAnsiPreview(text)}
     </pre>
   );
+}
+
+type AnsiPreviewState = {
+  fg?: string;
+  bold: boolean;
+};
+
+const ansiForegroundClasses: Record<number, string> = {
+  30: "ansi-fg-black",
+  31: "ansi-fg-red",
+  32: "ansi-fg-green",
+  33: "ansi-fg-yellow",
+  34: "ansi-fg-blue",
+  35: "ansi-fg-magenta",
+  36: "ansi-fg-cyan",
+  37: "ansi-fg-white",
+  90: "ansi-fg-bright-black",
+  91: "ansi-fg-bright-red",
+  92: "ansi-fg-bright-green",
+  93: "ansi-fg-bright-yellow",
+  94: "ansi-fg-bright-blue",
+  95: "ansi-fg-bright-magenta",
+  96: "ansi-fg-bright-cyan",
+  97: "ansi-fg-bright-white"
+};
+
+const ansi256ForegroundClasses: Record<number, string> = {
+  0: "ansi-fg-black",
+  1: "ansi-fg-red",
+  2: "ansi-fg-green",
+  3: "ansi-fg-yellow",
+  4: "ansi-fg-blue",
+  5: "ansi-fg-magenta",
+  6: "ansi-fg-cyan",
+  7: "ansi-fg-white",
+  8: "ansi-fg-bright-black",
+  9: "ansi-fg-bright-red",
+  10: "ansi-fg-bright-green",
+  11: "ansi-fg-bright-yellow",
+  12: "ansi-fg-bright-blue",
+  13: "ansi-fg-bright-magenta",
+  14: "ansi-fg-bright-cyan",
+  15: "ansi-fg-bright-white"
+};
+
+function ansiPreviewClassName(state: AnsiPreviewState) {
+  return [state.fg, state.bold ? "ansi-bold" : ""].filter(Boolean).join(" ");
+}
+
+function applyAnsiSgr(state: AnsiPreviewState, params: string) {
+  const codes = params.length ? params.split(";").map((part) => Number.parseInt(part || "0", 10)) : [0];
+  for (let index = 0; index < codes.length; index += 1) {
+    const code = codes[index];
+    if (!Number.isFinite(code)) continue;
+    if (code === 0) {
+      state.fg = undefined;
+      state.bold = false;
+    } else if (code === 1) {
+      state.bold = true;
+    } else if (code === 22) {
+      state.bold = false;
+    } else if (code === 39) {
+      state.fg = undefined;
+    } else if (ansiForegroundClasses[code]) {
+      state.fg = ansiForegroundClasses[code];
+    } else if (code === 38 && codes[index + 1] === 5) {
+      const color = codes[index + 2];
+      state.fg = ansi256ForegroundClasses[color] || state.fg;
+      index += 2;
+    } else if (code === 38 && codes[index + 1] === 2) {
+      index += 4;
+    } else if (code === 48 && codes[index + 1] === 5) {
+      index += 2;
+    } else if (code === 48 && codes[index + 1] === 2) {
+      index += 4;
+    }
+  }
+}
+
+function renderAnsiPreview(value: string) {
+  const output: React.ReactNode[] = [];
+  const state: AnsiPreviewState = { bold: false };
+  let buffer = "";
+  let segmentIndex = 0;
+
+  function pushBuffer() {
+    if (!buffer) return;
+    const className = ansiPreviewClassName(state);
+    output.push(
+      <span key={segmentIndex++} className={className || undefined}>
+        {buffer}
+      </span>
+    );
+    buffer = "";
+  }
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (char !== "\x1b") {
+      if ((char >= "\x00" && char <= "\x08") || char === "\x0b" || char === "\x0c" || (char >= "\x0e" && char <= "\x1f") || char === "\x7f") {
+        continue;
+      }
+      buffer += char;
+      continue;
+    }
+
+    const next = value[index + 1];
+    if (next === "[") {
+      const match = value.slice(index + 2).match(/^([0-?]*)([ -/]*)([@-~])/);
+      if (match) {
+        pushBuffer();
+        if (match[3] === "m") applyAnsiSgr(state, match[1]);
+        index += 1 + match[0].length;
+        continue;
+      }
+    }
+    if (next === "]") {
+      const bellEnd = value.indexOf("\x07", index + 2);
+      const stEnd = value.indexOf("\x1b\\", index + 2);
+      const nextEnd = bellEnd === -1 ? stEnd : stEnd === -1 ? bellEnd : Math.min(bellEnd, stEnd);
+      if (nextEnd !== -1) {
+        index = nextEnd + (value.startsWith("\x1b\\", nextEnd) ? 1 : 0);
+        continue;
+      }
+    }
+  }
+  pushBuffer();
+  return output;
 }
 
 function FullscreenTerminalModal({
@@ -2295,7 +2430,10 @@ function FullscreenTerminalModal({
             ref={textareaRef}
             rows={1}
             value={prompt}
-            onFocus={() => setComposerFocused(true)}
+            onFocus={() => {
+              blurActiveXtermHelper();
+              setComposerFocused(true);
+            }}
             onBlur={() => setComposerFocused(false)}
             onChange={(event) => {
               promptRef.current = event.target.value;
@@ -2314,14 +2452,16 @@ function FullscreenTerminalModal({
   );
 }
 
-function XtermPreview({
+const XtermPreview = React.memo(function XtermPreview({
   sessionId,
   status,
-  variant = "card"
+  variant = "card",
+  isVisible = true
 }: {
   sessionId: string;
   status: SessionStatus;
   variant?: "card" | "fullscreen";
+  isVisible?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<XTerm | null>(null);
@@ -2330,7 +2470,12 @@ function XtermPreview({
   const attachedRef = useRef(false);
   const inputQueueRef = useRef<string[]>([]);
   const lastDimsRef = useRef({ cols: 0, rows: 0 });
-  const canResizePty = variant === "fullscreen";
+  const isVisibleRef = useRef(isVisible);
+  const hiddenOutputBufferRef = useRef("");
+  const hiddenFlushTimerRef = useRef<number | null>(null);
+  const fitNowRef = useRef<(() => void) | null>(null);
+  const userScrolledUpRef = useRef(false);
+  const programmaticScrollRef = useRef(false);
   const lifecycleRef = useRef({
     replayBytes: 0,
     outputBytes: 0,
@@ -2397,8 +2542,10 @@ function XtermPreview({
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.loadAddon(new WebLinksAddon());
+    const unicode11 = new Unicode11Addon();
+    term.loadAddon(unicode11);
+    term.unicode.activeVersion = "11";
     term.open(container);
-    term.focus();
     termRef.current = term;
     fitRef.current = fit;
     writeTerminalDiagnostic("xterm_opened", {
@@ -2420,11 +2567,27 @@ function XtermPreview({
       const buffer = term.buffer.active;
       return buffer.baseY - buffer.viewportY <= 1;
     };
+    const scrollToBottomIfAllowed = () => {
+      if (userScrolledUpRef.current) return;
+      programmaticScrollRef.current = true;
+      term.scrollToBottom();
+      window.setTimeout(() => {
+        programmaticScrollRef.current = false;
+      }, 100);
+    };
+    const viewport = container.querySelector(".xterm-viewport") as HTMLElement | null;
+    const handleViewportScroll = () => {
+      if (programmaticScrollRef.current || !viewport) return;
+      const distance = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+      userScrolledUpRef.current = distance > 50;
+    };
+    viewport?.addEventListener("scroll", handleViewportScroll, { passive: true });
     let disposed = false;
     let queuedWriteBytes = 0;
     let writingTerminal = false;
     let drainScheduled = false;
     let writeQueue: TerminalWriteItem[] = [];
+    const stableFitTimers: number[] = [];
     const scheduleDrainWriteQueue = () => {
       if (disposed || drainScheduled) return;
       drainScheduled = true;
@@ -2476,6 +2639,20 @@ function XtermPreview({
       }
       scheduleDrainWriteQueue();
     };
+    const flushHiddenOutput = () => {
+      if (!hiddenOutputBufferRef.current) return;
+      const buffered = hiddenOutputBufferRef.current;
+      hiddenOutputBufferRef.current = "";
+      enqueueTerminalWrite(buffered, { kind: "output", stickToBottom: !userScrolledUpRef.current && isNearBottom() });
+    };
+    const scheduleHiddenFlush = () => {
+      if (hiddenFlushTimerRef.current !== null || disposed) return;
+      hiddenFlushTimerRef.current = window.setTimeout(() => {
+        hiddenFlushTimerRef.current = null;
+        if (!isVisibleRef.current) return;
+        flushHiddenOutput();
+      }, 200);
+    };
     const sendSocket = (payload: unknown) => {
       const text = JSON.stringify(payload);
       if (socket.readyState === WebSocket.OPEN) {
@@ -2490,13 +2667,27 @@ function XtermPreview({
         );
       }
     };
-    socket.addEventListener("open", () => {
-      attachedRef.current = false;
-      inputQueueRef.current = [];
-      term.reset();
+    const fitDisplayOnly = () => {
+      if (!isVisibleRef.current) return;
       try {
         fit.fit();
       } catch {}
+    };
+    const scheduleStableFits = () => {
+      for (const delayMs of [700]) {
+        stableFitTimers.push(
+          window.setTimeout(() => {
+            if (!disposed) fitDisplayOnly();
+          }, delayMs)
+        );
+      }
+    };
+    socket.addEventListener("open", () => {
+      attachedRef.current = false;
+      inputQueueRef.current = [];
+      userScrolledUpRef.current = false;
+      term.reset();
+      fitDisplayOnly();
       lastDimsRef.current = { cols: term.cols, rows: term.rows };
       writeTerminalDiagnostic("terminal_ws_open", {
         sessionId,
@@ -2509,9 +2700,11 @@ function XtermPreview({
         type: "attach",
         sessionId,
         requestReplay: true,
-        cols: canResizePty ? term.cols : undefined,
-        rows: canResizePty ? term.rows : undefined
+        replayBytes: variant === "fullscreen" ? TERMINAL_FOCUSED_REPLAY_BYTES : undefined,
+        cols: term.cols,
+        rows: term.rows
       });
+      scheduleStableFits();
     });
     socket.addEventListener("error", () => {
       writeTerminalDiagnostic("terminal_ws_error", {
@@ -2559,19 +2752,21 @@ function XtermPreview({
         for (const data of queue) sendSocket({ type: "input", sessionId, data });
       }
       if (message.type === "replay") {
-        const data = String(message.data ?? "");
-        lifecycleRef.current.replayBytes += data.length;
+        const rawData = String(message.data ?? "");
+        const data = sanitizeTerminalPreviewForSummary(rawData);
+        lifecycleRef.current.replayBytes += rawData.length;
         writeTerminalDiagnostic("terminal_replay_received", {
           sessionId,
           variant,
-          bytes: data.length,
+          bytes: rawData.length,
+          sanitizedBytes: data.length,
           totalReplayBytes: lifecycleRef.current.replayBytes
         });
         enqueueTerminalWrite(data, {
           kind: "replay",
           stickToBottom: true,
-          resetBefore: true,
           onDrained: () => {
+            scrollToBottomIfAllowed();
             writeTerminalDiagnostic("terminal_replay_written", {
               sessionId,
               variant,
@@ -2598,7 +2793,12 @@ function XtermPreview({
             loggedCount: lifecycleRef.current.outputEventsLogged
           });
         }
-        const stickToBottom = isNearBottom();
+        if (!isVisibleRef.current) {
+          hiddenOutputBufferRef.current += data;
+          scheduleHiddenFlush();
+          return;
+        }
+        const stickToBottom = !userScrolledUpRef.current && isNearBottom();
         enqueueTerminalWrite(data, { kind: "output", stickToBottom });
       }
       if (message.type === "exit") {
@@ -2631,7 +2831,9 @@ function XtermPreview({
       }
       sendSocket({ type: "input", sessionId, data: processed });
     });
-    term.element?.addEventListener("mousedown", () => term.focus());
+    if (variant === "fullscreen") {
+      term.element?.addEventListener("mousedown", () => term.focus());
+    }
 
     document.fonts.ready
       .then(() => {
@@ -2639,7 +2841,8 @@ function XtermPreview({
           "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace";
         requestAnimationFrame(() => {
           try {
-            fit.fit();
+            if (!isVisibleRef.current) return;
+            fitDisplayOnly();
             writeTerminalDiagnostic("terminal_font_ready_fit", {
               sessionId,
               variant,
@@ -2653,6 +2856,7 @@ function XtermPreview({
       .catch(() => undefined);
 
     const fitNow = () => {
+      if (!isVisibleRef.current) return;
       try {
         fit.fit();
         const dims = { cols: term.cols, rows: term.rows };
@@ -2669,14 +2873,13 @@ function XtermPreview({
         const last = lastDimsRef.current;
         if (dims.cols !== last.cols || dims.rows !== last.rows) {
           lastDimsRef.current = dims;
-          writeTerminalDiagnostic(canResizePty ? "terminal_resize_sent" : "terminal_resize_observed", {
+          writeTerminalDiagnostic("terminal_resize_observed", {
             sessionId,
             variant,
             cols: dims.cols,
             rows: dims.rows,
             rect
           });
-          if (canResizePty) sendSocket({ type: "resize", sessionId, cols: dims.cols, rows: dims.rows });
         }
       } catch {
         writeTerminalDiagnostic("terminal_fit_error", {
@@ -2686,8 +2889,18 @@ function XtermPreview({
         });
       }
     };
-    requestAnimationFrame(() => requestAnimationFrame(fitNow));
-    const resizeObserver = new ResizeObserver(() => requestAnimationFrame(fitNow));
+    fitNowRef.current = fitNow;
+    requestAnimationFrame(() => requestAnimationFrame(fitDisplayOnly));
+    let resizeTimer: number | null = null;
+    const resizeObserver = new ResizeObserver(() => {
+      if (!isVisibleRef.current) return;
+      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        resizeTimer = null;
+        if (!isVisibleRef.current) return;
+        requestAnimationFrame(fitDisplayOnly);
+      }, 150);
+    });
     resizeObserver.observe(container);
     const blankCheckTimers = [3000, 10000].map((delayMs) =>
       window.setTimeout(() => {
@@ -2714,7 +2927,16 @@ function XtermPreview({
       drainScheduled = false;
       writeQueue = [];
       queuedWriteBytes = 0;
+      for (const timer of stableFitTimers) window.clearTimeout(timer);
+      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
       for (const timer of blankCheckTimers) window.clearTimeout(timer);
+      if (hiddenFlushTimerRef.current !== null) {
+        window.clearTimeout(hiddenFlushTimerRef.current);
+        hiddenFlushTimerRef.current = null;
+      }
+      hiddenOutputBufferRef.current = "";
+      fitNowRef.current = null;
+      viewport?.removeEventListener("scroll", handleViewportScroll);
       writeTerminalDiagnostic("xterm_dispose", {
         sessionId,
         variant,
@@ -2736,10 +2958,27 @@ function XtermPreview({
       attachedRef.current = false;
       inputQueueRef.current = [];
     };
-  }, [sessionId, variant]);
+  }, [sessionId, status, variant]);
+
+  useEffect(() => {
+    isVisibleRef.current = isVisible;
+    if (!isVisible) return;
+    if (hiddenFlushTimerRef.current !== null) {
+      window.clearTimeout(hiddenFlushTimerRef.current);
+      hiddenFlushTimerRef.current = null;
+    }
+    if (hiddenOutputBufferRef.current && termRef.current) {
+      const buffered = hiddenOutputBufferRef.current;
+      hiddenOutputBufferRef.current = "";
+      termRef.current.write(buffered, () => {
+        if (!userScrolledUpRef.current) termRef.current?.scrollToBottom();
+      });
+    }
+    fitNowRef.current?.();
+  }, [isVisible]);
 
   return <div className={`xterm-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} ref={containerRef} />;
-}
+});
 
 function TerminalLogView({ text }: { text: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);

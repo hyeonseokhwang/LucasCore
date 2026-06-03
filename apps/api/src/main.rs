@@ -20,6 +20,7 @@ use std::{
     path::PathBuf,
     sync::{Arc, Mutex as StdMutex},
     thread,
+    time::{Duration as StdDuration, Instant},
 };
 use tokio::{
     fs,
@@ -48,12 +49,22 @@ struct TerminalSession {
     writer: Box<dyn Write + Send>,
 }
 
-const SESSION_PREVIEW_LIMIT_BYTES: usize = 4_000;
-const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = 256 * 1024;
-const SESSION_LOG_MAX_TAIL_BYTES: u64 = 1024 * 1024;
-const TERMINAL_WS_REPLAY_LIMIT_BYTES: u64 = 32 * 1024;
-const TERMINAL_LOG_ROTATE_BYTES: u64 = 5 * 1024 * 1024;
-const TERMINAL_RING_BUFFER_BYTES: usize = 256 * 1024;
+const TERMINAL_SCREEN_BUFFER_BYTES: usize = 1024;
+const SESSION_PREVIEW_LIMIT_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
+const TERMINAL_VOLATILE_BUFFER_MAX_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
+const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
+const SESSION_LOG_MAX_TAIL_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
+const TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
+const TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
+const TERMINAL_LOG_ROTATE_BYTES: u64 = 512 * 1024;
+const TERMINAL_LOG_FLUSH_INTERVAL_MS: u64 = 50;
+const TERMINAL_LOG_FLUSH_CHUNK_BYTES: usize = 50 * 1024;
+const TERMINAL_RING_BUFFER_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
+const TERMINAL_PERSIST_LOGS_ENV: &str = "LCC_TERMINAL_PERSIST_LOGS";
+const TERMINAL_RUNTIME_CONFIG_PATH_ENV: &str = "LCC_TERMINAL_RUNTIME_CONFIG";
+const TERMINAL_RUNTIME_CONFIG_DEFAULT_PATH: &str = "data/terminal-runtime-config.json";
+const MIN_TERMINAL_RESIZE_COLS: u16 = 40;
+const MIN_TERMINAL_RESIZE_ROWS: u16 = 10;
 
 #[derive(Debug, Clone)]
 struct TerminalRingBuffer {
@@ -79,6 +90,75 @@ impl TerminalRingBuffer {
     fn tail(&self, max_bytes: usize) -> String {
         tail_string_by_bytes(&self.data, max_bytes)
     }
+
+    fn set_max_bytes(&mut self, max_bytes: usize) {
+        self.max_bytes = max_bytes;
+        if self.data.len() > self.max_bytes {
+            self.data = tail_string_by_bytes(&self.data, self.max_bytes);
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+struct TerminalRuntimeConfig {
+    #[serde(default = "default_terminal_preview_bytes")]
+    preview_bytes: usize,
+    #[serde(default = "default_terminal_card_replay_bytes")]
+    card_replay_bytes: u64,
+    #[serde(default = "default_terminal_max_replay_bytes")]
+    max_replay_bytes: u64,
+    #[serde(default = "default_terminal_ring_buffer_bytes")]
+    ring_buffer_bytes: usize,
+}
+
+fn default_terminal_preview_bytes() -> usize {
+    SESSION_PREVIEW_LIMIT_BYTES
+}
+
+fn default_terminal_card_replay_bytes() -> u64 {
+    TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES
+}
+
+fn default_terminal_max_replay_bytes() -> u64 {
+    TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES
+}
+
+fn default_terminal_ring_buffer_bytes() -> usize {
+    TERMINAL_RING_BUFFER_BYTES
+}
+
+impl Default for TerminalRuntimeConfig {
+    fn default() -> Self {
+        Self {
+            preview_bytes: SESSION_PREVIEW_LIMIT_BYTES,
+            card_replay_bytes: TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES,
+            max_replay_bytes: TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES,
+            ring_buffer_bytes: TERMINAL_RING_BUFFER_BYTES,
+        }
+    }
+}
+
+impl TerminalRuntimeConfig {
+    fn normalized(self) -> Self {
+        Self {
+            preview_bytes: self.preview_bytes.clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES),
+            card_replay_bytes: self.card_replay_bytes.clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES as u64),
+            max_replay_bytes: self.max_replay_bytes.clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES as u64),
+            ring_buffer_bytes: self.ring_buffer_bytes.clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES),
+        }
+    }
+}
+
+fn terminal_runtime_config_path() -> PathBuf {
+    PathBuf::from(env::var(TERMINAL_RUNTIME_CONFIG_PATH_ENV).unwrap_or_else(|_| TERMINAL_RUNTIME_CONFIG_DEFAULT_PATH.to_string()))
+}
+
+fn terminal_runtime_config() -> TerminalRuntimeConfig {
+    std::fs::read_to_string(terminal_runtime_config_path())
+        .ok()
+        .and_then(|text| serde_json::from_str::<TerminalRuntimeConfig>(&text).ok())
+        .unwrap_or_default()
+        .normalized()
 }
 
 fn tail_string_by_bytes(value: &str, max_bytes: usize) -> String {
@@ -92,12 +172,30 @@ fn tail_string_by_bytes(value: &str, max_bytes: usize) -> String {
     while !value.is_char_boundary(start) {
         start += 1;
     }
-    value[start..].to_string()
+    strip_leading_partial_csi(&value[start..]).to_string()
+}
+
+fn strip_leading_partial_csi(value: &str) -> &str {
+    if value.starts_with('\u{1b}') {
+        return value;
+    }
+    let mut saw_param_or_intermediate = false;
+    for (index, ch) in value.char_indices() {
+        if ('0'..='?').contains(&ch) || (' '..='/').contains(&ch) {
+            saw_param_or_intermediate = true;
+            continue;
+        }
+        if saw_param_or_intermediate && ('@'..='~').contains(&ch) {
+            return &value[index + ch.len_utf8()..];
+        }
+        break;
+    }
+    value
 }
 
 fn strip_ansi_for_ui(value: &str) -> String {
     let mut output = String::with_capacity(value.len());
-    let mut chars = value.chars();
+    let mut chars = strip_leading_partial_csi(value).chars();
     while let Some(ch) = chars.next() {
         if ch != '\u{1b}' {
             output.push(ch);
@@ -158,6 +256,13 @@ fn terminal_context_ledger_path() -> PathBuf {
     PathBuf::from("data").join("terminal-context-ledger.jsonl")
 }
 
+fn terminal_persistent_logs_enabled() -> bool {
+    matches!(
+        env::var(TERMINAL_PERSIST_LOGS_ENV).ok().as_deref().map(str::trim),
+        Some("1") | Some("true") | Some("yes") | Some("on")
+    )
+}
+
 fn rotate_terminal_log_if_needed(path: &PathBuf, session_id: &str) -> std::io::Result<Option<PathBuf>> {
     let Ok(metadata) = std::fs::metadata(path) else {
         return Ok(None);
@@ -191,12 +296,122 @@ fn append_terminal_context_event(session_id: &str, event: &str, archive_path: &P
         "archivePath": archive_path.display().to_string(),
         "bytes": bytes,
         "policy": {
-            "uiReplayBytes": TERMINAL_WS_REPLAY_LIMIT_BYTES,
-            "rotateBytes": TERMINAL_LOG_ROTATE_BYTES
+            "uiReplayBytes": TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES,
+            "cardReplayBytes": TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES,
+            "logViewBytes": SESSION_LOG_VIEW_LIMIT_BYTES,
+            "logMaxTailBytes": SESSION_LOG_MAX_TAIL_BYTES,
+            "rotateBytes": TERMINAL_LOG_ROTATE_BYTES,
+            "flushIntervalMs": TERMINAL_LOG_FLUSH_INTERVAL_MS,
+            "flushChunkBytes": TERMINAL_LOG_FLUSH_CHUNK_BYTES
         }
     });
     if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
         let _ = writeln!(file, "{}", entry);
+    }
+}
+
+struct TerminalLogWriter {
+    file: Option<std::fs::File>,
+    log_path: PathBuf,
+    session_id: String,
+    log_bytes: u64,
+    pending: Vec<u8>,
+    last_flush_at: Instant,
+}
+
+impl TerminalLogWriter {
+    fn new(log_path: PathBuf, session_id: String) -> Self {
+        let persist_logs = terminal_persistent_logs_enabled();
+        let file = if persist_logs {
+            if let Some(parent) = log_path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = rotate_terminal_log_if_needed(&log_path, &session_id);
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_path)
+                .ok()
+        } else {
+            append_terminal_context_event(&session_id, "terminal_log_volatile_mode", &log_path, 0);
+            None
+        };
+        let log_bytes = std::fs::metadata(&log_path).map(|metadata| metadata.len()).unwrap_or(0);
+        Self {
+            file,
+            log_path,
+            session_id,
+            log_bytes,
+            pending: Vec::with_capacity(4096),
+            last_flush_at: Instant::now(),
+        }
+    }
+
+    fn write_session_banner(&mut self) {
+        if let Some(file) = self.file.as_mut() {
+            let _ = writeln!(file, "\r\n===== LCC session {} started at {} =====\r", self.session_id, Utc::now().to_rfc3339());
+            let _ = file.flush();
+            self.log_bytes = std::fs::metadata(&self.log_path).map(|metadata| metadata.len()).unwrap_or(self.log_bytes);
+        }
+    }
+
+    fn push(&mut self, chunk: &[u8]) {
+        if self.file.is_none() || chunk.is_empty() {
+            return;
+        }
+        self.pending.extend_from_slice(chunk);
+        if self.pending.len() >= TERMINAL_LOG_FLUSH_CHUNK_BYTES
+            || self.last_flush_at.elapsed() >= StdDuration::from_millis(TERMINAL_LOG_FLUSH_INTERVAL_MS)
+        {
+            self.flush_pending();
+        }
+    }
+
+    fn finish(&mut self) {
+        self.flush_pending();
+    }
+
+    fn flush_pending(&mut self) {
+        if self.pending.is_empty() {
+            self.last_flush_at = Instant::now();
+            return;
+        }
+        let Some(file) = self.file.as_mut() else {
+            self.pending.clear();
+            self.last_flush_at = Instant::now();
+            return;
+        };
+        if file.write_all(&self.pending).is_ok() {
+            let _ = file.flush();
+            self.log_bytes = self.log_bytes.saturating_add(self.pending.len() as u64);
+        }
+        self.pending.clear();
+        self.last_flush_at = Instant::now();
+        if self.log_bytes > TERMINAL_LOG_ROTATE_BYTES {
+            self.rotate();
+        }
+    }
+
+    fn rotate(&mut self) {
+        self.file.take();
+        if rotate_terminal_log_if_needed(&self.log_path, &self.session_id).is_ok() {
+            self.file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.log_path)
+                .ok();
+            self.log_bytes = std::fs::metadata(&self.log_path).map(|metadata| metadata.len()).unwrap_or(0);
+            if let Some(next_file) = self.file.as_mut() {
+                let _ = writeln!(
+                    next_file,
+                    "\r\n===== LCC session {} log rotated at {} =====\r",
+                    self.session_id,
+                    Utc::now().to_rfc3339()
+                );
+                let _ = next_file.flush();
+                self.log_bytes = std::fs::metadata(&self.log_path).map(|metadata| metadata.len()).unwrap_or(self.log_bytes);
+            }
+        }
     }
 }
 
@@ -216,11 +431,21 @@ fn build_session_view(
         preview,
         preview_text,
         preview_has_ansi,
-        source,
+        source: source.clone(),
         attached,
         interactive,
         input_disabled_reason,
-        log: session_log_info_for_path(&log_path, SESSION_LOG_VIEW_LIMIT_BYTES),
+        log: if matches!(source, SessionSource::Internal) && !terminal_persistent_logs_enabled() {
+            SessionLogInfo {
+                path: log_path.display().to_string(),
+                available: false,
+                bytes: 0,
+                tail_bytes: 0,
+                updated_at: None,
+            }
+        } else {
+            session_log_info_for_path(&log_path, SESSION_LOG_VIEW_LIMIT_BYTES)
+        },
     }
 }
 
@@ -247,7 +472,7 @@ struct SessionMeta {
     exit_code: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum SessionStatus {
     Active,
@@ -357,6 +582,7 @@ struct WriteSession {
     input: Option<String>,
     data: Option<String>,
     prompt: Option<String>,
+    repeat: Option<u8>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -639,6 +865,8 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/sessions/:id", get(get_session).delete(delete_session))
             .route("/api/sessions/:id/log", get(get_session_log))
             .route("/api/sessions/:id/write", post(write_session))
+            .route("/api/sessions/:id/prompt-text", post(write_session_prompt_text))
+            .route("/api/sessions/:id/prompt-submit", post(write_session_prompt_submit))
             .route("/api/sessions/:id/resize", post(resize_session))
             .route("/api/os-agents", get(list_os_agents))
             .route("/api/os-agents/:id/attach", post(attach_os_agent))
@@ -945,12 +1173,79 @@ async fn write_session(
     Ok(Json(session))
 }
 
+async fn write_session_prompt_text(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(input): Json<WriteSession>,
+) -> Result<Json<Value>, ApiError> {
+    let data = input.input.or(input.data).or(input.prompt).unwrap_or_default();
+    let body = normalize_prompt_body(&data);
+    let session = write_prompt_text_to_session(&state, &id, body.clone()).await?;
+    Ok(Json(json!({
+        "ok": true,
+        "type": "promptTextAck",
+        "sessionId": id,
+        "textBytes": body.as_bytes().len(),
+        "lineCount": prompt_line_count(&body),
+        "session": session
+    })))
+}
+
+async fn write_session_prompt_submit(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(input): Json<WriteSession>,
+) -> Result<Json<Value>, ApiError> {
+    let repeat = input.repeat.unwrap_or(1).clamp(1, 2);
+    let session = write_prompt_submit_to_session(&state, &id, repeat).await?;
+    Ok(Json(json!({
+        "ok": true,
+        "type": "promptSubmitAck",
+        "sessionId": id,
+        "submitKey": "\\r",
+        "repeat": repeat,
+        "session": session
+    })))
+}
+
 async fn get_session_log(
     Path(id): Path<String>,
     Query(query): Query<SessionLogQuery>,
 ) -> Result<axum::response::Response, ApiError> {
     let (source, path) = resolve_session_log_path(&id).await?;
     let limit = clamp_log_tail_limit(query.limit);
+    if matches!(source, SessionSource::Internal) && !terminal_persistent_logs_enabled() {
+        let text = String::new();
+        let log = SessionLogInfo {
+            path: path.display().to_string(),
+            available: false,
+            bytes: 0,
+            tail_bytes: 0,
+            updated_at: None,
+        };
+        return match query.format.as_deref().unwrap_or("ansi") {
+            "ansi" | "text" => Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text).into_response()),
+            "json" => Ok(Json(SessionLogTailResponse {
+                session_id: id,
+                source,
+                log,
+                tail: SessionLogTail {
+                    ansi: String::new(),
+                    text: String::new(),
+                    has_ansi: false,
+                    truncated: false,
+                    bytes: 0,
+                    text_bytes: 0,
+                    start_offset: 0,
+                    end_offset: 0,
+                },
+            })
+            .into_response()),
+            other => Err(ApiError::bad_request(format!(
+                "unsupported log format '{other}'; expected ansi, text, or json"
+            ))),
+        };
+    }
     let chunk = match read_tail_chunk(path.clone(), limit).await {
         Ok(chunk) => chunk,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => TailChunk {
@@ -1057,15 +1352,25 @@ async fn terminal_socket(mut socket: WebSocket, state: AppState) {
                     break;
                 };
                 if let Message::Text(text) = message {
+                    let mut attach_session_id: Option<String> = None;
                     if let Ok(value) = serde_json::from_str::<Value>(&text) {
                         if value.get("type").and_then(Value::as_str) == Some("attach") {
                             if let Some(session_id) = value.get("sessionId").or_else(|| value.get("session_id")).and_then(Value::as_str) {
+                                attach_session_id = Some(session_id.to_string());
                                 attached_sessions.insert(session_id.to_string());
                             }
                         }
                     }
                     if let Some(response) = handle_terminal_protocol(&state, &text).await {
-                        let _ = socket.send(Message::Text(response.to_string())).await;
+                        if socket.send(Message::Text(response.to_string())).await.is_err() {
+                            break;
+                        }
+                        if let Some(session_id) = attach_session_id {
+                            let attached = json!({ "type": "attached", "sessionId": session_id });
+                            if socket.send(Message::Text(attached.to_string())).await.is_err() {
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -1098,12 +1403,18 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
 
     match kind {
         "attach" => {
-            let replay = match resolve_terminal_replay(state, &session_id).await {
+            let runtime_config = terminal_runtime_config();
+            let replay_limit_bytes = value
+                .get("replayBytes")
+                .or_else(|| value.get("replay_bytes"))
+                .and_then(Value::as_u64)
+                .unwrap_or(runtime_config.card_replay_bytes)
+                .clamp(512, runtime_config.max_replay_bytes);
+            let replay = match resolve_terminal_replay(state, &session_id, replay_limit_bytes).await {
                 Ok(replay) => replay,
                 Err(err) => return Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
             };
-            let _ = state.tx.send(ServerEvent::Attached { session_id: session_id.clone() });
-            Some(json!({ "type": "replay", "sessionId": session_id, "data": replay }))
+            Some(json!({ "type": "replay", "sessionId": session_id, "data": strip_ansi_for_ui(&replay) }))
         }
         "input" => {
             let data = value.get("data").and_then(Value::as_str).unwrap_or_default().to_string();
@@ -1115,7 +1426,39 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
         "sendPrompt" => {
             let prompt = value.get("prompt").and_then(Value::as_str).unwrap_or_default().to_string();
             match write_to_session(state, &session_id, prompt).await {
-                Ok(_) => None,
+                Ok(_) => Some(json!({
+                    "type": "promptAck",
+                    "sessionId": session_id,
+                    "ok": true,
+                    "submitKey": "\\r"
+                })),
+                Err(err) => Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
+            }
+        }
+        "promptText" => {
+            let prompt = value.get("prompt").or_else(|| value.get("data")).and_then(Value::as_str).unwrap_or_default().to_string();
+            let body = normalize_prompt_body(&prompt);
+            match write_prompt_text_to_session(state, &session_id, body.clone()).await {
+                Ok(_) => Some(json!({
+                    "type": "promptTextAck",
+                    "sessionId": session_id,
+                    "ok": true,
+                    "textBytes": body.as_bytes().len(),
+                    "lineCount": prompt_line_count(&body)
+                })),
+                Err(err) => Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
+            }
+        }
+        "promptSubmit" => {
+            let repeat = value.get("repeat").and_then(Value::as_u64).unwrap_or(1).clamp(1, 2) as u8;
+            match write_prompt_submit_to_session(state, &session_id, repeat).await {
+                Ok(_) => Some(json!({
+                    "type": "promptSubmitAck",
+                    "sessionId": session_id,
+                    "ok": true,
+                    "submitKey": "\\r",
+                    "repeat": repeat
+                })),
                 Err(err) => Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
             }
         }
@@ -1162,11 +1505,29 @@ async fn resize_to_session(state: &AppState, id: &str, cols: u16, rows: u16) -> 
 
 async fn write_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
     let body = normalize_prompt_body(&data);
-    if !body.is_empty() {
-        write_session_bytes(state, id, body, true).await?;
-        sleep(Duration::from_millis(300)).await;
+    let session = write_prompt_text_to_session(state, id, body).await?;
+    sleep(Duration::from_millis(300)).await;
+    if session.meta.status == SessionStatus::Exited {
+        return Ok(session);
     }
-    write_session_bytes(state, id, prompt_submit_key().to_string(), true).await
+    write_prompt_submit_to_session(state, id, 1).await
+}
+
+async fn write_prompt_text_to_session(state: &AppState, id: &str, body: String) -> Result<SessionView, ApiError> {
+    if body.is_empty() {
+        return resolve_session_view(state, id).await;
+    }
+    write_session_bytes(state, id, body, true).await
+}
+
+async fn write_prompt_submit_to_session(state: &AppState, id: &str, repeat: u8) -> Result<SessionView, ApiError> {
+    let repeat = repeat.clamp(1, 2);
+    let mut session = write_session_bytes(state, id, prompt_submit_key().to_string(), true).await?;
+    for _ in 1..repeat {
+        sleep(Duration::from_millis(120)).await;
+        session = write_session_bytes(state, id, prompt_submit_key().to_string(), true).await?;
+    }
+    Ok(session)
 }
 
 fn normalize_prompt_body(data: &str) -> String {
@@ -1175,6 +1536,14 @@ fn normalize_prompt_body(data: &str) -> String {
         normalized.pop();
     }
     normalized
+}
+
+fn prompt_line_count(data: &str) -> usize {
+    if data.is_empty() {
+        0
+    } else {
+        data.split('\n').count()
+    }
 }
 
 fn prompt_submit_key() -> &'static str {
@@ -1246,9 +1615,15 @@ mod tests {
 
     #[test]
     fn terminal_replay_limit_matches_hq_tail_policy() {
-        assert_eq!(super::TERMINAL_WS_REPLAY_LIMIT_BYTES, 32 * 1024);
-        assert_eq!(super::TERMINAL_LOG_ROTATE_BYTES, 5 * 1024 * 1024);
-        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 1024);
+        assert_eq!(super::SESSION_LOG_VIEW_LIMIT_BYTES, 1024);
+        assert_eq!(super::SESSION_LOG_MAX_TAIL_BYTES, 1024);
+        assert_eq!(super::TERMINAL_LOG_ROTATE_BYTES, 512 * 1024);
+        assert_eq!(super::TERMINAL_LOG_FLUSH_INTERVAL_MS, 50);
+        assert_eq!(super::TERMINAL_LOG_FLUSH_CHUNK_BYTES, 50 * 1024);
+        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 1024);
     }
 
     #[test]
@@ -1262,6 +1637,13 @@ mod tests {
     fn strip_ansi_for_ui_removes_csi_and_osc_sequences() {
         let raw = "\u{1b}[2Khello\u{1b}]0;title\u{7}\u{1b}[31m world\u{1b}[0m";
         assert_eq!(strip_ansi_for_ui(raw), "hello world");
+    }
+
+    #[test]
+    fn strip_ansi_for_ui_removes_leading_partial_csi_tail() {
+        assert_eq!(strip_ansi_for_ui("2;36HWorking"), "Working");
+        assert_eq!(strip_ansi_for_ui("35mReady"), "Ready");
+        assert_eq!(strip_ansi_for_ui("Working"), "Working");
     }
 
     #[tokio::test]
@@ -1292,6 +1674,44 @@ mod tests {
     }
 
     #[test]
+    fn terminal_log_writer_flushes_when_chunk_limit_is_reached() {
+        env::set_var(super::TERMINAL_PERSIST_LOGS_ENV, "1");
+        let path = temp_test_file("terminal-log-writer-chunk-limit.log");
+        let mut writer = super::TerminalLogWriter::new(path.clone(), "test-session".to_string());
+        writer.write_session_banner();
+        let baseline = stdfs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+
+        writer.push(&vec![b'x'; super::TERMINAL_LOG_FLUSH_CHUNK_BYTES]);
+
+        let after_push = stdfs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+        assert!(after_push >= baseline + super::TERMINAL_LOG_FLUSH_CHUNK_BYTES as u64);
+
+        writer.finish();
+        let _ = stdfs::remove_file(path);
+        env::remove_var(super::TERMINAL_PERSIST_LOGS_ENV);
+    }
+
+    #[test]
+    fn terminal_log_writer_finish_flushes_pending_bytes() {
+        env::set_var(super::TERMINAL_PERSIST_LOGS_ENV, "1");
+        let path = temp_test_file("terminal-log-writer-finish.log");
+        let mut writer = super::TerminalLogWriter::new(path.clone(), "test-session".to_string());
+        writer.write_session_banner();
+        let baseline = stdfs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+
+        writer.push(b"pending-tail");
+        let before_finish = stdfs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+        assert_eq!(before_finish, baseline);
+
+        writer.finish();
+
+        let content = stdfs::read_to_string(&path).unwrap();
+        assert!(content.contains("pending-tail"));
+        let _ = stdfs::remove_file(path);
+        env::remove_var(super::TERMINAL_PERSIST_LOGS_ENV);
+    }
+
+    #[test]
     fn work_event_kind_defaults_to_note() {
         assert_eq!(normalize_work_event_kind(None).unwrap(), "note");
     }
@@ -1315,14 +1735,14 @@ mod tests {
     }
 }
 
-async fn resolve_terminal_replay(state: &AppState, id: &str) -> Result<String, ApiError> {
+async fn resolve_terminal_replay(state: &AppState, id: &str, limit_bytes: u64) -> Result<String, ApiError> {
+    let runtime_config = terminal_runtime_config();
+    let limit = limit_bytes.clamp(512, runtime_config.max_replay_bytes);
     if state.sessions.read().await.contains_key(id) {
-        if let Some(replay) = terminal_buffer_tail(state, id, TERMINAL_WS_REPLAY_LIMIT_BYTES as usize) {
+        if let Some(replay) = terminal_buffer_tail(state, id, limit as usize) {
             return Ok(replay);
         }
-        return read_tail_lossy_or_empty(terminal_log_path(id), TERMINAL_WS_REPLAY_LIMIT_BYTES)
-            .await
-            .map_err(ApiError::internal);
+        return Ok(String::new());
     }
     let Some(record) = read_os_agent_record(id).await else {
         return Err(ApiError::not_found("session not found"));
@@ -1331,22 +1751,18 @@ async fn resolve_terminal_replay(state: &AppState, id: &str) -> Result<String, A
         return Err(ApiError::conflict("OS agent is detached from this API"));
     }
     let path = record.log_path.map(PathBuf::from).unwrap_or_else(|| terminal_log_path(id));
-    read_tail_lossy_or_empty(path, TERMINAL_WS_REPLAY_LIMIT_BYTES)
+    read_tail_lossy_or_empty(path, limit)
         .await
         .map_err(ApiError::internal)
 }
 
 async fn build_internal_session_view(state: &AppState, meta: SessionMeta) -> Result<SessionView, ApiError> {
     let log_path = terminal_log_path(&meta.id);
-    let preview = match terminal_buffer_tail(state, &meta.id, SESSION_PREVIEW_LIMIT_BYTES) {
-        Some(preview) => preview,
-        None => read_tail_lossy_or_empty(log_path.clone(), SESSION_PREVIEW_LIMIT_BYTES as u64)
-            .await
-            .map_err(ApiError::internal)?,
-    };
+    let runtime_config = terminal_runtime_config();
+    let preview = terminal_buffer_tail(state, &meta.id, runtime_config.preview_bytes).unwrap_or_default();
     Ok(build_session_view(
         meta,
-        tail_string_by_bytes(&preview, SESSION_PREVIEW_LIMIT_BYTES),
+        tail_string_by_bytes(&preview, runtime_config.preview_bytes),
         SessionSource::Internal,
         true,
         true,
@@ -1400,21 +1816,10 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
     let log_path = terminal_log_path(&id);
     thread::spawn(move || {
         if let Ok(mut buffers) = state.terminal_buffers.lock() {
-            buffers.insert(id.clone(), TerminalRingBuffer::new(TERMINAL_RING_BUFFER_BYTES));
+            buffers.insert(id.clone(), TerminalRingBuffer::new(terminal_runtime_config().ring_buffer_bytes));
         }
-        if let Some(parent) = log_path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let _ = rotate_terminal_log_if_needed(&log_path, &id);
-        let mut log_file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_path)
-            .ok();
-        let mut log_bytes = std::fs::metadata(&log_path).map(|metadata| metadata.len()).unwrap_or(0);
-        if let Some(file) = log_file.as_mut() {
-            let _ = writeln!(file, "\r\n===== LCC session {id} started at {} =====\r", Utc::now().to_rfc3339());
-        }
+        let mut log_writer = TerminalLogWriter::new(log_path, id.clone());
+        log_writer.write_session_banner();
         let mut buf = [0_u8; 4096];
         loop {
             let Ok(n) = reader.read(&mut buf) else {
@@ -1423,34 +1828,17 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
             if n == 0 {
                 break;
             }
-            if let Some(file) = log_file.as_mut() {
-                let _ = file.write_all(&buf[..n]);
-                let _ = file.flush();
-                log_bytes = log_bytes.saturating_add(n as u64);
-                if log_bytes > TERMINAL_LOG_ROTATE_BYTES {
-                    log_file.take();
-                    if rotate_terminal_log_if_needed(&log_path, &id).is_ok() {
-                        log_file = std::fs::OpenOptions::new()
-                            .create(true)
-                            .append(true)
-                            .open(&log_path)
-                            .ok();
-                        log_bytes = std::fs::metadata(&log_path).map(|metadata| metadata.len()).unwrap_or(0);
-                        if let Some(next_file) = log_file.as_mut() {
-                            let _ = writeln!(
-                                next_file,
-                                "\r\n===== LCC session {id} log rotated at {} =====\r",
-                                Utc::now().to_rfc3339()
-                            );
-                        }
-                    }
-                }
-            }
+            log_writer.push(&buf[..n]);
             let data = String::from_utf8_lossy(&buf[..n]).to_string();
             if let Ok(mut buffers) = state.terminal_buffers.lock() {
+                let ring_buffer_bytes = terminal_runtime_config().ring_buffer_bytes;
                 buffers
                     .entry(id.clone())
-                    .or_insert_with(|| TerminalRingBuffer::new(TERMINAL_RING_BUFFER_BYTES))
+                    .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
+                    .set_max_bytes(ring_buffer_bytes);
+                buffers
+                    .entry(id.clone())
+                    .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
                     .push(&data);
             }
             let _ = state.tx.send(ServerEvent::Output {
@@ -1459,6 +1847,7 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
                 data,
             });
         }
+        log_writer.finish();
     });
 }
 

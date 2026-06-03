@@ -1,0 +1,6 @@
+﻿{
+    "preview_bytes":  1024,
+    "card_replay_bytes":  1024,
+    "max_replay_bytes":  1024,
+    "ring_buffer_bytes":  1024
+}
