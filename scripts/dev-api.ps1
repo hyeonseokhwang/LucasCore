@@ -32,5 +32,5 @@ if ($OsAgentRegistry) {
   $envParts += 'set "LCC_OS_AGENT_REGISTRY=disabled"'
 }
 
-$command = "call `"$vcvars`" && $($envParts -join ' && ') && cargo run --manifest-path apps/api/Cargo.toml --bin lcc-core-api"
+$command = "call `"$vcvars`" && $($envParts -join ' && ') && set `"PATH=%PATH:C:\Program Files\Git\usr\bin;=%`" && cargo run --manifest-path apps/api/Cargo.toml --bin lcc-core-api"
 cmd /c $command
