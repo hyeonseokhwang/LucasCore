@@ -2789,7 +2789,6 @@ fn terminal_current_display_for_attach(state: &AppState, id: &str) -> Option<Str
     terminal_display_snapshot_ansi_text(state, id)
         .map(|snapshot| format!("{TERMINAL_ATTACH_CLEAR_PREFIX}{snapshot}"))
         .or_else(|| terminal_display_snapshot_text(state, id))
-        .or_else(|| terminal_buffer_tail(state, id, terminal_runtime_config().preview_bytes))
         .filter(|text| !text.is_empty())
 }
 
