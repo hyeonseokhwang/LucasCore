@@ -1,0 +1,158 @@
+# Agent State Management Policy
+
+Date: 2026-05-31 KST
+
+Scope: branch operating state for 9002 live agents, Work Ledger events, and PTY-visible reporting.
+
+## Required State Flow
+
+Every assigned task follows this flow:
+
+0. `task-context`: owner creates or updates one integrated markdown task file containing objective, intent, permissions, protected contracts, current state, evidence, and next action.
+1. `assigned`: Chief Min or owner issues the task.
+2. `acknowledged`: assignee confirms receipt with `ACK`.
+3. `understanding-check`: assignee restates objective, Lucas intent, forbidden actions, protected contracts, files, acceptance checks, and clarification questions.
+4. `understanding-approved`: manager approves the restatement or issues a correction.
+5. `doing`: assignee starts work or states the concrete first action after understanding approval.
+6. `heartbeat`: assignee reports progress at least every 3 minutes while active.
+7. `reported`: assignee reports outcome with evidence.
+6. Terminal states:
+   - `completed`: work is done and evidence is sufficient.
+   - `blocked`: assignee cannot progress without named external input or state change.
+   - `stopped`: work was intentionally halted, reassigned, or session was closed.
+
+## PTY Reporting Contract
+
+The first visible line in the owner terminal must use one of these prefixes:
+
+```text
+ACK <task-id> state=acknowledged owner=<session-id>
+HEARTBEAT <task-id> state=heartbeat progress=<short evidence>
+REPORT <task-id> state=<reported|completed|blocked|stopped> evidence=<file|test|session|commit> next=<next owner/action>
+```
+
+Rules:
+
+- ACK is due within 30 seconds of assignment.
+- HEARTBEAT is due every 3 minutes while work is active.
+- REPORT is mandatory on completion, block, stop, or handoff.
+- The assigning manager must monitor these deadlines. Missing ACK or HEARTBEAT is a manager action item, not passive background noise.
+- Blocked/stopped reports must include `reason`, `last_evidence`, and `next`.
+- File-only, markdown-only, or log-only status is not counted until it is visible in PTY or routed to Chief Min/HQ.
+- Secrets must never appear in PTY, ledger body, docs, screenshots, or commit messages.
+
+## Command-Mode Binding
+
+State updates must include the active command mode when the task involves multiple agents.
+
+Allowed command modes:
+
+```text
+normal
+lucas-direct-control
+emergency-recovery
+```
+
+Rules:
+
+- In `normal` mode, developer task state flows through Dev Lead.
+- In `lucas-direct-control` mode, Chief Min records policy and evidence but does not issue competing developer orders.
+- In `emergency-recovery` mode, Chief Min may act directly only to restore control, visibility, or containment.
+- Any direct Chief Min runtime action outside `emergency-recovery` must be recorded as unratified until Dev Lead or Lucas accepts it.
+
+## Work Ledger Event Kinds
+
+`/api/work-ledger/tasks/:id/events` only accepts these event kinds:
+
+```text
+assigned
+acknowledged
+doing
+heartbeat
+reported
+blocked
+stopped
+completed
+qa
+qa-pass
+qa-fail
+evidence
+handoff
+decision
+risk
+note
+ledger-update
+execution-board-update
+communication-policy
+enterprise-p0-order
+organization
+dev-request
+risk-check
+```
+
+Unknown event kinds must be rejected. This prevents ad hoc status strings from fragmenting operational state.
+
+## Abnormal State Criteria
+
+A session is abnormal when any of these are observed:
+
+- no ACK within 30 seconds
+- no HEARTBEAT for more than 3 minutes while active
+- waits in composer, plan prompt, Enter prompt, or no-response state
+- reports only to a file/log without visible PTY report
+- lacks owner, evidence, blocker, or next action
+- target session mismatch or evidence appears in the wrong terminal
+
+Abnormal entries must record:
+
+```text
+session_id
+observed_state
+last_preview_or_log_check_time
+issued_order
+owner
+next_action
+evidence
+```
+
+## Manager Monitoring Contract
+
+Assigned work must be actively supervised until it reaches a terminal state.
+
+Manager obligations:
+
+- Maintain one integrated markdown task file as the restart-safe memory and final report for the task.
+- Treat that file as stale if live state, assignment, blocker, evidence, or next action changes without being reflected there.
+- Require and approve an understanding check before implementation. Do not treat ACK as comprehension.
+- After assignment, check for ACK within 30 seconds.
+- While active, check heartbeat/progress at least every 3 minutes.
+- Inspect the assignee terminal/session output and evidence before reporting status upward.
+- If no visible work is observed, issue a direct follow-up, reassign, stop the task, or escalate to the next authority.
+- Do not report a task as healthy solely because it was assigned.
+
+Required manager report format:
+
+```text
+MANAGER_CHECK <task-id> manager=<session-id> assignee=<session-id> state=<ack|doing|heartbeat-missing|blocked|reported|stopped> evidence=<session|file|test> next=<action>
+```
+
+## QA Gate
+
+Before committing state-management changes:
+
+- API unit tests must pass for accepted and rejected event kinds.
+- Existing prompt/newline tests must still pass.
+- 9002 health must remain `ok=true`.
+- 9002 must remain the only active LCC API process unless Lucas explicitly authorizes another port.
+- Git commit must include policy, implementation, and QA evidence together.
+
+## Terminal Render Retention
+
+Terminal screen rendering is not the audit store.
+
+- Fullscreen terminal replay renders only the latest 150 lines.
+- Log modal rendering also uses a 150-line tail.
+- Card preview keeps a small scrollback for daily monitoring.
+- Full ANSI logs remain append-only under `data/terminal-logs/*.ansi.log`.
+- Postmortem debugging and evidence review must use the file logs or explicit log-tail API, not browser scrollback.
+- Increasing visible lines requires a QA pass for browser memory and fullscreen open latency.
