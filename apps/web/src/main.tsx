@@ -2067,11 +2067,12 @@ const TerminalGrid = React.memo(function TerminalGrid({
 }) {
   const gridRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (layout !== "stack") return;
+    // Scroll selected card into view for both stack (vertical) and columns (horizontal) layouts.
+    if (layout !== "stack" && layout !== "columns") return;
     const grid = gridRef.current;
     if (!grid) return;
     const selectedCard = grid.querySelector<HTMLElement>(".terminal-card.selected");
-    if (selectedCard) selectedCard.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (selectedCard) selectedCard.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   }, [layout, selectedSessionId]);
 
   const fitColumns =
