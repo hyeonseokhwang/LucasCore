@@ -14,7 +14,7 @@ Lucas direction:
 ## Current Baseline
 
 - branch: `feature/human-grade-memory-20260604`
-- latest pushed commit: `9d7407d Add memory recovery fallback for live boot`
+- latest pushed commit before restart drill packet: `2ac33bc Prepare restart drill memory checkpoint`
 - dirty file intentionally excluded: `data/terminal-context-ledger.jsonl`
 - 9001 listener: PID `14540`, command `"target-9001\\debug\\lcc-core-api.exe"`
 - 9100 listener: PID `24800`, command `node tools\\ceo-ledger-board-server.cjs`
@@ -41,10 +41,18 @@ Active sessions observed on 9001:
 - `manual-tf-1` / gpt-5.4
 - `manual-tf-2` / gpt-5.4
 
-Lux state:
+Lux state before verification:
 
 - Lux is active but stale on an earlier `developer-4_QA_remains_open` return.
 - Treat Lux as a comparison witness, not a fresh executor, until a new Lux/Areum/Caesar verifies the stale behavior.
+
+Lux Caesar verification result:
+
+- `LUX_CAESAR_VERIFY restart-drill-20260604 state=pass`
+- `missing=none`
+- `next=shutdown-nonessential`
+- `blocker=none`
+- evidence: `data/system-logs/restart-drill-20260604/caesar-memory-verification-packet.json`
 
 ## Memory Recovery Contract To Test
 
@@ -96,8 +104,29 @@ Before executing, Caesar must confirm:
 - Lux is still active
 - daily memory and this drill report are committed/pushed
 
+## Nonessential Session Shutdown
+
+Lucas ordered Caesar and Lux only after memory verification passes.
+
+Completed after Lux pass:
+
+- kept: `ceo`, `audit-officer`
+- stopped: `areum`, `developer-8`, `developer-1`, `dev-lead`, `developer-4`, `manual-tf-lead`, `manual-tf-1`, `manual-tf-2`
+- shutdown result: all eight DELETE calls returned HTTP 200 with `{"ok":true}`
+- 9001 listener remained PID `14540`
+
+Evidence:
+
+- `data/system-logs/restart-drill-20260604/sessions-before-nonessential-shutdown.json`
+- `data/system-logs/restart-drill-20260604/listeners-before-nonessential-shutdown.json`
+- `data/system-logs/restart-drill-20260604/nonessential-shutdown-results.json`
+- `data/system-logs/restart-drill-20260604/sessions-after-nonessential-shutdown.json`
+- `data/system-logs/restart-drill-20260604/listeners-after-nonessential-shutdown.json`
+
 ## Current Gate
 
-Status: restart preparation in progress.
+Status: restart preparation complete.
 
-Do not restart 9100 until Caesar reports `restart_ready=true` to Lucas.
+Only Caesar and Lux remain on 9001. 9001 is preserved. Final remaining action is the controlled 9100 restart after Lucas/Caesar confirmation.
+
+Caesar may now report `restart_ready=true`.
