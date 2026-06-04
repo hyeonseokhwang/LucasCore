@@ -1,12 +1,12 @@
-const root = "D:/Lucas Core v0.1";
+const root = "G:/Lucas-Initiative/LucasCore";
 const ps = "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe";
 
 module.exports = {
   apps: [
     {
-      name: "lcc-api-9001",
+      name: "branch-api-20086",
       script: ps,
-      args: "-NoProfile -ExecutionPolicy Bypass -File scripts/dev-api.ps1 -Port 9001",
+      args: "-NoProfile -ExecutionPolicy Bypass -File scripts/dev-api.ps1 -Port 20086",
       cwd: root,
       watch: false,
       windowsHide: true,
@@ -16,18 +16,18 @@ module.exports = {
       min_uptime: "20s",
       kill_timeout: 10000,
       env: {
-        LCC_API_PORT: "9001",
+        LCC_API_PORT: "20086",
         LCC_OS_AGENT_REGISTRY: "disabled",
         LCC_MAX_ACTIVE_SESSIONS: "20",
       },
-      error_file: "D:/Lucas Core v0.1/data/system-logs/pm2/lcc-api-9001-error.log",
-      out_file: "D:/Lucas Core v0.1/data/system-logs/pm2/lcc-api-9001-out.log",
+      error_file: "G:/Lucas-Initiative/LucasCore/data/system-logs/pm2/branch-api-20086-error.log",
+      out_file: "G:/Lucas-Initiative/LucasCore/data/system-logs/pm2/branch-api-20086-out.log",
       log_date_format: "YYYY-MM-DD HH:mm:ss",
     },
     {
-      name: "lcc-web-9000",
+      name: "branch-web-20085",
       script: ps,
-      args: "-NoProfile -ExecutionPolicy Bypass -File scripts/dev-web.ps1 -Port 9000 -ApiOrigin http://127.0.0.1:9001 -WsOrigin ws://127.0.0.1:9001 -HostName 127.0.0.1",
+      args: "-NoProfile -ExecutionPolicy Bypass -File scripts/dev-web.ps1 -Port 20085 -ApiOrigin http://127.0.0.1:20086 -WsOrigin ws://127.0.0.1:20086 -HostName 127.0.0.1",
       cwd: root,
       watch: false,
       windowsHide: true,
@@ -37,17 +37,17 @@ module.exports = {
       min_uptime: "10s",
       kill_timeout: 10000,
       env: {
-        VITE_LCC_API_ORIGIN: "http://127.0.0.1:9001",
-        VITE_LCC_WS_ORIGIN: "ws://127.0.0.1:9001",
-        LCC_API_ORIGIN: "http://127.0.0.1:9001",
-        LCC_WS_ORIGIN: "ws://127.0.0.1:9001",
+        VITE_LCC_API_ORIGIN: "http://127.0.0.1:20086",
+        VITE_LCC_WS_ORIGIN: "ws://127.0.0.1:20086",
+        LCC_API_ORIGIN: "http://127.0.0.1:20086",
+        LCC_WS_ORIGIN: "ws://127.0.0.1:20086",
       },
-      error_file: "D:/Lucas Core v0.1/data/system-logs/pm2/lcc-web-9000-error.log",
-      out_file: "D:/Lucas Core v0.1/data/system-logs/pm2/lcc-web-9000-out.log",
+      error_file: "G:/Lucas-Initiative/LucasCore/data/system-logs/pm2/branch-web-20085-error.log",
+      out_file: "G:/Lucas-Initiative/LucasCore/data/system-logs/pm2/branch-web-20085-out.log",
       log_date_format: "YYYY-MM-DD HH:mm:ss",
     },
     {
-      name: "lcc-ledger-9100",
+      name: "branch-ledger-20087",
       script: "tools/ceo-ledger-board-server.cjs",
       cwd: root,
       interpreter: "node",
@@ -59,11 +59,11 @@ module.exports = {
       min_uptime: "10s",
       kill_timeout: 5000,
       env: {
-        CEO_LEDGER_PORT: "9100",
-        LCC_API_BASE: "http://127.0.0.1:9001",
+        CEO_LEDGER_PORT: "20087",
+        LCC_API_BASE: "http://127.0.0.1:20086",
       },
-      error_file: "D:/Lucas Core v0.1/data/system-logs/pm2/lcc-ledger-9100-error.log",
-      out_file: "D:/Lucas Core v0.1/data/system-logs/pm2/lcc-ledger-9100-out.log",
+      error_file: "G:/Lucas-Initiative/LucasCore/data/system-logs/pm2/branch-ledger-20087-error.log",
+      out_file: "G:/Lucas-Initiative/LucasCore/data/system-logs/pm2/branch-ledger-20087-out.log",
       log_date_format: "YYYY-MM-DD HH:mm:ss",
     },
   ],

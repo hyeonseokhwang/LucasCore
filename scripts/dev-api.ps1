@@ -11,7 +11,11 @@ if (-not $Port) {
 }
 $vcvars = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
 if (-not (Test-Path -LiteralPath $vcvars)) {
-  throw "vcvars64.bat not found. Install Visual Studio Build Tools with C++ workload."
+  # fallback: Community edition
+  $vcvars = "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+}
+if (-not (Test-Path -LiteralPath $vcvars)) {
+  throw "vcvars64.bat not found. Install Visual Studio Build Tools or Community with C++ workload."
 }
 
 $envParts = @(
