@@ -2509,7 +2509,7 @@ async fn recover_agent_context(
     State(state): State<AppState>,
     Path(agent_id): Path<String>,
     Query(query): Query<RecoveryQuery>,
-) -> Json<Value> {
+) -> Result<Json<Value>, ApiError> {
     let limit = query.limit.unwrap_or(8).clamp(1, 50);
     let memory_query = MemoryQuery {
         agent_id: Some(agent_id.clone()),
@@ -2543,18 +2543,24 @@ async fn recover_agent_context(
     let mut recent_events = ledger.events.clone();
     recent_events.sort_by(|a, b| b.at.cmp(&a.at));
     recent_events.truncate(limit);
+    let daily_memory_date = current_kst_date();
+    let daily_memory = state
+        .daily_memory_store
+        .read_daily_memory(&daily_memory_date)
+        .await?;
 
-    Json(json!({
+    Ok(Json(json!({
         "ok": true,
         "agent_id": agent_id,
         "recovered_context": {
+            "daily_memory": daily_memory,
             "personal_memories": personal,
             "shared_memories": shared,
             "active_tasks": active_tasks,
             "recent_work_events": recent_events,
         },
         "report_contract": "recovered_context / latest_ledger_item / latest_evidence / next_action / blocker"
-    }))
+    })))
 }
 
 async fn get_today_daily_memory(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
@@ -3088,6 +3094,25 @@ impl DailyMemoryStore {
     fn path_for_date(&self, date: &str) -> Result<PathBuf, ApiError> {
         validate_daily_memory_date(date)?;
         Ok(self.dir.join(format!("{date}.md")))
+    }
+
+    async fn read_daily_memory(&self, date: &str) -> Result<Value, ApiError> {
+        let path = self.path_for_date(date)?;
+        match fs::read_to_string(&path).await {
+            Ok(content) => Ok(json!({
+                "date": date,
+                "path": path.display().to_string(),
+                "exists": true,
+                "content": content,
+            })),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(json!({
+                "date": date,
+                "path": path.display().to_string(),
+                "exists": false,
+                "content": "",
+            })),
+            Err(err) => Err(ApiError::internal(err)),
+        }
     }
 
     async fn append_checkpoint(

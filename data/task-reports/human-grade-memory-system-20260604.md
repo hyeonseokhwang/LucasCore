@@ -403,3 +403,33 @@ Commit gate:
 
 - Allowed by Caesar emergency gate for preserving a verified memory-system checkpoint.
 - Residual process risk: audit session stale behavior must be debugged before relying on Lux as a hard gate in later ledger drills.
+
+## Phase 2 Recovery Merge
+
+Gap found after the first checkpoint:
+
+- `GET /api/memory/recover/:agent_id` merged personal memory, shared memory, active tasks, and recent work events.
+- It did not include the daily-memory file, which is the intended human-style day memory buffer.
+
+Source change:
+
+- `apps/api/src/main.rs`
+- `recover_agent_context` now includes `recovered_context.daily_memory`.
+- `DailyMemoryStore::read_daily_memory(date)` was added to return `{ date, path, exists, content }`.
+
+Verification:
+
+- `cargo check --manifest-path apps/api/Cargo.toml --bin lcc-core-api`: pass with existing warnings only.
+- 9104 clone server was used; 9001 was not restarted.
+- `GET http://127.0.0.1:9104/api/memory/recover/ceo?limit=3` returned:
+  - `hasDaily=true`
+  - `dailyExists=true`
+  - `dailyDate=2026-06-04`
+  - `contentLength=7495`
+  - replacement character count `0`
+- Evidence path: `data/system-logs/human-grade-memory-system-20260604/memory-recover-ceo-with-daily.json`
+
+Evidence caveat:
+
+- PowerShell `Set-Content -Encoding utf8` wrote a BOM. Node verification stripped BOM before JSON parse.
+- Future JSON evidence should prefer Node `fs.writeFileSync(..., "utf8")` or another no-BOM writer.
