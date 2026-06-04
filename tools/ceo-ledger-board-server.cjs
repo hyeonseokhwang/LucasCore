@@ -6,11 +6,20 @@ const root = path.resolve(__dirname, "..");
 const executionBoardPath = path.join(root, "data", "execution-board.json");
 const workLedgerPath = path.join(root, "data", "work-ledger.json");
 const ledgerReferenceDisabledPath = path.join(root, "data", "ledger-reference-disabled.json");
+const activeDrillReportPath = path.join(root, "data", "task-reports", "terminal-instability-real-ledger-20260604.md");
 const port = Number(process.env.CEO_LEDGER_PORT || 9100);
 
 function readJson(file, fallback = {}) {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8").replace(/^\uFEFF/, ""));
+  } catch {
+    return fallback;
+  }
+}
+
+function readText(file, fallback = "") {
+  try {
+    return fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "");
   } catch {
     return fallback;
   }
@@ -210,6 +219,49 @@ function renderChip(label, value, klass = "neutral") {
 function renderList(items, renderItem, empty = "표시할 항목이 없습니다.") {
   if (!items.length) return `<div class="empty">${esc(empty)}</div>`;
   return `<div class="list">${items.map(renderItem).join("")}</div>`;
+}
+
+function renderActiveDrillReport(reportText) {
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>9100 Terminal Instability Ledger</title>
+  <style>
+    :root { color-scheme: dark; --bg:#080d18; --panel:#111a2b; --ink:#e7eefc; --muted:#9fb0ca; --line:#2a3954; --warn:#ffd166; --bad:#ff6b6b; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.55 "Segoe UI","Malgun Gothic",system-ui,sans-serif; }
+    main { max-width:1500px; margin:0 auto; padding:24px; }
+    header, section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px; }
+    header { margin-bottom:14px; }
+    h1 { margin:0 0 8px; font-size:26px; }
+    p { margin:6px 0; color:var(--muted); }
+    .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+    .chip { border:1px solid var(--line); border-radius:999px; padding:6px 10px; background:#16233a; }
+    .warn { color:var(--warn); }
+    .bad { color:var(--bad); }
+    pre { margin:0; white-space:pre-wrap; overflow:auto; color:var(--ink); font:13px/1.5 Consolas, "Cascadia Mono", monospace; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Terminal Instability Real Ledger</h1>
+      <p>Existing JSON ledger items are deferred. This 9100 view shows only the active terminal instability report authorized by Lucas.</p>
+      <div class="chips">
+        <span class="chip warn">mode=real-debug</span>
+        <span class="chip bad">status=not-closed</span>
+        <span class="chip">target=17:00 KST</span>
+        <span class="chip">report=data/task-reports/terminal-instability-real-ledger-20260604.md</span>
+      </div>
+    </header>
+    <section>
+      <pre>${esc(reportText || "Active report file is missing.")}</pre>
+    </section>
+  </main>
+</body>
+</html>`;
 }
 
 function renderPage(board, workLedger) {
@@ -487,6 +539,22 @@ function renderPage(board, workLedger) {
 const server = http.createServer((request, response) => {
   const url = new URL(request.url || "/", `http://127.0.0.1:${port}`);
   if (isLedgerReferenceDisabled()) {
+    const reportText = readText(activeDrillReportPath);
+    if (reportText) {
+      if (url.pathname === "/health" || url.pathname === "/api/active-report") {
+        response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({
+          ok: true,
+          mode: "terminal-instability-real-ledger",
+          ledger_reference_disabled: true,
+          activeDrillReportPath
+        }));
+        return;
+      }
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      response.end(renderActiveDrillReport(reportText));
+      return;
+    }
     const disabled = {
       ok: false,
       disabled: true,
