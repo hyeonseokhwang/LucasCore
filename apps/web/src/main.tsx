@@ -2641,6 +2641,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   const currentSessionIdRef = useRef<string>("");
   const firstSnapshotReceivedRef = useRef<boolean>(false);
   const resizeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastEmittedDimsRef = useRef<{ cols: number; rows: number } | null>(null);
   const [wsKey, setWsKey] = React.useState(0);
 
   useEffect(() => {
@@ -2677,15 +2678,18 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     term.onResize(({ cols, rows }) => {
       if (resizeDebounceRef.current) clearTimeout(resizeDebounceRef.current);
       resizeDebounceRef.current = setTimeout(() => {
+        resizeDebounceRef.current = null;
         // Block resize WS until first snapshot/output received to prevent
         // fitTimers-induced SIGWINCH clearing the screen before content arrives.
         if (!firstSnapshotReceivedRef.current) return;
+        const lastDims = lastEmittedDimsRef.current;
+        if (lastDims && lastDims.cols === cols && lastDims.rows === rows) return;
         const sock = socketRef.current;
         const sid = currentSessionIdRef.current;
         if (sock?.readyState === WebSocket.OPEN && sid) {
           sock.send(JSON.stringify({ type: "resize", sessionId: sid, cols, rows }));
+          lastEmittedDimsRef.current = { cols, rows };
         }
-        resizeDebounceRef.current = null;
       }, 300);
     });
     const runFit = () => {
@@ -2712,6 +2716,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       socketRef.current = null;
       seededSessionRef.current = null;
       seededPreviewRef.current = null;
+      lastEmittedDimsRef.current = null;
       term.dispose();
     };
   }, [variant]);
@@ -2722,6 +2727,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     currentSessionIdRef.current = sessionId;
     seededSessionRef.current = null;
     firstSnapshotReceivedRef.current = false;
+    lastEmittedDimsRef.current = null;
     if (resizeDebounceRef.current) {
       clearTimeout(resizeDebounceRef.current);
       resizeDebounceRef.current = null;
@@ -2731,19 +2737,32 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     const socket = new WebSocket(terminalWsUrl());
     socketRef.current = socket;
     socket.addEventListener("open", () => {
-      // P1 warm-attach fix: delay attach until xterm has non-zero cols.
-      // Sending attach with cols=0 causes snapshot to be written but not rendered (DOM blank).
+      // P1 warm-attach fix: delay attach until xterm has non-zero cols/rows.
+      // Sending attach with zero dimensions causes snapshot to be written but not rendered.
       const doAttach = () => {
         if (socket.readyState !== WebSocket.OPEN || socketRef.current !== socket) return;
-        socket.send(JSON.stringify({ type: "attach", sessionId }));
+        const dims = {
+          cols: terminalRef.current?.cols ?? 0,
+          rows: terminalRef.current?.rows ?? 0
+        };
+        const payload: Record<string, unknown> = { type: "attach", sessionId };
+        if (dims.cols > 0 && dims.rows > 0) {
+          payload.cols = dims.cols;
+          payload.rows = dims.rows;
+          lastEmittedDimsRef.current = dims;
+        } else {
+          lastEmittedDimsRef.current = null;
+        }
+        socket.send(JSON.stringify(payload));
       };
       const fitAddon = fitRef.current;
       if (fitAddon) { try { fitAddon.fit(); } catch {} }
       const curCols = terminalRef.current?.cols ?? 0;
-      if (curCols > 0) {
+      const curRows = terminalRef.current?.rows ?? 0;
+      if (curCols > 0 && curRows > 0) {
         doAttach();
       } else {
-        // Container not yet laid out — wait for first non-zero cols, then attach
+        // Container not yet laid out — wait for first non-zero cols/rows, then attach
         const c = containerRef.current;
         if (!c) { doAttach(); return; }
         let attachSent = false;
@@ -2751,7 +2770,8 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
           if (attachSent) return;
           if (fitAddon) { try { fitAddon.fit(); } catch {} }
           const cols = terminalRef.current?.cols ?? 0;
-          if (cols > 0) {
+          const rows = terminalRef.current?.rows ?? 0;
+          if (cols > 0 && rows > 0) {
             attachSent = true;
             attachObserver.disconnect();
             doAttach();

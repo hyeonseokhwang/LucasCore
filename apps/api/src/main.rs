@@ -2728,12 +2728,24 @@ async fn terminal_socket(mut socket: WebSocket, state: AppState) {
                 };
                 if let Message::Text(text) = message {
                     let mut attach_session_id: Option<String> = None;
+                    let mut attach_error: Option<Value> = None;
                     if let Ok(value) = serde_json::from_str::<Value>(&text) {
                         if value.get("type").and_then(Value::as_str) == Some("attach") {
                             if let Some(session_id) = value.get("sessionId").or_else(|| value.get("session_id")).and_then(Value::as_str) {
                                 attach_session_id = Some(session_id.to_string());
                                 attached_sessions.insert(session_id.to_string());
+                                if let Err(err) = apply_attach_terminal_dims(&state, session_id, &value).await {
+                                    attach_error = Some(
+                                        json!({ "type": "error", "sessionId": session_id, "message": err.message }),
+                                    );
+                                }
                                 if value.get("requestReplay").or_else(|| value.get("request_replay")).and_then(Value::as_bool) != Some(true) {
+                                    if let Some(error) = attach_error {
+                                        if socket.send(Message::Text(error.to_string())).await.is_err() {
+                                            break;
+                                        }
+                                        continue;
+                                    }
                                     let attached = json!({ "type": "attached", "sessionId": session_id });
                                     if socket.send(Message::Text(attached.to_string())).await.is_err() {
                                         break;
@@ -2748,6 +2760,12 @@ async fn terminal_socket(mut socket: WebSocket, state: AppState) {
                                 }
                             }
                         }
+                    }
+                    if let Some(error) = attach_error {
+                        if socket.send(Message::Text(error.to_string())).await.is_err() {
+                            break;
+                        }
+                        continue;
                     }
                     if let Some(response) = handle_terminal_protocol(&state, &text).await {
                         if socket.send(Message::Text(response.to_string())).await.is_err() {
@@ -2807,6 +2825,36 @@ fn terminal_current_display_for_attach(state: &AppState, id: &str) -> Option<Str
         .filter(|text| !text.is_empty())
 }
 
+fn parse_attach_terminal_dims(value: &Value) -> Option<(u16, u16)> {
+    let cols = value
+        .get("cols")
+        .and_then(Value::as_u64)
+        .map(|cols| cols.clamp(20, 300) as u16);
+    let rows = value
+        .get("rows")
+        .and_then(Value::as_u64)
+        .map(|rows| rows.clamp(5, 120) as u16);
+    match (cols, rows) {
+        (Some(cols), Some(rows)) => Some((cols, rows)),
+        _ => None,
+    }
+}
+
+async fn apply_attach_terminal_dims(
+    state: &AppState,
+    session_id: &str,
+    value: &Value,
+) -> Result<(), ApiError> {
+    let Some((cols, rows)) = parse_attach_terminal_dims(value) else {
+        return Ok(());
+    };
+    let is_internal_session = state.sessions.read().await.contains_key(session_id);
+    if !is_internal_session {
+        return Ok(());
+    }
+    resize_to_session(state, session_id, cols, rows).await.map(|_| ())
+}
+
 async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> {
     let value = serde_json::from_str::<Value>(raw).ok()?;
     let kind = value.get("type")?.as_str()?;
@@ -2826,6 +2874,11 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
                 .and_then(Value::as_u64)
                 .unwrap_or(runtime_config.card_replay_bytes)
                 .clamp(512, runtime_config.max_replay_bytes);
+            if let Err(err) = apply_attach_terminal_dims(state, &session_id, &value).await {
+                return Some(
+                    json!({ "type": "error", "sessionId": session_id, "message": err.message }),
+                );
+            }
             let replay = match resolve_terminal_replay(state, &session_id, replay_limit_bytes).await
             {
                 Ok(replay) => replay,
@@ -3352,6 +3405,18 @@ mod tests {
 
         assert!(attach.starts_with("\x1b[2J\x1b[3J\x1b[H"));
         assert!(attach.contains("Working"));
+    }
+
+    #[test]
+    fn parse_attach_terminal_dims_clamps_when_present() {
+        let value = serde_json::json!({ "type": "attach", "cols": 10, "rows": 999 });
+        assert_eq!(super::parse_attach_terminal_dims(&value), Some((20, 120)));
+    }
+
+    #[test]
+    fn parse_attach_terminal_dims_requires_both_values() {
+        let value = serde_json::json!({ "type": "attach", "cols": 120 });
+        assert_eq!(super::parse_attach_terminal_dims(&value), None);
     }
 
     #[tokio::test]
