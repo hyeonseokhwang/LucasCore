@@ -148,7 +148,21 @@ LCC_AUTO_SUBMIT_ON_STABLE_TAIL_V1
 - 2026-06-04T13:32: Raw `GET /api/sessions/dev-lead` preview contains spinner/control fragments such as `?2026h`, `or`, `rk`, `ki`. This proves at least part of the instability exists in the 9001 session preview source, not only CSS.
 - 2026-06-04T13:32: Runtime 9001 returns 404 for `/api/sessions/dev-lead/tail`, while current source contains the route. 9001 is older than source or not running the latest binary. Do not restart 9001 without Lucas approval.
 - 2026-06-04T13:33: `prompt-text` and `prompt-submit` returned ok for long and short sentinel dispatches, but visible terminal tails did not show the new task or ACK. This is now a command-delivery blocker. API ACK is insufficient.
+- 2026-06-04T13:37: WebSocket terminal protocol `promptText` plus `promptSubmit`, matching the 9000 UI path, successfully delivered sentinel `terminal_real_ws_043740` to Max and produced visible `MAX_ACK`. Interim rule: use WS dispatch for developer coordination and verify visible tail receipt.
+- 2026-06-04T13:39: WS dispatch delivered real task cards. Visible evidence collected:
+  - Max: `ACK task=TERMINAL-INSTABILITY-REAL-LEDGER-20260604 understood=yes source=one-pty-tail views=independent-renderers edit_permission=not-yet blocker=none`
+  - Areum: `AREUM_REVIEW ... status=return_for_fix missing=evidence_index_section,explicit_owner_chain,explicit_QA_to_commit_to_Lucas_approval_flow,explicit_commit_gate,explicit_final_review_line blocker=none`
+  - Lux: `LUX_AUDIT ... status=return_for_fix missing_evidence=visible_semantic_delivery_for_Areum_and_Lux,visible_UNDERSTANDING_CHECK_and_manager_approval_chain_before_any_edit_work,continuous_MANAGER_CHECK_records_with_terminal_tail_evidence,proof_that_human_operator_terminal_is_stable_and_usable_after_QA,card_and_popout_fullscreen_QA_evidence,unit_test_and_web_build_results_for_any_terminal_fix,verified_commit_hash_per_fix,explicit_rollback_execution_or_rollback-readiness_evidence,Lucas_OK_SIGN_or_approval_to_close blocker=none`
+- 2026-06-04T13:40: Caesar decision: accept Lux/Areum return_for_fix. Next action is Max manager assignment to developers for inspect-only understanding checks and evidence collection. No edit permission yet.
+- 2026-06-04T13:41: Max reported `MANAGER_CHECK ... assigned=developer-1,developer-4 delivery_evidence=visible next=collect-understanding blocker=none`.
+- 2026-06-04T13:42: Caesar checked developer-1 and developer-4 tails. Neither showed the new `UNDERSTANDING_CHECK` task. Max delivery evidence is a false positive. This is a manager monitoring failure and remains return_for_fix.
+- 2026-06-04T13:42: Caesar will intervene with WS dispatch to developer-1 and developer-4 to unblock evidence collection, while recording the Max delivery-evidence miss.
+- 2026-06-04T13:43: Caesar WS-dispatched inspect-only understanding checks directly to developer-1 and developer-4.
+- 2026-06-04T13:44: Visible developer understanding evidence collected:
+  - developer-1: `UNDERSTANDING_CHECK ... source=one-pty-tail views=independent-renderers problem=unknown edit_permission=none blocker=none`
+  - developer-4: `UNDERSTANDING_CHECK ... source=one-pty-tail views=independent-renderers problem=preview-pollution edit_permission=none blocker=none`
+- 2026-06-04T13:44: Caesar decision: understanding check is sufficient to proceed to inspect-only root-cause review. Edit permission remains denied.
 
 ## Current Decision
 
-Dispatch attempted, but visible delivery is not proven. QA bar upgraded to operating-terminal stability. Current blockers are command delivery visibility and polluted 9001 preview source. No edit work is granted to developers until semantic receipt is visible.
+WS dispatch is proven for Max, Areum, Lux, developer-1, and developer-4. QA bar upgraded to operating-terminal stability. Current blockers are polluted 9001 preview source, Max false-positive delivery evidence, no root-cause proposal yet, and missing terminal QA evidence. Edit work remains denied pending inspect report and Caesar approval.
