@@ -2645,6 +2645,17 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
         sock.send(JSON.stringify({ type: "input", sessionId: sid, data }));
       }
     });
+    let resizeDebounce: ReturnType<typeof setTimeout> | null = null;
+    term.onResize(({ cols, rows }) => {
+      if (resizeDebounce) clearTimeout(resizeDebounce);
+      resizeDebounce = setTimeout(() => {
+        const sock = socketRef.current;
+        const sid = currentSessionIdRef.current;
+        if (sock?.readyState === WebSocket.OPEN && sid) {
+          sock.send(JSON.stringify({ type: "resize", sessionId: sid, cols, rows }));
+        }
+      }, 300);
+    });
     const runFit = () => {
       try {
         fit.fit();
@@ -2657,6 +2668,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     resizeObserver?.observe(container);
     document.fonts?.ready.then(runFit).catch(() => undefined);
     return () => {
+      if (resizeDebounce) clearTimeout(resizeDebounce);
       fitTimers.forEach((timer) => window.clearTimeout(timer));
       resizeObserver?.disconnect();
       terminalRef.current = null;
@@ -2737,6 +2749,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       tabIndex={0}
       ref={containerRef}
       onMouseDown={(e) => { e.preventDefault(); terminalRef.current?.focus(); }}
+      onWheel={(e) => e.stopPropagation()}
     />
   );
 });
