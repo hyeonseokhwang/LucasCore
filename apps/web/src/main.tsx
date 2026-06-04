@@ -2672,25 +2672,21 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     const socket = new WebSocket(terminalWsUrl());
     socketRef.current = socket;
     socket.addEventListener("open", () => {
-      const tryAttach = (attemptsLeft: number) => {
-        requestAnimationFrame(() => {
-          if (socket.readyState !== WebSocket.OPEN || socketRef.current !== socket) return;
-          const container = containerRef.current;
-          const fit = fitRef.current;
-          if (!container || !fit) return;
-          const { width, height } = container.getBoundingClientRect();
-          if ((width === 0 || height === 0) && attemptsLeft > 0) {
-            tryAttach(attemptsLeft - 1);
-            return;
-          }
+      // Unconditional immediate attach — server must receive this before streaming snapshot.
+      // The tryAttach/RAF retry approach failed because columns-layout reflow takes
+      // longer than 8×rAF (~128ms), so all attempts saw width=0 and gave up.
+      socket.send(JSON.stringify({ type: "attach", sessionId }));
+      // Deferred fit+resize: send actual viewport cols once layout has settled
+      requestAnimationFrame(() => {
+        if (socket.readyState !== WebSocket.OPEN || socketRef.current !== socket) return;
+        const fit = fitRef.current;
+        if (fit) {
           try { fit.fit(); } catch {}
           const cols = Number.isFinite(term.cols) && term.cols > 0 ? term.cols : 80;
           const rows = Number.isFinite(term.rows) && term.rows > 0 ? term.rows : 24;
-          socket.send(JSON.stringify({ type: "attach", sessionId, cols, rows }));
           socket.send(JSON.stringify({ type: "resize", sessionId, cols, rows }));
-        });
-      };
-      tryAttach(8);
+        }
+      });
     });
     socket.addEventListener("message", (event) => {
       let message: Record<string, unknown>;
