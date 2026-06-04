@@ -2679,8 +2679,10 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       if (resizeDebounceRef.current) clearTimeout(resizeDebounceRef.current);
       resizeDebounceRef.current = setTimeout(() => {
         resizeDebounceRef.current = null;
-        // Block resize WS until first snapshot/output received to prevent
-        // fitTimers-induced SIGWINCH clearing the screen before content arrives.
+        // Card variant: suppress resize WS to prevent layout-change SIGWINCH blank.
+        // Size is locked at attach time (attach cols/rows); dynamic resize not needed for preview.
+        if (variant !== "fullscreen") return;
+        // Block resize WS until first snapshot/output received.
         if (!firstSnapshotReceivedRef.current) return;
         const lastDims = lastEmittedDimsRef.current;
         if (lastDims && lastDims.cols === cols && lastDims.rows === rows) return;
