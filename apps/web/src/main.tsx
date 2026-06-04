@@ -2774,9 +2774,21 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       const fitAddon = fitRef.current;
       if (fitAddon) { try { fitAddon.fit(); } catch {} }
       if (variant !== "fullscreen") {
-        // Card variant: attach without cols/rows → backend skips PTY resize → no SIGWINCH blank.
+        // Card variant: include actual container cols/rows in attach so backend sizes the PTY
+        // to match this card's layout density (Fleet vs Equal vs Focus vs Work differ in card size).
+        // proposeDimensions() reads the container without mutating the terminal — safe to call here.
+        // fdd3149 still blocks subsequent resize WS so no T+12 SIGWINCH from layout changes.
+        // 41cb04d pre_resize_snapshot ensures initial SIGWINCH doesn't blank the attach snapshot.
+        const proposed = fitAddon?.proposeDimensions();
+        const cols = (proposed?.cols ?? terminalRef.current?.cols) || 0;
+        const rows = (proposed?.rows ?? terminalRef.current?.rows) || 0;
+        const cardPayload: Record<string, unknown> = { type: "attach", sessionId };
+        if (cols > 0 && rows > 0) {
+          cardPayload.cols = cols;
+          cardPayload.rows = rows;
+        }
         if (socket.readyState === WebSocket.OPEN && socketRef.current === socket) {
-          socket.send(JSON.stringify({ type: "attach", sessionId }));
+          socket.send(JSON.stringify(cardPayload));
         }
         return;
       }
