@@ -2619,7 +2619,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       scrollback: TERMINAL_PREVIEW_SCROLLBACK_LINES,
       convertEol: false,
       cursorBlink: false,
-      disableStdin: true,
+      disableStdin: false,
       theme: {
         background: "#070c15",
         foreground: "#d8e2f1",
@@ -2637,6 +2637,13 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       const sid = currentSessionIdRef.current;
       if (sock?.readyState === WebSocket.OPEN && sid) {
         sock.send(JSON.stringify({ type: "resize", sessionId: sid, cols, rows }));
+      }
+    });
+    // Forward keyboard input to PTY via WS input message
+    term.onData((data) => {
+      const sock = socketRef.current;
+      if (sock?.readyState === WebSocket.OPEN) {
+        sock.send(JSON.stringify({ type: "input", data }));
       }
     });
     const runFit = () => {
