@@ -2735,12 +2735,30 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       resizeDebounceRef.current = null;
     }
     term.reset();
+    // Re-seed from preview props immediately on WS reconnect (wsKey change) so reconnect
+    // never shows blank — WS snapshot will overwrite this if non-blank.
+    // Also reset seededPreviewRef so third effect can re-seed if deps change.
+    seededPreviewRef.current = null;
+    const reconnectSeedSource = hasMeaningfulTerminalText(initialPreviewAnsi)
+      ? `${TERMINAL_PREVIEW_CLEAR_PREFIX}${initialPreviewAnsi}`
+      : initialPreviewText;
+    if (typeof reconnectSeedSource === "string" && hasMeaningfulTerminalText(reconnectSeedSource)) {
+      term.write(tailTerminalLines(tailStringByUtf8Bytes(reconnectSeedSource, TERMINAL_PREVIEW_SEED_BYTES)));
+    }
     closeWebSocket(socketRef.current);
     const socket = new WebSocket(terminalWsUrl());
     socketRef.current = socket;
     socket.addEventListener("open", () => {
-      // P1 warm-attach fix: delay attach until xterm has non-zero cols/rows.
-      // Sending attach with zero dimensions causes snapshot to be written but not rendered.
+      const fitAddon = fitRef.current;
+      if (fitAddon) { try { fitAddon.fit(); } catch {} }
+      if (variant !== "fullscreen") {
+        // Card variant: attach without cols/rows → backend skips PTY resize → no SIGWINCH blank.
+        if (socket.readyState === WebSocket.OPEN && socketRef.current === socket) {
+          socket.send(JSON.stringify({ type: "attach", sessionId }));
+        }
+        return;
+      }
+      // Fullscreen variant: wait for non-zero cols/rows, then attach with resize dimensions.
       const doAttach = () => {
         if (socket.readyState !== WebSocket.OPEN || socketRef.current !== socket) return;
         const dims = {
@@ -2757,8 +2775,6 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
         }
         socket.send(JSON.stringify(payload));
       };
-      const fitAddon = fitRef.current;
-      if (fitAddon) { try { fitAddon.fit(); } catch {} }
       const curCols = terminalRef.current?.cols ?? 0;
       const curRows = terminalRef.current?.rows ?? 0;
       if (curCols > 0 && curRows > 0) {
