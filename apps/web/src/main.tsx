@@ -2555,7 +2555,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   status,
   variant = "card",
   isVisible = true,
-  ownsSessionResize = true
+  ownsSessionResize = false
 }: {
   sessionId: string;
   status: SessionStatus;
@@ -2719,14 +2719,17 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       userScrolledUpRef.current = false;
       term.reset();
       fitAndResize();
-      sendSocket({
+      const attachMessage: Record<string, unknown> = {
         type: "attach",
         sessionId,
         requestReplay: true,
-        replayBytes: TERMINAL_VIEW_REPLAY_BYTES,
-        cols: term.cols,
-        rows: term.rows
-      });
+        replayBytes: TERMINAL_VIEW_REPLAY_BYTES
+      };
+      if (ownsSessionResize) {
+        attachMessage.cols = term.cols;
+        attachMessage.rows = term.rows;
+      }
+      sendSocket(attachMessage);
       scheduleFit([0, 120, 360, 700, 1200]);
       window.setTimeout(scrollToBottom, 1000);
     });
