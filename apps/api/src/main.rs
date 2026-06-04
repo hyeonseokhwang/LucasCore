@@ -8,7 +8,7 @@ use axum::{
     routing::{get, post, put},
     Json, Router,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -42,6 +42,7 @@ struct AppState {
     peer_store: PeerStore,
     work_ledger: WorkLedgerStore,
     memory_store: MemoryStore,
+    daily_memory_store: DailyMemoryStore,
 }
 
 struct TerminalSession {
@@ -1004,6 +1005,19 @@ struct MemoryStore {
     entries: Arc<RwLock<Vec<MemoryEntry>>>,
 }
 
+#[derive(Clone)]
+struct DailyMemoryStore {
+    dir: Arc<PathBuf>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AppendDailyMemoryCheckpoint {
+    heading: Option<String>,
+    content: Option<String>,
+    source: Option<String>,
+    tags: Option<Vec<String>>,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -1019,6 +1033,8 @@ async fn main() -> anyhow::Result<()> {
     let work_ledger = WorkLedgerStore::new(PathBuf::from(work_ledger_path)).await?;
     let memory_path = env::var("LCC_MEMORY_PATH").unwrap_or_else(|_| "data/memory-ledger.jsonl".to_string());
     let memory_store = MemoryStore::new(PathBuf::from(memory_path)).await?;
+    let daily_memory_dir = env::var("LCC_DAILY_MEMORY_DIR").unwrap_or_else(|_| "data/daily-memory".to_string());
+    let daily_memory_store = DailyMemoryStore::new(PathBuf::from(daily_memory_dir)).await?;
     let state = AppState {
         sessions: Arc::new(RwLock::new(HashMap::new())),
         terminal_buffers: Arc::new(StdMutex::new(HashMap::new())),
@@ -1028,6 +1044,7 @@ async fn main() -> anyhow::Result<()> {
         peer_store,
         work_ledger,
         memory_store,
+        daily_memory_store,
     };
 
     let inbound_only = env::var("LCC_INBOUND_ONLY")
@@ -1067,6 +1084,9 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/work-ledger/tasks/:id/events", post(add_work_task_event))
             .route("/api/memory", get(list_memory).post(add_memory))
             .route("/api/memory/recover/:agent_id", get(recover_agent_context))
+            .route("/api/daily-memory/today", get(get_today_daily_memory))
+            .route("/api/daily-memory/:date", get(get_daily_memory))
+            .route("/api/daily-memory/:date/checkpoints", post(append_daily_memory_checkpoint))
             .route("/api/canvases", get(list_canvases).post(create_canvas))
             .route("/api/canvases/:id", get(get_canvas).patch(update_canvas))
             .route("/api/canvases/:id/content", get(get_content).put(put_content).patch(put_content))
@@ -2537,6 +2557,68 @@ async fn recover_agent_context(
     }))
 }
 
+async fn get_today_daily_memory(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
+    let date = current_kst_date();
+    daily_memory_response(&state.daily_memory_store, &date).await
+}
+
+async fn get_daily_memory(
+    State(state): State<AppState>,
+    Path(date): Path<String>,
+) -> Result<Json<Value>, ApiError> {
+    daily_memory_response(&state.daily_memory_store, &date).await
+}
+
+async fn daily_memory_response(store: &DailyMemoryStore, date: &str) -> Result<Json<Value>, ApiError> {
+    let path = store.path_for_date(date)?;
+    match fs::read_to_string(&path).await {
+        Ok(content) => Ok(Json(json!({
+            "ok": true,
+            "date": date,
+            "path": path.display().to_string(),
+            "exists": true,
+            "content": content,
+        }))),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(Json(json!({
+            "ok": true,
+            "date": date,
+            "path": path.display().to_string(),
+            "exists": false,
+            "content": "",
+        }))),
+        Err(err) => Err(ApiError::internal(err)),
+    }
+}
+
+async fn append_daily_memory_checkpoint(
+    State(state): State<AppState>,
+    Path(date): Path<String>,
+    Json(input): Json<AppendDailyMemoryCheckpoint>,
+) -> Result<(StatusCode, Json<Value>), ApiError> {
+    let content = require_field(input.content, "content")?;
+    let entry = state.daily_memory_store.append_checkpoint(&date, input.heading, content, input.source, input.tags).await?;
+    Ok((StatusCode::CREATED, Json(entry)))
+}
+
+fn current_kst_date() -> String {
+    (Utc::now() + ChronoDuration::hours(9)).format("%Y-%m-%d").to_string()
+}
+
+fn validate_daily_memory_date(date: &str) -> Result<(), ApiError> {
+    let valid = date.len() == 10
+        && date.as_bytes().get(4) == Some(&b'-')
+        && date.as_bytes().get(7) == Some(&b'-')
+        && date
+            .chars()
+            .enumerate()
+            .all(|(idx, ch)| (idx == 4 || idx == 7) && ch == '-' || ch.is_ascii_digit());
+    if valid {
+        Ok(())
+    } else {
+        Err(ApiError::bad_request("date must use YYYY-MM-DD"))
+    }
+}
+
 fn normalize_memory_layer(layer: Option<String>) -> Result<String, ApiError> {
     let value = layer.unwrap_or_else(|| "working".to_string()).trim().to_ascii_lowercase();
     if ["working", "short_term", "long_term"].contains(&value.as_str()) {
@@ -2994,6 +3076,75 @@ impl MemoryStore {
         });
         entries.truncate(query.limit.unwrap_or(50).clamp(1, 500));
         entries
+    }
+}
+
+impl DailyMemoryStore {
+    async fn new(dir: PathBuf) -> anyhow::Result<Self> {
+        fs::create_dir_all(&dir).await?;
+        Ok(Self { dir: Arc::new(dir) })
+    }
+
+    fn path_for_date(&self, date: &str) -> Result<PathBuf, ApiError> {
+        validate_daily_memory_date(date)?;
+        Ok(self.dir.join(format!("{date}.md")))
+    }
+
+    async fn append_checkpoint(
+        &self,
+        date: &str,
+        heading: Option<String>,
+        content: String,
+        source: Option<String>,
+        tags: Option<Vec<String>>,
+    ) -> Result<Value, ApiError> {
+        let path = self.path_for_date(date)?;
+        let existed = fs::try_exists(&path).await.map_err(ApiError::internal)?;
+        let at = Utc::now();
+        let title = heading
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("Checkpoint");
+        let source = source
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("manual");
+        let tags = tags.unwrap_or_default();
+        let tags_line = if tags.is_empty() {
+            String::new()
+        } else {
+            format!("- tags: {}\n", tags.join(", "))
+        };
+        let mut body = String::new();
+        if !existed {
+            body.push_str(&format!("# Daily Memory - {date}\n"));
+        }
+        body.push_str(&format!(
+            "\n\n## {title} - {}\n\n- source: {source}\n{tags_line}\n{}\n",
+            at.to_rfc3339(),
+            content.trim()
+        ));
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .await
+            .map_err(ApiError::internal)?;
+        file.write_all(body.as_bytes()).await.map_err(ApiError::internal)?;
+        file.flush().await.map_err(ApiError::internal)?;
+        Ok(json!({
+            "ok": true,
+            "date": date,
+            "path": path.display().to_string(),
+            "appended": true,
+            "created": !existed,
+            "at": at,
+            "heading": title,
+            "source": source,
+            "tags": tags,
+        }))
     }
 }
 
