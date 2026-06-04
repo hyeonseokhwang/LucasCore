@@ -2234,6 +2234,7 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
             }
             log_writer.push(&buf[..n]);
             let data = String::from_utf8_lossy(&buf[..n]).to_string();
+            let data = data.replace('\r', "\r\n").replace("\r\n\n", "\r\n");
             if let Ok(mut buffers) = state.terminal_buffers.lock() {
                 let ring_buffer_bytes = terminal_runtime_config().ring_buffer_bytes;
                 buffers
