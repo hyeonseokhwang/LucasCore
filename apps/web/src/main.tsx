@@ -104,7 +104,7 @@ const WS_ORIGIN =
   VITE_ENV.VITE_LCC_WS_ORIGIN ||
   API_ORIGIN.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
 const TERMINAL_SCROLLBACK_LINES = 500;
-const TERMINAL_PREVIEW_SCROLLBACK_LINES = 0;
+const TERMINAL_PREVIEW_SCROLLBACK_LINES = 200;
 const HIDDEN_TERMINAL_TEAMS = new Set(["verification"]);
 const activeTerminalComposerKeys = new Set<string>();
 const terminalComposerSubscribers = new Set<() => void>();
