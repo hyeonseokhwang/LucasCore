@@ -17,7 +17,8 @@ use std::{
     env,
     io::{Read, SeekFrom, Write},
     net::{SocketAddr, ToSocketAddrs},
-    path::PathBuf,
+    path::{Component, Path as FsPath, PathBuf},
+    process::Stdio,
     sync::{Arc, Mutex as StdMutex},
     thread,
     time::{Duration as StdDuration, Instant},
@@ -26,6 +27,7 @@ use tokio::{
     fs,
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
     net::TcpStream,
+    process::Command,
     runtime::Handle,
     sync::{broadcast, Mutex, RwLock},
     time::{sleep, Duration},
@@ -1424,6 +1426,10 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/branch/status", get(branch_status))
             .route("/api/branch/work-ledger", get(branch_work_ledger))
             .route("/api/branch/messages", get(branch_list_messages).post(branch_add_message))
+            .route("/api/branch/files/read", get(branch_file_read))
+            .route("/api/branch/files/list", get(branch_file_list))
+            .route("/api/branch/files/diff", get(branch_file_diff))
+            .route("/api/branch/git/log", get(branch_git_log))
     } else {
         let api_route = Router::new()
             .route("/api/health", get(health))
@@ -1548,6 +1554,259 @@ async fn branch_add_message(
     };
     state.peer_store.insert(message.clone()).await?;
     Ok((StatusCode::CREATED, Json(message)))
+}
+
+#[derive(Debug, Deserialize)]
+struct BranchFileReadQuery {
+    path: Option<String>,
+    max_lines: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BranchFileListQuery {
+    path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BranchFileDiffQuery {
+    commit1: String,
+    commit2: String,
+    path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BranchGitLogQuery {
+    limit: Option<usize>,
+    path: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct BranchFileEntry {
+    name: String,
+    #[serde(rename = "type")]
+    entry_type: String,
+    size: u64,
+    modified: Option<String>,
+}
+
+async fn branch_file_read(
+    headers: HeaderMap,
+    Query(query): Query<BranchFileReadQuery>,
+) -> Result<Json<Value>, ApiError> {
+    require_branch_token(&headers)?;
+    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
+    let metadata = fs::metadata(&resolved.absolute).await.map_err(ApiError::internal)?;
+    if !metadata.is_file() {
+        return Err(ApiError::bad_request("path must point to a file"));
+    }
+    let max_lines = query.max_lines.unwrap_or(200).clamp(1, 5000);
+    let content = fs::read_to_string(&resolved.absolute).await.map_err(ApiError::internal)?;
+    let total_lines = content.lines().count();
+    let selected: Vec<&str> = content.lines().take(max_lines).collect();
+    let truncated = total_lines > selected.len();
+    Ok(Json(json!({
+        "ok": true,
+        "path": resolved.relative,
+        "content": selected.join("\n"),
+        "total_lines": total_lines,
+        "truncated": truncated
+    })))
+}
+
+async fn branch_file_list(
+    headers: HeaderMap,
+    Query(query): Query<BranchFileListQuery>,
+) -> Result<Json<Value>, ApiError> {
+    require_branch_token(&headers)?;
+    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
+    let metadata = fs::metadata(&resolved.absolute).await.map_err(ApiError::internal)?;
+    if !metadata.is_dir() {
+        return Err(ApiError::bad_request("path must point to a directory"));
+    }
+    let mut entries = Vec::new();
+    let mut dir = fs::read_dir(&resolved.absolute).await.map_err(ApiError::internal)?;
+    while let Some(entry) = dir.next_entry().await.map_err(ApiError::internal)? {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if is_denied_branch_path_segment(&name) {
+            continue;
+        }
+        let metadata = entry.metadata().await.map_err(ApiError::internal)?;
+        let modified = metadata
+            .modified()
+            .ok()
+            .map(|time| DateTime::<Utc>::from(time).to_rfc3339());
+        entries.push(BranchFileEntry {
+            name,
+            entry_type: if metadata.is_dir() { "dir" } else { "file" }.to_string(),
+            size: metadata.len(),
+            modified,
+        });
+    }
+    entries.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
+    Ok(Json(json!({
+        "ok": true,
+        "path": resolved.relative,
+        "entries": entries
+    })))
+}
+
+async fn branch_file_diff(
+    headers: HeaderMap,
+    Query(query): Query<BranchFileDiffQuery>,
+) -> Result<Json<Value>, ApiError> {
+    require_branch_token(&headers)?;
+    validate_git_hashish(&query.commit1)?;
+    validate_git_hashish(&query.commit2)?;
+    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
+    let output = run_git_readonly(&[
+        "diff",
+        "--no-ext-diff",
+        query.commit1.as_str(),
+        query.commit2.as_str(),
+        "--",
+        resolved.relative.as_str(),
+    ])
+    .await?;
+    Ok(Json(json!({
+        "ok": true,
+        "path": resolved.relative,
+        "commit1": query.commit1,
+        "commit2": query.commit2,
+        "diff": output
+    })))
+}
+
+async fn branch_git_log(
+    headers: HeaderMap,
+    Query(query): Query<BranchGitLogQuery>,
+) -> Result<Json<Value>, ApiError> {
+    require_branch_token(&headers)?;
+    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
+    let limit = query.limit.unwrap_or(20).clamp(1, 100).to_string();
+    let output = run_git_readonly(&[
+        "log",
+        "--date=iso-strict",
+        "--format=%H%x1f%h%x1f%an%x1f%aI%x1f%s%x1e",
+        "-n",
+        &limit,
+        "--",
+        resolved.relative.as_str(),
+    ])
+    .await?;
+    let commits: Vec<Value> = output
+        .split('\x1e')
+        .filter_map(|record| {
+            let record = record.trim_matches('\n');
+            if record.is_empty() {
+                return None;
+            }
+            let parts: Vec<&str> = record.split('\x1f').collect();
+            if parts.len() < 5 {
+                return None;
+            }
+            Some(json!({
+                "hash": parts[0],
+                "short_hash": parts[1],
+                "author": parts[2],
+                "date": parts[3],
+                "subject": parts[4]
+            }))
+        })
+        .collect();
+    Ok(Json(json!({
+        "ok": true,
+        "path": resolved.relative,
+        "commits": commits
+    })))
+}
+
+struct BranchResolvedPath {
+    relative: String,
+    absolute: PathBuf,
+}
+
+fn resolve_branch_relative_path(raw_path: Option<&str>) -> Result<BranchResolvedPath, ApiError> {
+    let raw_path = raw_path.unwrap_or(".").trim();
+    let raw_path = if raw_path.is_empty() { "." } else { raw_path };
+    let input = FsPath::new(raw_path);
+    if input.is_absolute() {
+        return Err(ApiError::bad_request("absolute paths are not allowed"));
+    }
+    let mut parts = Vec::new();
+    for component in input.components() {
+        match component {
+            Component::CurDir => {}
+            Component::Normal(value) => {
+                let segment = value
+                    .to_str()
+                    .ok_or_else(|| ApiError::bad_request("path must be valid UTF-8"))?;
+                if is_denied_branch_path_segment(segment) {
+                    return Err(ApiError::bad_request("path is outside the allowed branch file scope"));
+                }
+                parts.push(segment.to_string());
+            }
+            Component::ParentDir => return Err(ApiError::bad_request("path traversal is not allowed")),
+            _ => return Err(ApiError::bad_request("unsupported path component")),
+        }
+    }
+    let mut relative = PathBuf::new();
+    for part in &parts {
+        relative.push(part);
+    }
+    let relative_display = if parts.is_empty() {
+        ".".to_string()
+    } else {
+        parts.join("/")
+    };
+    let root = env::current_dir().map_err(ApiError::internal)?;
+    let absolute = root.join(&relative);
+    if !absolute.starts_with(&root) {
+        return Err(ApiError::bad_request("path is outside the repository root"));
+    }
+    Ok(BranchResolvedPath {
+        relative: relative_display,
+        absolute,
+    })
+}
+
+fn is_denied_branch_path_segment(segment: &str) -> bool {
+    let lowered = segment.to_ascii_lowercase();
+    lowered == ".git"
+        || lowered == ".env"
+        || lowered.ends_with(".env")
+        || lowered.contains("secret")
+        || lowered.contains("token")
+        || lowered.contains("credential")
+        || lowered.contains("private")
+}
+
+fn validate_git_hashish(value: &str) -> Result<(), ApiError> {
+    let valid = (7..=64).contains(&value.len()) && value.chars().all(|ch| ch.is_ascii_hexdigit());
+    if valid {
+        Ok(())
+    } else {
+        Err(ApiError::bad_request("commit hash must be a 7-64 character hex value"))
+    }
+}
+
+async fn run_git_readonly(args: &[&str]) -> Result<String, ApiError> {
+    let output = Command::new("git")
+        .args(args)
+        .stdin(Stdio::null())
+        .stderr(Stdio::piped())
+        .stdout(Stdio::piped())
+        .output()
+        .await
+        .map_err(ApiError::internal)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(ApiError::bad_request(if stderr.is_empty() {
+            "git command failed".to_string()
+        } else {
+            stderr
+        }));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
