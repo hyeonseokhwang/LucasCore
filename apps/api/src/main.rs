@@ -91,7 +91,21 @@ impl TerminalRingBuffer {
     }
 
     fn push(&mut self, value: &str) {
-        self.data.push_str(value);
+        // Standalone \r (not \r\n) = Codex TUI "overwrite current line".
+        // Clear the current line and keep \r so xterm replay doesn't accumulate ghost lines.
+        let mut chars = value.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if ch == '\r' && chars.peek() != Some(&'\n') {
+                if let Some(nl_pos) = self.data.rfind('\n') {
+                    self.data.truncate(nl_pos + 1);
+                } else {
+                    self.data.clear();
+                }
+                self.data.push('\r');
+            } else {
+                self.data.push(ch);
+            }
+        }
         if self.data.len() > self.max_bytes {
             self.data = tail_string_by_bytes(&self.data, self.max_bytes);
         }
@@ -3178,6 +3192,26 @@ mod tests {
             )
             .expect("flush after utf8 boundary completion");
         assert_eq!(output, "한글\r다음");
+    }
+
+    #[test]
+    fn ring_buffer_standalone_cr_clears_current_line() {
+        let mut buf = super::TerminalRingBuffer::new(1024);
+        buf.push("line1\r\n");
+        buf.push("status_old\r");  // standalone CR — clears "status_old"
+        buf.push("\x1b[Kstatus_new");
+        assert_eq!(buf.data, "line1\r\n\r\x1b[Kstatus_new");
+
+        // \r\n should be preserved (not treated as standalone CR)
+        let mut buf2 = super::TerminalRingBuffer::new(1024);
+        buf2.push("line1\r\nline2");
+        assert_eq!(buf2.data, "line1\r\nline2");
+
+        // Multiple CR updates — only latest remains
+        let mut buf3 = super::TerminalRingBuffer::new(1024);
+        buf3.push("output\r\n");
+        buf3.push("status1\rstatus2\rstatus3");
+        assert_eq!(buf3.data, "output\r\n\rstatus3");
     }
 
     #[test]
