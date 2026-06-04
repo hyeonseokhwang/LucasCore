@@ -137,6 +137,12 @@ Current live 9001:
 - executable: `D:\Lucas Core v0.1\target-9001\debug\lcc-core-api.exe`
 - current source fix commit: `de7c1ac Delay prompt text ack before submit`
 
+Prepared deploy candidate:
+
+- executable: `D:\Lucas Core v0.1\target-9001-deploy\debug\lcc-core-api.exe`
+- evidence: `data/system-logs/terminal-normalization-20260604/deploy-candidate.json`
+- reason: built in a separate target directory so the live `target-9001` executable is not overwritten while PID `24228` is running.
+
 Do not run this gate without explicit Lucas approval.
 
 When approved:
@@ -146,7 +152,7 @@ When approved:
    - `GET http://127.0.0.1:9001/api/sessions`
    - current listener PID for port 9001
 2. Stop only PID `24228` for port 9001.
-3. Start `D:\Lucas Core v0.1\target-9001\debug\lcc-core-api.exe` from source root.
+3. Start `D:\Lucas Core v0.1\target-9001-deploy\debug\lcc-core-api.exe` from source root.
 4. Confirm the new 9001 PID is different and health returns OK.
 5. Confirm `GET /api/memory/recover/ceo?limit=3` still includes `recovered_context.daily_memory`.
 6. Create a dedicated verification session, not `ceo`.

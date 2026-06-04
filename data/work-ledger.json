@@ -10,8 +10,8 @@
       "last_reminded_at": null,
       "owner": "Caesar",
       "lead": "Caesar",
-      "notes": "Fix ready: prompt-text ACK now waits 420ms after text write so immediate prompt-submit cannot outrun injection. Split prompt-text/prompt-submit and plain CR submit preserved. Live 9001 deploy requires explicit Lucas restart approval.",
-      "updated_at": "2026-06-04T09:49:19.268Z"
+      "notes": "Deploy candidate ready in target-9001-deploy with prompt-text 420ms ACK delay. Live 9001 remains PID 24228 until Lucas approves controlled deploy.",
+      "updated_at": "2026-06-04T09:53:39.225Z"
     },
     {
       "id": "human-grade-memory-completion-20260604",
@@ -1543,6 +1543,13 @@
       "at": "2026-06-04T09:49:19.268Z",
       "kind": "deploy_gate_ready",
       "body": "Controlled 9001 deploy gate documented in data/directives/terminal-normalization-20260604.md. Current live 9001 PID 24228 remains untouched. External newline monitor runtime trackedIssueCount=0; monitor is operational evidence, not a substitute for deploying source fix de7c1ac."
+    },
+    {
+      "id": "work-event-1780566819228",
+      "task_id": "terminal-normalization-20260604",
+      "at": "2026-06-04T09:53:39.225Z",
+      "kind": "deploy_candidate_ready",
+      "body": "9001 deploy candidate built separately at target-9001-deploy/debug/lcc-core-api.exe; contains_prompt_delay=true; bytes=10141184; evidence=data/system-logs/terminal-normalization-20260604/deploy-candidate.json. Live 9001 PID 24228 remains untouched until Lucas approval."
     }
   ]
 }
