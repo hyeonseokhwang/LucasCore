@@ -2608,6 +2608,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   const socketRef = useRef<WebSocket | null>(null);
   const seededSessionRef = useRef<string | null>(null);
   const currentSessionIdRef = useRef<string>("");
+  const [wsKey, setWsKey] = React.useState(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -2712,12 +2713,17 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     });
     socket.addEventListener("close", () => {
       if (socketRef.current === socket) socketRef.current = null;
+      setTimeout(() => {
+        if (terminalRef.current && currentSessionIdRef.current === sessionId) {
+          setWsKey(k => k + 1);
+        }
+      }, 2000);
     });
     return () => {
       if (socketRef.current === socket) socketRef.current = null;
       closeWebSocket(socket);
     };
-  }, [sessionId]);
+  }, [sessionId, wsKey]);
 
   return (
     <div
