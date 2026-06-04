@@ -2719,7 +2719,14 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   }, [sessionId]);
 
   return (
-    <div className={`terminal-snapshot-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} aria-label="Terminal output" role="log" ref={containerRef} onClick={() => terminalRef.current?.focus()} />
+    <div
+      className={`terminal-snapshot-preview ${variant === "fullscreen" ? "fullscreen" : ""}`}
+      aria-label="Terminal output"
+      role="log"
+      tabIndex={0}
+      ref={containerRef}
+      onMouseDown={(e) => { e.preventDefault(); terminalRef.current?.focus(); }}
+    />
   );
 });
 
