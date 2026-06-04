@@ -128,3 +128,37 @@ Do not edit protected newline/submit source from anecdotal evidence alone. First
 - Need Lucas approval for controlled 9001 restart/deploy before runtime fix is live.
 - Need Lux audit of protected-contract boundaries after any newline source fix.
 - Need Areum to keep ledger/9100 readable while terminal and memory evidence is collected.
+
+## Controlled 9001 Deploy Gate
+
+Current live 9001:
+
+- PID: `24228`
+- executable: `D:\Lucas Core v0.1\target-9001\debug\lcc-core-api.exe`
+- current source fix commit: `de7c1ac Delay prompt text ack before submit`
+
+Do not run this gate without explicit Lucas approval.
+
+When approved:
+
+1. Capture pre-restart evidence:
+   - `GET http://127.0.0.1:9001/api/health`
+   - `GET http://127.0.0.1:9001/api/sessions`
+   - current listener PID for port 9001
+2. Stop only PID `24228` for port 9001.
+3. Start `D:\Lucas Core v0.1\target-9001\debug\lcc-core-api.exe` from source root.
+4. Confirm the new 9001 PID is different and health returns OK.
+5. Confirm `GET /api/memory/recover/ceo?limit=3` still includes `recovered_context.daily_memory`.
+6. Create a dedicated verification session, not `ceo`.
+7. Submit a prompt through split `prompt-text` then `prompt-submit` without a second submit.
+8. Require visible semantic ACK:
+   - `TERMINAL_POST_DEPLOY_ACK state=pass split_submit=received blocker=none`
+9. Record evidence under `data/system-logs/terminal-normalization-20260604/`.
+10. Update `data/work-ledger.json`, `data/execution-board.json`, and this packet.
+
+Post-deploy acceptance:
+
+- 9001 health OK with new PID.
+- daily memory recovery still present.
+- split submit produces semantic ACK on first submit.
+- external newline monitor shows no persistent injected-command-without-submit case for the dedicated verifier.

@@ -11,7 +11,7 @@
       "owner": "Caesar",
       "lead": "Caesar",
       "notes": "Fix ready: prompt-text ACK now waits 420ms after text write so immediate prompt-submit cannot outrun injection. Split prompt-text/prompt-submit and plain CR submit preserved. Live 9001 deploy requires explicit Lucas restart approval.",
-      "updated_at": "2026-06-04T09:46:15.708Z"
+      "updated_at": "2026-06-04T09:49:19.268Z"
     },
     {
       "id": "human-grade-memory-completion-20260604",
@@ -1536,6 +1536,13 @@
       "at": "2026-06-04T09:46:15.708Z",
       "kind": "fix_ready",
       "body": "Root-cause patch prepared for injected-command-visible-without-required-reply newline issue. apps/api/src/main.rs now delays prompt-text ACK by 420ms after text write, preserving split prompt-text/prompt-submit and plain CR submit. cargo check passed; targeted cargo test prompt_text_ack_waits_before_submit_can_follow passed. Runtime application requires controlled 9001 restart/deploy approval."
+    },
+    {
+      "id": "work-event-1780566559271",
+      "task_id": "terminal-normalization-20260604",
+      "at": "2026-06-04T09:49:19.268Z",
+      "kind": "deploy_gate_ready",
+      "body": "Controlled 9001 deploy gate documented in data/directives/terminal-normalization-20260604.md. Current live 9001 PID 24228 remains untouched. External newline monitor runtime trackedIssueCount=0; monitor is operational evidence, not a substitute for deploying source fix de7c1ac."
     }
   ]
 }
