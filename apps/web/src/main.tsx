@@ -2352,7 +2352,11 @@ const TerminalCard = React.memo(function TerminalCard({
   return (
     <article
       className={`terminal-card ${session.status} ${selected ? "selected" : ""} ${composerDirty ? "composer-dirty" : ""}`}
-      onMouseDown={() => onSelectSession(session.id)}
+      onMouseDown={(e) => {
+        onSelectSession(session.id);
+        const textarea = e.currentTarget.querySelector('.xterm-helper-textarea') as HTMLElement | null;
+        if (textarea) { e.preventDefault(); textarea.focus(); }
+      }}
     >
       <header>
         <div>
