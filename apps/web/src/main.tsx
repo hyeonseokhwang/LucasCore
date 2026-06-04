@@ -2774,51 +2774,10 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       const fitAddon = fitRef.current;
       if (fitAddon) { try { fitAddon.fit(); } catch {} }
       if (variant !== "fullscreen") {
-        // Card variant: include layout-accurate cols/rows in attach.
-        // proposeDimensions() needs xterm cell dimensions, which are computed after first paint.
-        // Strategy: RAF at WS-open level → ResizeObserver + inner RAF if container not yet ready.
-        // fdd3149 still blocks subsequent resize WS → no T+12 SIGWINCH from layout changes.
-        // 41cb04d pre_resize_snapshot → initial attach SIGWINCH doesn't blank the snapshot.
-        const sendCardAttach = (cols: number, rows: number) => {
-          if (socket.readyState !== WebSocket.OPEN || socketRef.current !== socket) return;
-          const cardPayload: Record<string, unknown> = { type: "attach", sessionId };
-          if (cols > 0 && rows > 0) { cardPayload.cols = cols; cardPayload.rows = rows; }
-          socket.send(JSON.stringify(cardPayload));
-        };
-        const tryPropose = () => {
-          if (fitAddon) { try { fitAddon.fit(); } catch {} }
-          const p = fitAddon?.proposeDimensions();
-          return p && p.cols > 0 && p.rows > 0 ? p : null;
-        };
-        let cardAttachSent = false;
-        let cardObs: ResizeObserver | undefined;
-        const attemptCardAttach = () => {
-          if (cardAttachSent) return;
-          const p = tryPropose();
-          if (p) {
-            cardAttachSent = true;
-            cardObs?.disconnect();
-            sendCardAttach(p.cols, p.rows);
-          }
-        };
-        // Wait one RAF so xterm has calculated cell dimensions from first paint
-        requestAnimationFrame(() => {
-          attemptCardAttach();
-          if (cardAttachSent) return;
-          // Container not ready yet — watch for size changes, retry via RAF each time
-          const c = containerRef.current;
-          if (!c) { cardAttachSent = true; sendCardAttach(0, 0); return; }
-          cardObs = new ResizeObserver(() => requestAnimationFrame(attemptCardAttach));
-          cardObs.observe(c);
-          // Hard fallback: 1.5s
-          setTimeout(() => {
-            if (cardAttachSent) return;
-            cardAttachSent = true;
-            cardObs?.disconnect();
-            const p = tryPropose();
-            sendCardAttach(p?.cols ?? 0, p?.rows ?? 0);
-          }, 1500);
-        });
+        // Card variant: attach without cols/rows — no PTY resize → no SIGWINCH → no ESC[2J → snapshot preserved.
+        // fit() runs locally via runFit timers (xterm visual sizing only, not sent to BE).
+        // fdd3149 blocks subsequent resize WS; PTY keeps its natural dims.
+        socket.send(JSON.stringify({ type: "attach", sessionId }));
         return;
       }
       // Fullscreen variant: wait for non-zero cols/rows, then attach with resize dimensions.
