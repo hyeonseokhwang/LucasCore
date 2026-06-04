@@ -2774,21 +2774,42 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       const fitAddon = fitRef.current;
       if (fitAddon) { try { fitAddon.fit(); } catch {} }
       if (variant !== "fullscreen") {
-        // Card variant: include actual container cols/rows in attach so backend sizes the PTY
-        // to match this card's layout density (Fleet vs Equal vs Focus vs Work differ in card size).
-        // proposeDimensions() reads the container without mutating the terminal — safe to call here.
-        // fdd3149 still blocks subsequent resize WS so no T+12 SIGWINCH from layout changes.
-        // 41cb04d pre_resize_snapshot ensures initial SIGWINCH doesn't blank the attach snapshot.
-        const proposed = fitAddon?.proposeDimensions();
-        const cols = (proposed?.cols ?? terminalRef.current?.cols) || 0;
-        const rows = (proposed?.rows ?? terminalRef.current?.rows) || 0;
-        const cardPayload: Record<string, unknown> = { type: "attach", sessionId };
-        if (cols > 0 && rows > 0) {
-          cardPayload.cols = cols;
-          cardPayload.rows = rows;
-        }
-        if (socket.readyState === WebSocket.OPEN && socketRef.current === socket) {
+        // Card variant: wait for valid proposeDimensions before attaching so each card's PTY
+        // is sized to match its actual container (Fleet/Equal/Focus/Work differ in card size).
+        // ResizeObserver retries until container is laid out and proposeDimensions returns non-zero.
+        // fdd3149 still blocks subsequent resize WS → no T+12 SIGWINCH from layout changes.
+        // 41cb04d pre_resize_snapshot → initial attach SIGWINCH doesn't blank the snapshot.
+        const sendCardAttach = (cols: number, rows: number) => {
+          if (socket.readyState !== WebSocket.OPEN || socketRef.current !== socket) return;
+          const cardPayload: Record<string, unknown> = { type: "attach", sessionId };
+          if (cols > 0 && rows > 0) { cardPayload.cols = cols; cardPayload.rows = rows; }
           socket.send(JSON.stringify(cardPayload));
+        };
+        const tryPropose = () => {
+          if (fitAddon) { try { fitAddon.fit(); } catch {} }
+          const p = fitAddon?.proposeDimensions();
+          return p && p.cols > 0 && p.rows > 0 ? p : null;
+        };
+        const immediate = tryPropose();
+        if (immediate) {
+          sendCardAttach(immediate.cols, immediate.rows);
+        } else {
+          const c = containerRef.current;
+          if (!c) { sendCardAttach(0, 0); return; }
+          let sent = false;
+          const cardObserver = new ResizeObserver(() => {
+            if (sent) return;
+            const p = tryPropose();
+            if (p) { sent = true; cardObserver.disconnect(); sendCardAttach(p.cols, p.rows); }
+          });
+          cardObserver.observe(c);
+          setTimeout(() => {
+            if (sent) return;
+            sent = true;
+            cardObserver.disconnect();
+            const p = tryPropose();
+            sendCardAttach(p?.cols ?? 0, p?.rows ?? 0);
+          }, 1000);
         }
         return;
       }
