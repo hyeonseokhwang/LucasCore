@@ -2787,6 +2787,7 @@ fn event_session_id(event: &ServerEvent) -> Option<&str> {
 
 fn terminal_current_display_for_attach(state: &AppState, id: &str) -> Option<String> {
     terminal_display_snapshot_ansi_text(state, id)
+        .filter(|s| !s.trim().is_empty())
         .map(|snapshot| format!("{TERMINAL_ATTACH_CLEAR_PREFIX}{snapshot}"))
         .or_else(|| terminal_display_snapshot_text(state, id))
         .or_else(|| {
