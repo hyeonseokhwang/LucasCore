@@ -3566,9 +3566,14 @@ async fn build_internal_session_view(
     let runtime_config = terminal_runtime_config();
     let preview =
         terminal_buffer_tail(state, &meta.id, runtime_config.preview_bytes).unwrap_or_default();
+    // Use display snapshot (rendered 2D grid) for preview_text when available.
+    // Fallback strip_ansi_for_ui on raw ring buffer is incorrect for Codex TUI sessions:
+    // cursor-motion sequences (ESC[row;colH) are stripped but raw chars remain in stream order,
+    // producing garbled text. Empty string is correct when no display snapshot exists —
+    // the WS attach will deliver accurate content shortly.
     let preview_text = terminal_display_snapshot_text(state, &meta.id)
         .map(|snapshot| tail_string_by_bytes(&snapshot, runtime_config.preview_bytes))
-        .unwrap_or_else(|| terminal_preview_text_for_ui(&preview, runtime_config.preview_bytes));
+        .unwrap_or_default();
     let preview_ansi = terminal_display_snapshot_ansi_text(state, &meta.id)
         .map(|snapshot| tail_string_by_bytes(&snapshot, runtime_config.preview_bytes));
     let mut view = build_session_view_with_preview_text(
