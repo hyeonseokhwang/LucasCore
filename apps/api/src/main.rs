@@ -146,14 +146,17 @@ impl Utf8IncrementalDecoder {
                 Err(err) => {
                     let valid_up_to = err.valid_up_to();
                     if valid_up_to > 0 {
-                        let valid = std::str::from_utf8(&slice[..valid_up_to]).expect("valid prefix");
+                        let valid =
+                            std::str::from_utf8(&slice[..valid_up_to]).expect("valid prefix");
                         output.push_str(valid);
                     }
                     consumed += valid_up_to;
                     match err.error_len() {
                         Some(invalid_len) => {
                             let invalid_end = consumed + invalid_len;
-                            output.push_str(&String::from_utf8_lossy(&self.carry[consumed..invalid_end]));
+                            output.push_str(&String::from_utf8_lossy(
+                                &self.carry[consumed..invalid_end],
+                            ));
                             consumed = invalid_end;
                         }
                         None => break,
@@ -209,12 +212,13 @@ impl TerminalOutputNormalizer {
                         self.prev_was_cr = false;
                     }
                     '\r' => {
-                        output.push_str("\r\n");
+                        output.push('\r');
                         self.prev_was_cr = true;
                     }
                     '\n' => {
                         if self.prev_was_cr {
                             self.prev_was_cr = false;
+                            output.push('\n');
                         } else {
                             output.push_str("\r\n");
                         }
@@ -278,7 +282,9 @@ impl TerminalOutputNormalizer {
                         escape.clear();
                         mode = EscapeMode::Normal;
                     } else {
-                        mode = EscapeMode::StringTerminated { saw_esc: ch == '\x1b' };
+                        mode = EscapeMode::StringTerminated {
+                            saw_esc: ch == '\x1b',
+                        };
                     }
                 }
             }
@@ -436,7 +442,13 @@ impl TerminalDisplaySnapshot {
     fn text(&self) -> String {
         self.lines
             .iter()
-            .map(|line| line.iter().map(|cell| cell.ch).collect::<String>().trim_end().to_string())
+            .map(|line| {
+                line.iter()
+                    .map(|cell| cell.ch)
+                    .collect::<String>()
+                    .trim_end()
+                    .to_string()
+            })
             .collect::<Vec<_>>()
             .join("\r\n")
             .trim()
@@ -473,7 +485,11 @@ impl TerminalDisplaySnapshot {
         let mut output = output_lines.join("\r\n").trim().to_string();
         if !output.is_empty() {
             output.push_str("\x1b[0m");
-            output.push_str(&format!("\x1b[{};{}H", self.cursor_row + 1, self.cursor_col + 1));
+            output.push_str(&format!(
+                "\x1b[{};{}H",
+                self.cursor_row + 1,
+                self.cursor_col + 1
+            ));
         }
         output
     }
@@ -520,13 +536,21 @@ impl TerminalDisplaySnapshot {
                 self.cursor_col = values.get(1).copied().unwrap_or(1).saturating_sub(1);
                 self.ensure_cursor_row();
             }
-            'A' => self.cursor_row = self.cursor_row.saturating_sub(values.first().copied().unwrap_or(1)),
+            'A' => {
+                self.cursor_row = self
+                    .cursor_row
+                    .saturating_sub(values.first().copied().unwrap_or(1))
+            }
             'B' => {
                 self.cursor_row += values.first().copied().unwrap_or(1);
                 self.ensure_cursor_row();
             }
             'C' => self.cursor_col += values.first().copied().unwrap_or(1),
-            'D' => self.cursor_col = self.cursor_col.saturating_sub(values.first().copied().unwrap_or(1)),
+            'D' => {
+                self.cursor_col = self
+                    .cursor_col
+                    .saturating_sub(values.first().copied().unwrap_or(1))
+            }
             'K' => self.erase_line(values.first().copied().unwrap_or(0)),
             'J' => self.erase_display(values.first().copied().unwrap_or(0)),
             _ => {}
@@ -538,7 +562,10 @@ impl TerminalDisplaySnapshot {
         if parts.is_empty() {
             parts = "0".to_string();
         }
-        let codes = parts.split(';').filter(|part| !part.is_empty()).collect::<Vec<_>>();
+        let codes = parts
+            .split(';')
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>();
         if codes.iter().any(|code| *code == "0") {
             let after_reset = codes
                 .iter()
@@ -562,7 +589,11 @@ impl TerminalDisplaySnapshot {
         let line = &mut self.lines[self.cursor_row];
         match mode {
             1 => {
-                let suffix = line.iter().skip(self.cursor_col).cloned().collect::<Vec<_>>();
+                let suffix = line
+                    .iter()
+                    .skip(self.cursor_col)
+                    .cloned()
+                    .collect::<Vec<_>>();
                 let mut next = vec![TerminalCell::default(); self.cursor_col];
                 next.extend(suffix);
                 *line = next;
@@ -666,16 +697,27 @@ impl Default for TerminalRuntimeConfig {
 impl TerminalRuntimeConfig {
     fn normalized(self) -> Self {
         Self {
-            preview_bytes: self.preview_bytes.clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES),
-            card_replay_bytes: self.card_replay_bytes.clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES as u64),
-            max_replay_bytes: self.max_replay_bytes.clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES as u64),
-            ring_buffer_bytes: self.ring_buffer_bytes.clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES),
+            preview_bytes: self
+                .preview_bytes
+                .clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES),
+            card_replay_bytes: self
+                .card_replay_bytes
+                .clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES as u64),
+            max_replay_bytes: self
+                .max_replay_bytes
+                .clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES as u64),
+            ring_buffer_bytes: self
+                .ring_buffer_bytes
+                .clamp(512, TERMINAL_VOLATILE_BUFFER_MAX_BYTES),
         }
     }
 }
 
 fn terminal_runtime_config_path() -> PathBuf {
-    PathBuf::from(env::var(TERMINAL_RUNTIME_CONFIG_PATH_ENV).unwrap_or_else(|_| TERMINAL_RUNTIME_CONFIG_DEFAULT_PATH.to_string()))
+    PathBuf::from(
+        env::var(TERMINAL_RUNTIME_CONFIG_PATH_ENV)
+            .unwrap_or_else(|_| TERMINAL_RUNTIME_CONFIG_DEFAULT_PATH.to_string()),
+    )
 }
 
 fn terminal_runtime_config() -> TerminalRuntimeConfig {
@@ -755,7 +797,9 @@ fn terminal_preview_text_for_ui(preview: &str, max_bytes: usize) -> String {
 }
 
 fn clamp_log_tail_limit(limit: Option<u64>) -> u64 {
-    limit.unwrap_or(SESSION_LOG_VIEW_LIMIT_BYTES).clamp(1, SESSION_LOG_MAX_TAIL_BYTES)
+    limit
+        .unwrap_or(SESSION_LOG_VIEW_LIMIT_BYTES)
+        .clamp(1, SESSION_LOG_MAX_TAIL_BYTES)
 }
 
 fn session_log_info_for_path(path: &PathBuf, tail_bytes: u64) -> SessionLogInfo {
@@ -787,12 +831,18 @@ fn terminal_context_ledger_path() -> PathBuf {
 
 fn terminal_persistent_logs_enabled() -> bool {
     matches!(
-        env::var(TERMINAL_PERSIST_LOGS_ENV).ok().as_deref().map(str::trim),
+        env::var(TERMINAL_PERSIST_LOGS_ENV)
+            .ok()
+            .as_deref()
+            .map(str::trim),
         Some("1") | Some("true") | Some("yes") | Some("on")
     )
 }
 
-fn rotate_terminal_log_if_needed(path: &PathBuf, session_id: &str) -> std::io::Result<Option<PathBuf>> {
+fn rotate_terminal_log_if_needed(
+    path: &PathBuf,
+    session_id: &str,
+) -> std::io::Result<Option<PathBuf>> {
     let Ok(metadata) = std::fs::metadata(path) else {
         return Ok(None);
     };
@@ -809,11 +859,21 @@ fn rotate_terminal_log_if_needed(path: &PathBuf, session_id: &str) -> std::io::R
         .unwrap_or("terminal.ansi.log");
     let archive_path = archive_dir.join(format!("{base_name}.{timestamp}.rotated"));
     std::fs::rename(path, &archive_path)?;
-    append_terminal_context_event(session_id, "terminal_log_rotated", &archive_path, metadata.len());
+    append_terminal_context_event(
+        session_id,
+        "terminal_log_rotated",
+        &archive_path,
+        metadata.len(),
+    );
     Ok(Some(archive_path))
 }
 
-fn append_terminal_context_event(session_id: &str, event: &str, archive_path: &PathBuf, bytes: u64) {
+fn append_terminal_context_event(
+    session_id: &str,
+    event: &str,
+    archive_path: &PathBuf,
+    bytes: u64,
+) {
     let path = terminal_context_ledger_path();
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
@@ -834,7 +894,11 @@ fn append_terminal_context_event(session_id: &str, event: &str, archive_path: &P
             "flushChunkBytes": TERMINAL_LOG_FLUSH_CHUNK_BYTES
         }
     });
-    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
         let _ = writeln!(file, "{}", entry);
     }
 }
@@ -865,7 +929,9 @@ impl TerminalLogWriter {
             append_terminal_context_event(&session_id, "terminal_log_volatile_mode", &log_path, 0);
             None
         };
-        let log_bytes = std::fs::metadata(&log_path).map(|metadata| metadata.len()).unwrap_or(0);
+        let log_bytes = std::fs::metadata(&log_path)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
         Self {
             file,
             log_path,
@@ -878,9 +944,16 @@ impl TerminalLogWriter {
 
     fn write_session_banner(&mut self) {
         if let Some(file) = self.file.as_mut() {
-            let _ = writeln!(file, "\r\n===== LCC session {} started at {} =====\r", self.session_id, Utc::now().to_rfc3339());
+            let _ = writeln!(
+                file,
+                "\r\n===== LCC session {} started at {} =====\r",
+                self.session_id,
+                Utc::now().to_rfc3339()
+            );
             let _ = file.flush();
-            self.log_bytes = std::fs::metadata(&self.log_path).map(|metadata| metadata.len()).unwrap_or(self.log_bytes);
+            self.log_bytes = std::fs::metadata(&self.log_path)
+                .map(|metadata| metadata.len())
+                .unwrap_or(self.log_bytes);
         }
     }
 
@@ -890,7 +963,8 @@ impl TerminalLogWriter {
         }
         self.pending.extend_from_slice(chunk);
         if self.pending.len() >= TERMINAL_LOG_FLUSH_CHUNK_BYTES
-            || self.last_flush_at.elapsed() >= StdDuration::from_millis(TERMINAL_LOG_FLUSH_INTERVAL_MS)
+            || self.last_flush_at.elapsed()
+                >= StdDuration::from_millis(TERMINAL_LOG_FLUSH_INTERVAL_MS)
         {
             self.flush_pending();
         }
@@ -929,7 +1003,9 @@ impl TerminalLogWriter {
                 .append(true)
                 .open(&self.log_path)
                 .ok();
-            self.log_bytes = std::fs::metadata(&self.log_path).map(|metadata| metadata.len()).unwrap_or(0);
+            self.log_bytes = std::fs::metadata(&self.log_path)
+                .map(|metadata| metadata.len())
+                .unwrap_or(0);
             if let Some(next_file) = self.file.as_mut() {
                 let _ = writeln!(
                     next_file,
@@ -938,7 +1014,9 @@ impl TerminalLogWriter {
                     Utc::now().to_rfc3339()
                 );
                 let _ = next_file.flush();
-                self.log_bytes = std::fs::metadata(&self.log_path).map(|metadata| metadata.len()).unwrap_or(self.log_bytes);
+                self.log_bytes = std::fs::metadata(&self.log_path)
+                    .map(|metadata| metadata.len())
+                    .unwrap_or(self.log_bytes);
             }
         }
     }
@@ -1147,14 +1225,36 @@ struct ResizeSession {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum ServerEvent {
-    Attached { session_id: String },
-    Replay { session_id: String, data: String },
-    SessionCreated { session: SessionView },
-    SessionDeleted { session_id: String },
-    Output { session_id: String, source: String, data: String },
-    Input { session_id: String, data: String },
-    Exit { session_id: String, code: Option<i32> },
-    Error { session_id: Option<String>, message: String },
+    Attached {
+        session_id: String,
+    },
+    Replay {
+        session_id: String,
+        data: String,
+    },
+    SessionCreated {
+        session: SessionView,
+    },
+    SessionDeleted {
+        session_id: String,
+    },
+    Output {
+        session_id: String,
+        source: String,
+        data: String,
+    },
+    Input {
+        session_id: String,
+        data: String,
+    },
+    Exit {
+        session_id: String,
+        code: Option<i32>,
+    },
+    Error {
+        session_id: Option<String>,
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1390,15 +1490,20 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let (tx, _) = broadcast::channel(64);
-    let storage_path = env::var("LCC_STORAGE_PATH").unwrap_or_else(|_| "data/canvases.json".to_string());
+    let storage_path =
+        env::var("LCC_STORAGE_PATH").unwrap_or_else(|_| "data/canvases.json".to_string());
     let canvas_store = CanvasStore::new(PathBuf::from(storage_path)).await?;
-    let peer_storage_path = env::var("LCC_PEER_STORAGE_PATH").unwrap_or_else(|_| "data/peer-bridge.jsonl".to_string());
+    let peer_storage_path =
+        env::var("LCC_PEER_STORAGE_PATH").unwrap_or_else(|_| "data/peer-bridge.jsonl".to_string());
     let peer_store = PeerStore::new(PathBuf::from(peer_storage_path)).await?;
-    let work_ledger_path = env::var("LCC_WORK_LEDGER_PATH").unwrap_or_else(|_| "data/work-ledger.json".to_string());
+    let work_ledger_path =
+        env::var("LCC_WORK_LEDGER_PATH").unwrap_or_else(|_| "data/work-ledger.json".to_string());
     let work_ledger = WorkLedgerStore::new(PathBuf::from(work_ledger_path)).await?;
-    let memory_path = env::var("LCC_MEMORY_PATH").unwrap_or_else(|_| "data/memory-ledger.jsonl".to_string());
+    let memory_path =
+        env::var("LCC_MEMORY_PATH").unwrap_or_else(|_| "data/memory-ledger.jsonl".to_string());
     let memory_store = MemoryStore::new(PathBuf::from(memory_path)).await?;
-    let daily_memory_dir = env::var("LCC_DAILY_MEMORY_DIR").unwrap_or_else(|_| "data/daily-memory".to_string());
+    let daily_memory_dir =
+        env::var("LCC_DAILY_MEMORY_DIR").unwrap_or_else(|_| "data/daily-memory".to_string());
     let daily_memory_store = DailyMemoryStore::new(PathBuf::from(daily_memory_dir)).await?;
     let state = AppState {
         sessions: Arc::new(RwLock::new(HashMap::new())),
@@ -1426,7 +1531,10 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/branch/status", get(branch_status))
             .route("/api/branch/agents", get(branch_agents))
             .route("/api/branch/work-ledger", get(branch_work_ledger))
-            .route("/api/branch/messages", get(branch_list_messages).post(branch_add_message))
+            .route(
+                "/api/branch/messages",
+                get(branch_list_messages).post(branch_add_message),
+            )
             .route("/api/branch/files/read", get(branch_file_read))
             .route("/api/branch/files/list", get(branch_file_list))
             .route("/api/branch/files/diff", get(branch_file_diff))
@@ -1440,40 +1548,67 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/sessions/:id", get(get_session).delete(delete_session))
             .route("/api/sessions/:id/log", get(get_session_log))
             .route("/api/sessions/:id/write", post(write_session))
-            .route("/api/sessions/:id/prompt-text", post(write_session_prompt_text))
-            .route("/api/sessions/:id/prompt-submit", post(write_session_prompt_submit))
+            .route(
+                "/api/sessions/:id/prompt-text",
+                post(write_session_prompt_text),
+            )
+            .route(
+                "/api/sessions/:id/prompt-submit",
+                post(write_session_prompt_submit),
+            )
             .route("/api/sessions/:id/resize", post(resize_session))
             .route("/api/os-agents", get(list_os_agents))
             .route("/api/os-agents/:id/attach", post(attach_os_agent))
             .route("/api/os-agents/:id/detach", post(detach_os_agent))
             .route("/ws/terminal", get(terminal_ws))
             .route("/api/peer/status", get(peer_status))
-            .route("/api/peer/messages", get(list_peer_messages).post(add_peer_message))
+            .route(
+                "/api/peer/messages",
+                get(list_peer_messages).post(add_peer_message),
+            )
             .route("/api/work-ledger", get(get_work_ledger))
             .route("/api/work-ledger/tasks/:id", put(upsert_work_task))
-            .route("/api/work-ledger/tasks/:id/events", post(add_work_task_event))
+            .route(
+                "/api/work-ledger/tasks/:id/events",
+                post(add_work_task_event),
+            )
             .route("/api/memory", get(list_memory).post(add_memory))
             .route("/api/memory/recover/:agent_id", get(recover_agent_context))
             .route("/api/daily-memory/today", get(get_today_daily_memory))
             .route("/api/daily-memory/:date", get(get_daily_memory))
-            .route("/api/daily-memory/:date/checkpoints", post(append_daily_memory_checkpoint))
+            .route(
+                "/api/daily-memory/:date/checkpoints",
+                post(append_daily_memory_checkpoint),
+            )
             .route("/api/canvases", get(list_canvases).post(create_canvas))
             .route("/api/canvases/:id", get(get_canvas).patch(update_canvas))
-            .route("/api/canvases/:id/content", get(get_content).put(put_content).patch(put_content))
-            .route("/api/canvases/:id/messages", get(get_messages).post(add_message))
+            .route(
+                "/api/canvases/:id/content",
+                get(get_content).put(put_content).patch(put_content),
+            )
+            .route(
+                "/api/canvases/:id/messages",
+                get(get_messages).post(add_message),
+            )
             .route("/api/canvases/:id/invite", post(invite_member))
             .route("/api/branch/health", get(branch_health))
             .route("/api/branch/status", get(branch_status))
             .route("/api/branch/agents", get(branch_agents))
             .route("/api/branch/work-ledger", get(branch_work_ledger))
-            .route("/api/branch/messages", get(branch_list_messages).post(branch_add_message))
+            .route(
+                "/api/branch/messages",
+                get(branch_list_messages).post(branch_add_message),
+            )
             .route("/api/branch/files/read", get(branch_file_read))
             .route("/api/branch/files/list", get(branch_file_list))
             .route("/api/branch/files/diff", get(branch_file_diff))
             .route("/api/branch/git/log", get(branch_git_log));
 
         if serve_web {
-            api_route.nest_service("/", ServeDir::new("apps/web/dist").fallback(ServeDir::new("apps/web")))
+            api_route.nest_service(
+                "/",
+                ServeDir::new("apps/web/dist").fallback(ServeDir::new("apps/web")),
+            )
         } else {
             api_route
         }
@@ -1482,7 +1617,8 @@ async fn main() -> anyhow::Result<()> {
     let app = if inbound_only {
         route.layer(TraceLayer::new_for_http()).with_state(state)
     } else {
-        route.layer(CorsLayer::permissive())
+        route
+            .layer(CorsLayer::permissive())
             .layer(TraceLayer::new_for_http())
             .with_state(state)
     };
@@ -1569,7 +1705,9 @@ async fn branch_add_message(
 ) -> Result<(StatusCode, Json<PeerMessage>), ApiError> {
     require_branch_token(&headers)?;
     let message = PeerMessage {
-        id: input.id.unwrap_or_else(|| format!("peer-msg-{}", Utc::now().timestamp_millis())),
+        id: input
+            .id
+            .unwrap_or_else(|| format!("peer-msg-{}", Utc::now().timestamp_millis())),
         at: input.at.unwrap_or_else(Utc::now),
         from_peer: require_field(input.from_peer, "from")?,
         to: input.to.unwrap_or_else(|| "branch".to_string()),
@@ -1591,12 +1729,12 @@ struct BranchAgentView {
     id: String,
     name: String,
     team: String,
-    status: SessionStatus,
+    status: String,
     pid: Option<u32>,
-    source: SessionSource,
-    attached: bool,
-    interactive: bool,
-    last_activity_at: DateTime<Utc>,
+    source: String,
+    attached: Option<bool>,
+    interactive: Option<bool>,
+    last_activity_at: Option<DateTime<Utc>>,
     last_activity_age_seconds: i64,
     log_updated_at: Option<DateTime<Utc>>,
     preview: String,
@@ -1657,12 +1795,16 @@ async fn branch_file_read(
 ) -> Result<Json<Value>, ApiError> {
     require_branch_token(&headers)?;
     let resolved = resolve_branch_relative_path(query.path.as_deref())?;
-    let metadata = fs::metadata(&resolved.absolute).await.map_err(ApiError::internal)?;
+    let metadata = fs::metadata(&resolved.absolute)
+        .await
+        .map_err(ApiError::internal)?;
     if !metadata.is_file() {
         return Err(ApiError::bad_request("path must point to a file"));
     }
     let max_lines = query.max_lines.unwrap_or(200).clamp(1, 5000);
-    let content = fs::read_to_string(&resolved.absolute).await.map_err(ApiError::internal)?;
+    let content = fs::read_to_string(&resolved.absolute)
+        .await
+        .map_err(ApiError::internal)?;
     let total_lines = content.lines().count();
     let selected: Vec<&str> = content.lines().take(max_lines).collect();
     let truncated = total_lines > selected.len();
@@ -1681,12 +1823,16 @@ async fn branch_file_list(
 ) -> Result<Json<Value>, ApiError> {
     require_branch_token(&headers)?;
     let resolved = resolve_branch_relative_path(query.path.as_deref())?;
-    let metadata = fs::metadata(&resolved.absolute).await.map_err(ApiError::internal)?;
+    let metadata = fs::metadata(&resolved.absolute)
+        .await
+        .map_err(ApiError::internal)?;
     if !metadata.is_dir() {
         return Err(ApiError::bad_request("path must point to a directory"));
     }
     let mut entries = Vec::new();
-    let mut dir = fs::read_dir(&resolved.absolute).await.map_err(ApiError::internal)?;
+    let mut dir = fs::read_dir(&resolved.absolute)
+        .await
+        .map_err(ApiError::internal)?;
     while let Some(entry) = dir.next_entry().await.map_err(ApiError::internal)? {
         let name = entry.file_name().to_string_lossy().to_string();
         if is_denied_branch_path_segment(&name) {
@@ -1803,11 +1949,15 @@ fn resolve_branch_relative_path(raw_path: Option<&str>) -> Result<BranchResolved
                     .to_str()
                     .ok_or_else(|| ApiError::bad_request("path must be valid UTF-8"))?;
                 if is_denied_branch_path_segment(segment) {
-                    return Err(ApiError::bad_request("path is outside the allowed branch file scope"));
+                    return Err(ApiError::bad_request(
+                        "path is outside the allowed branch file scope",
+                    ));
                 }
                 parts.push(segment.to_string());
             }
-            Component::ParentDir => return Err(ApiError::bad_request("path traversal is not allowed")),
+            Component::ParentDir => {
+                return Err(ApiError::bad_request("path traversal is not allowed"))
+            }
             _ => return Err(ApiError::bad_request("unsupported path component")),
         }
     }
@@ -1847,7 +1997,9 @@ fn validate_git_hashish(value: &str) -> Result<(), ApiError> {
     if valid {
         Ok(())
     } else {
-        Err(ApiError::bad_request("commit hash must be a 7-64 character hex value"))
+        Err(ApiError::bad_request(
+            "commit hash must be a 7-64 character hex value",
+        ))
     }
 }
 
@@ -1890,151 +2042,201 @@ fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
     }
 }
 
-async fn branch_agents_snapshot(state: &AppState) -> Value {
+#[derive(Debug, Clone, Deserialize)]
+struct BranchAgentSnapshotSession {
+    id: String,
+    name: Option<String>,
+    team: Option<String>,
+    status: Option<String>,
+    updated_at: Option<DateTime<Utc>>,
+    preview_hash: Option<String>,
+    observed_state: Option<String>,
+    #[serde(rename = "signals")]
+    _signals: Option<Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct BranchAgentSnapshot {
+    generated_at: Option<DateTime<Utc>>,
+    source: Option<String>,
+    #[serde(rename = "counts")]
+    _counts: Value,
+    sessions: Vec<BranchAgentSnapshotSession>,
+}
+
+async fn collect_branch_agent_census(state: &AppState) -> BranchAgentCensus {
     let inbound_only = env::var("LCC_INBOUND_ONLY")
         .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
 
     if !inbound_only {
         let sessions = list_sessions(State(state.clone())).await.0;
-        return branch_agents_response_from_sessions(
-            "local-state",
-            true,
-            None,
+        return branch_agent_census_from_sessions(
+            "local-state".to_string(),
+            BranchSessionApiState {
+                ok: true,
+                source: "local-state".to_string(),
+                note: "served from current API process session state".to_string(),
+            },
             sessions,
         );
     }
 
     match fetch_branch_sessions_via_local_api().await {
-        Ok(sessions) => branch_agents_response_from_sessions(
-            "live-9001-api",
-            true,
-            None,
+        Ok(sessions) => branch_agent_census_from_sessions(
+            "live-9001-api".to_string(),
+            BranchSessionApiState {
+                ok: true,
+                source: "live-9001-api".to_string(),
+                note: branch_session_api_url(),
+            },
             sessions,
         ),
-        Err(err) => match read_branch_agent_snapshot_file().await {
-            Ok(snapshot) => branch_agents_response_from_snapshot(snapshot, Some(err)),
-            Err(snapshot_err) => json!({
-                "ok": false,
-                "service": "lcc-core-branch-inbound",
-                "time": Utc::now(),
-                "source": "unavailable",
-                "live_error": err,
-                "snapshot_error": snapshot_err,
-                "total_agents": 0,
-                "counts": {}
-            }),
+        Err(live_error) => match read_branch_agent_snapshot_file().await {
+            Ok(snapshot) => branch_agent_census_from_snapshot(snapshot, live_error),
+            Err(snapshot_error) => BranchAgentCensus {
+                ok: false,
+                service: "lcc-core-branch-inbound".to_string(),
+                time: Utc::now(),
+                total_agents: 0,
+                active_agents: 0,
+                attached_agents: 0,
+                interactive_agents: 0,
+                session_source: "unavailable".to_string(),
+                session_api: BranchSessionApiState {
+                    ok: false,
+                    source: "unavailable".to_string(),
+                    note: format!("live={live_error}; snapshot={snapshot_error}"),
+                },
+                agents: Vec::new(),
+            },
         },
     }
 }
 
-fn branch_agents_response_from_sessions(
-    source: &str,
-    live: bool,
-    generated_at: Option<DateTime<Utc>>,
+fn branch_agent_census_from_sessions(
+    source: String,
+    session_api: BranchSessionApiState,
     sessions: Vec<SessionView>,
-) -> Value {
-    let mut status_counts = serde_json::Map::new();
-    let mut team_counts = serde_json::Map::new();
-    let mut observed_counts = serde_json::Map::new();
-    let mut active = 0usize;
-    let mut attached = 0usize;
-    let mut interactive = 0usize;
-
+) -> BranchAgentCensus {
+    let now = Utc::now();
+    let mut active_agents = 0usize;
+    let mut attached_agents = 0usize;
+    let mut interactive_agents = 0usize;
     let agents = sessions
         .into_iter()
         .map(|session| {
-            let status_key = session_status_label(&session.meta.status).to_string();
-            increment_json_counter(&mut status_counts, &status_key);
-            increment_json_counter(&mut team_counts, &session.meta.team);
-
-            let observed_state = derive_branch_observed_state(&session);
-            increment_json_counter(&mut observed_counts, &observed_state);
-
             if matches!(session.meta.status, SessionStatus::Active) {
-                active += 1;
+                active_agents += 1;
             }
             if session.attached {
-                attached += 1;
+                attached_agents += 1;
             }
             if session.interactive {
-                interactive += 1;
+                interactive_agents += 1;
             }
-
-            json!({
-                "id": session.meta.id,
-                "name": session.meta.name,
-                "team": session.meta.team,
-                "status": session_status_label(&session.meta.status),
-                "pid": session.meta.pid,
-                "source": session_source_label(&session.source),
-                "attached": session.attached,
-                "interactive": session.interactive,
-                "last_activity": session.meta.updated_at,
-                "created_at": session.meta.created_at,
-                "preview": compact_branch_preview(&session.preview_text),
-                "observed_state": observed_state,
-                "input_disabled_reason": session.input_disabled_reason,
-                "log_available": session.log.available
-            })
+            BranchAgentView {
+                id: session.meta.id,
+                name: session.meta.name,
+                team: session.meta.team,
+                status: session_status_label(&session.meta.status).to_string(),
+                pid: session.meta.pid,
+                source: session_source_label(&session.source).to_string(),
+                attached: Some(session.attached),
+                interactive: Some(session.interactive),
+                last_activity_at: Some(session.meta.updated_at),
+                last_activity_age_seconds: now
+                    .signed_duration_since(session.meta.updated_at)
+                    .num_seconds()
+                    .max(0),
+                log_updated_at: session.log.updated_at,
+                preview: compact_branch_preview(&session.preview_text),
+                input_disabled_reason: session.input_disabled_reason,
+            }
         })
         .collect::<Vec<_>>();
 
-    json!({
-        "ok": true,
-        "service": "lcc-core-branch-inbound",
-        "time": Utc::now(),
-        "source": source,
-        "live": live,
-        "generated_at": generated_at,
-        "total_agents": agents.len(),
-        "counts": {
-            "active": active,
-            "attached": attached,
-            "interactive": interactive,
-            "by_status": status_counts,
-            "by_team": team_counts,
-            "by_observed_state": observed_counts
-        },
-        "agents": agents
-    })
+    BranchAgentCensus {
+        ok: true,
+        service: "lcc-core-branch-inbound".to_string(),
+        time: now,
+        total_agents: agents.len(),
+        active_agents,
+        attached_agents,
+        interactive_agents,
+        session_source: source,
+        session_api,
+        agents,
+    }
 }
 
-fn branch_agents_response_from_snapshot(snapshot: BranchAgentSnapshot, live_error: Option<String>) -> Value {
+fn branch_agent_census_from_snapshot(
+    snapshot: BranchAgentSnapshot,
+    live_error: String,
+) -> BranchAgentCensus {
+    let now = Utc::now();
     let agents = snapshot
         .sessions
-        .iter()
+        .into_iter()
         .map(|session| {
-            json!({
-                "id": session.id,
-                "name": session.name,
-                "team": session.team,
-                "status": session.status,
-                "pid": Value::Null,
-                "source": "snapshot-file",
-                "attached": Value::Null,
-                "interactive": Value::Null,
-                "last_activity": session.updated_at,
-                "created_at": Value::Null,
-                "preview": session.preview_hash,
-                "observed_state": session.observed_state,
-                "signals": session.signals
-            })
+            let last_activity_at = session.updated_at.or(snapshot.generated_at).or(Some(now));
+            BranchAgentView {
+                id: session.id,
+                name: session.name.unwrap_or_else(|| "-".to_string()),
+                team: session.team.unwrap_or_else(|| "-".to_string()),
+                status: session.status.unwrap_or_else(|| "active".to_string()),
+                pid: None,
+                source: snapshot.source.clone().unwrap_or_else(|| "snapshot-file".to_string()),
+                attached: None,
+                interactive: None,
+                last_activity_at,
+                last_activity_age_seconds: last_activity_at
+                    .map(|at| now.signed_duration_since(at).num_seconds().max(0))
+                    .unwrap_or_default(),
+                log_updated_at: None,
+                preview: session.preview_hash.unwrap_or_default(),
+                input_disabled_reason: session.observed_state,
+            }
         })
         .collect::<Vec<_>>();
+    let active_agents = agents
+        .iter()
+        .filter(|agent| !matches!(agent.status.as_str(), "exited" | "error" | "stopped" | "inactive"))
+        .count();
 
-    json!({
-        "ok": true,
-        "service": "lcc-core-branch-inbound",
-        "time": Utc::now(),
-        "source": snapshot.source.unwrap_or_else(|| "snapshot-file".to_string()),
-        "live": false,
-        "generated_at": snapshot.generated_at,
-        "live_error": live_error,
-        "total_agents": agents.len(),
-        "counts": snapshot.counts,
-        "agents": agents
-    })
+    BranchAgentCensus {
+        ok: true,
+        service: "lcc-core-branch-inbound".to_string(),
+        time: snapshot.generated_at.unwrap_or(now),
+        total_agents: agents.len(),
+        active_agents,
+        attached_agents: 0,
+        interactive_agents: 0,
+        session_source: snapshot
+            .source
+            .unwrap_or_else(|| "snapshot-file".to_string()),
+        session_api: BranchSessionApiState {
+            ok: false,
+            source: "snapshot-file".to_string(),
+            note: format!("live session api unavailable: {live_error}"),
+        },
+        agents,
+    }
+}
+
+fn compact_branch_preview(value: &str) -> String {
+    let compact = value
+        .replace('\r', " ")
+        .replace('\n', " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let max_chars = 240usize;
+    if compact.chars().count() <= max_chars {
+        compact
+    } else {
+        compact.chars().take(max_chars).collect::<String>()
+    }
 }
 
 fn session_status_label(status: &SessionStatus) -> &'static str {
@@ -2053,60 +2255,15 @@ fn session_source_label(source: &SessionSource) -> &'static str {
     }
 }
 
-fn derive_branch_observed_state(session: &SessionView) -> String {
-    let preview = session.preview_text.to_ascii_lowercase();
-    if matches!(session.meta.status, SessionStatus::Exited | SessionStatus::Stopped | SessionStatus::Error) {
-        return session_status_label(&session.meta.status).to_string();
-    }
-    if preview.contains("heartbeat ") {
-        return "heartbeat".to_string();
-    }
-    if preview.contains("report ") {
-        return "reported".to_string();
-    }
-    if preview.contains("ack ") || preview.contains("policy_ack") {
-        return "acknowledged".to_string();
-    }
-    if preview.contains("working")
-        || preview.contains("running ")
-        || preview.contains("get-content ")
-        || preview.contains("rg ")
-        || preview.contains("cargo ")
-        || preview.contains("node ")
-    {
-        return "working".to_string();
-    }
-    "active".to_string()
-}
-
-fn compact_branch_preview(value: &str) -> String {
-    let compact = value
-        .replace('\r', " ")
-        .replace('\n', " ")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
-    let max_chars = 240usize;
-    if compact.chars().count() <= max_chars {
-        compact
-    } else {
-        compact.chars().take(max_chars).collect::<String>()
-    }
-}
-
-fn increment_json_counter(map: &mut serde_json::Map<String, Value>, key: &str) {
-    let next = map.get(key).and_then(Value::as_u64).unwrap_or(0) + 1;
-    map.insert(key.to_string(), json!(next));
-}
-
 fn branch_session_api_url() -> String {
-    env::var("LCC_BRANCH_SESSION_API").unwrap_or_else(|_| "http://127.0.0.1:9001/api/sessions".to_string())
+    env::var("LCC_BRANCH_SESSION_API")
+        .unwrap_or_else(|_| "http://127.0.0.1:9001/api/sessions".to_string())
 }
 
 fn branch_agent_snapshot_path() -> PathBuf {
     PathBuf::from(
         env::var("LCC_AGENT_STATUS_SNAPSHOT_PATH")
-            .unwrap_or_else(|_| "data/agent-status-latest.json".to_string())
+            .unwrap_or_else(|_| "data/agent-status-latest.json".to_string()),
     )
 }
 
@@ -2208,14 +2365,18 @@ async fn pty_stats(State(state): State<AppState>) -> Json<Value> {
         .iter()
         .filter(|session| matches!(session.meta.status, SessionStatus::Active))
         .count();
-    Json(json!({ "total": sessions.len(), "active": active, "max_active": active_session_limit(), "sessions": sessions }))
+    Json(
+        json!({ "total": sessions.len(), "active": active, "max_active": active_session_limit(), "sessions": sessions }),
+    )
 }
 
 async fn create_session(
     State(state): State<AppState>,
     Json(input): Json<CreateSession>,
 ) -> Result<(StatusCode, Json<SessionView>), ApiError> {
-    let id = input.id.unwrap_or_else(|| format!("lcc-agent-{}", Utc::now().timestamp_millis()));
+    let id = input
+        .id
+        .unwrap_or_else(|| format!("lcc-agent-{}", Utc::now().timestamp_millis()));
     if state.sessions.read().await.contains_key(&id) {
         return Err(ApiError::conflict("session already exists"));
     }
@@ -2278,12 +2439,20 @@ async fn create_session(
         writer,
     }));
 
-    state.sessions.write().await.insert(id.clone(), session.clone());
+    state
+        .sessions
+        .write()
+        .await
+        .insert(id.clone(), session.clone());
     spawn_pty_reader(state.clone(), id.clone(), reader);
-    spawn_pty_waiter(state.clone(), id.clone(), move || child.wait().ok().map(|status| status.exit_code() as i32));
+    spawn_pty_waiter(state.clone(), id.clone(), move || {
+        child.wait().ok().map(|status| status.exit_code() as i32)
+    });
     let meta = session.lock().await.meta.clone();
     let view = build_internal_session_view(&state, meta).await?;
-    let _ = state.tx.send(ServerEvent::SessionCreated { session: view.clone() });
+    let _ = state.tx.send(ServerEvent::SessionCreated {
+        session: view.clone(),
+    });
     Ok((StatusCode::CREATED, Json(view)))
 }
 
@@ -2294,14 +2463,18 @@ async fn delete_session(
     let Some(session) = state.sessions.write().await.remove(&id) else {
         if read_os_agent_record(&id).await.is_some() {
             set_os_agent_attached(&id, false).await?;
-            return Ok(Json(json!({ "ok": true, "detached": true, "session_id": id })));
+            return Ok(Json(
+                json!({ "ok": true, "detached": true, "session_id": id }),
+            ));
         }
         return Err(ApiError::not_found("session not found"));
     };
     let mut session = session.lock().await;
     session.meta.status = SessionStatus::Stopped;
     let _ = session.writer.write_all(b"\x03exit\r\n");
-    let _ = state.tx.send(ServerEvent::SessionDeleted { session_id: id });
+    let _ = state
+        .tx
+        .send(ServerEvent::SessionDeleted { session_id: id });
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -2337,7 +2510,9 @@ async fn detach_os_agent(Path(id): Path<String>) -> Result<Json<Value>, ApiError
         return Err(ApiError::not_found("OS agent not found"));
     }
     set_os_agent_attached(&id, false).await?;
-    Ok(Json(json!({ "ok": true, "detached": true, "session_id": id })))
+    Ok(Json(
+        json!({ "ok": true, "detached": true, "session_id": id }),
+    ))
 }
 
 async fn write_session(
@@ -2345,7 +2520,11 @@ async fn write_session(
     Path(id): Path<String>,
     Json(input): Json<WriteSession>,
 ) -> Result<Json<SessionView>, ApiError> {
-    let data = input.input.or(input.data).or(input.prompt).unwrap_or_default();
+    let data = input
+        .input
+        .or(input.data)
+        .or(input.prompt)
+        .unwrap_or_default();
     let session = write_to_session(&state, &id, data).await?;
     Ok(Json(session))
 }
@@ -2400,7 +2579,9 @@ async fn get_session_log(
             updated_at: None,
         };
         return match query.format.as_deref().unwrap_or("ansi") {
-            "ansi" | "text" => Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text).into_response()),
+            "ansi" | "text" => {
+                Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text).into_response())
+            }
             "json" => Ok(Json(SessionLogTailResponse {
                 session_id: id,
                 source,
@@ -2436,7 +2617,11 @@ async fn get_session_log(
     let has_ansi = text != chunk.text;
     let log = session_log_info_for_path(&path, limit);
     match query.format.as_deref().unwrap_or("ansi") {
-        "ansi" => Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], chunk.text).into_response()),
+        "ansi" => Ok((
+            [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+            chunk.text,
+        )
+            .into_response()),
         "text" => Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text).into_response()),
         "json" => Ok(Json(SessionLogTailResponse {
             session_id: id,
@@ -2575,8 +2760,14 @@ fn event_session_id(event: &ServerEvent) -> Option<&str> {
         | ServerEvent::Output { session_id, .. }
         | ServerEvent::Input { session_id, .. }
         | ServerEvent::Exit { session_id, .. } => Some(session_id),
-        ServerEvent::SessionCreated { .. } | ServerEvent::Error { session_id: None, .. } => None,
-        ServerEvent::Error { session_id: Some(session_id), .. } => Some(session_id),
+        ServerEvent::SessionCreated { .. }
+        | ServerEvent::Error {
+            session_id: None, ..
+        } => None,
+        ServerEvent::Error {
+            session_id: Some(session_id),
+            ..
+        } => Some(session_id),
     }
 }
 
@@ -2607,21 +2798,36 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
                 .and_then(Value::as_u64)
                 .unwrap_or(runtime_config.card_replay_bytes)
                 .clamp(512, runtime_config.max_replay_bytes);
-            let replay = match resolve_terminal_replay(state, &session_id, replay_limit_bytes).await {
+            let replay = match resolve_terminal_replay(state, &session_id, replay_limit_bytes).await
+            {
                 Ok(replay) => replay,
-                Err(err) => return Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
+                Err(err) => {
+                    return Some(
+                        json!({ "type": "error", "sessionId": session_id, "message": err.message }),
+                    )
+                }
             };
             Some(json!({ "type": "replay", "sessionId": session_id, "data": replay }))
         }
         "input" => {
-            let data = value.get("data").and_then(Value::as_str).unwrap_or_default().to_string();
+            let data = value
+                .get("data")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
             match write_raw_to_session(state, &session_id, data).await {
                 Ok(_) => None,
-                Err(err) => Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
+                Err(err) => Some(
+                    json!({ "type": "error", "sessionId": session_id, "message": err.message }),
+                ),
             }
         }
         "sendPrompt" => {
-            let prompt = value.get("prompt").and_then(Value::as_str).unwrap_or_default().to_string();
+            let prompt = value
+                .get("prompt")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
             match write_to_session(state, &session_id, prompt).await {
                 Ok(_) => Some(json!({
                     "type": "promptAck",
@@ -2629,7 +2835,9 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
                     "ok": true,
                     "submitKey": "\\r"
                 })),
-                Err(err) => Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
+                Err(err) => Some(
+                    json!({ "type": "error", "sessionId": session_id, "message": err.message }),
+                ),
             }
         }
         "promptText" => {
@@ -2642,11 +2850,17 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
                     "textBytes": body.as_bytes().len(),
                     "lineCount": prompt_line_count(&body)
                 })),
-                Err(err) => Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
+                Err(err) => Some(
+                    json!({ "type": "error", "sessionId": session_id, "message": err.message }),
+                ),
             }
         }
         "promptSubmit" => {
-            let repeat = value.get("repeat").and_then(Value::as_u64).unwrap_or(1).clamp(1, 2) as u8;
+            let repeat = value
+                .get("repeat")
+                .and_then(Value::as_u64)
+                .unwrap_or(1)
+                .clamp(1, 2) as u8;
             match write_prompt_submit_to_session(state, &session_id, repeat).await {
                 Ok(_) => Some(json!({
                     "type": "promptSubmitAck",
@@ -2655,22 +2869,43 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
                     "submitKey": "\\r",
                     "repeat": repeat
                 })),
-                Err(err) => Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
+                Err(err) => Some(
+                    json!({ "type": "error", "sessionId": session_id, "message": err.message }),
+                ),
             }
         }
         "resize" => {
-            let cols = value.get("cols").and_then(Value::as_u64).unwrap_or(120).clamp(20, 300) as u16;
-            let rows = value.get("rows").and_then(Value::as_u64).unwrap_or(30).clamp(5, 120) as u16;
+            let cols = value
+                .get("cols")
+                .and_then(Value::as_u64)
+                .unwrap_or(120)
+                .clamp(20, 300) as u16;
+            let rows = value
+                .get("rows")
+                .and_then(Value::as_u64)
+                .unwrap_or(30)
+                .clamp(5, 120) as u16;
             match resize_to_session(state, &session_id, cols, rows).await {
-                Ok(_) => Some(json!({ "type": "resized", "sessionId": session_id, "ok": true, "cols": cols, "rows": rows })),
-                Err(err) => Some(json!({ "type": "error", "sessionId": session_id, "message": err.message })),
+                Ok(_) => Some(
+                    json!({ "type": "resized", "sessionId": session_id, "ok": true, "cols": cols, "rows": rows }),
+                ),
+                Err(err) => Some(
+                    json!({ "type": "error", "sessionId": session_id, "message": err.message }),
+                ),
             }
         }
-        _ => Some(json!({ "type": "error", "sessionId": session_id, "message": "unknown terminal protocol message" })),
+        _ => Some(
+            json!({ "type": "error", "sessionId": session_id, "message": "unknown terminal protocol message" }),
+        ),
     }
 }
 
-async fn resize_to_session(state: &AppState, id: &str, cols: u16, rows: u16) -> Result<SessionView, ApiError> {
+async fn resize_to_session(
+    state: &AppState,
+    id: &str,
+    cols: u16,
+    rows: u16,
+) -> Result<SessionView, ApiError> {
     let Some(session) = state.sessions.read().await.get(id).cloned() else {
         if let Some(record) = read_os_agent_record(id).await {
             let attached = os_agent_is_attached(&record).await;
@@ -2699,7 +2934,11 @@ async fn resize_to_session(state: &AppState, id: &str, cols: u16, rows: u16) -> 
     build_internal_session_view(state, meta).await
 }
 
-async fn write_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
+async fn write_to_session(
+    state: &AppState,
+    id: &str,
+    data: String,
+) -> Result<SessionView, ApiError> {
     let body = normalize_prompt_body(&data);
     let session = write_prompt_text_to_session(state, id, body).await?;
     sleep(Duration::from_millis(300)).await;
@@ -2729,7 +2968,11 @@ fn prompt_body_from_ws_value(value: &Value) -> String {
     normalize_prompt_body(&prompt)
 }
 
-async fn write_prompt_text_to_session(state: &AppState, id: &str, body: String) -> Result<SessionView, ApiError> {
+async fn write_prompt_text_to_session(
+    state: &AppState,
+    id: &str,
+    body: String,
+) -> Result<SessionView, ApiError> {
     if body.is_empty() {
         return resolve_session_view(state, id).await;
     }
@@ -2738,7 +2981,11 @@ async fn write_prompt_text_to_session(state: &AppState, id: &str, body: String) 
     Ok(session)
 }
 
-async fn write_prompt_submit_to_session(state: &AppState, id: &str, repeat: u8) -> Result<SessionView, ApiError> {
+async fn write_prompt_submit_to_session(
+    state: &AppState,
+    id: &str,
+    repeat: u8,
+) -> Result<SessionView, ApiError> {
     let repeat = repeat.clamp(1, 2);
     let mut session = write_session_bytes(state, id, prompt_submit_key().to_string(), true).await?;
     for _ in 1..repeat {
@@ -2811,12 +3058,17 @@ fn append_terminal_output(state: &AppState, id: &str, data: String) {
 mod tests {
     use axum::http::StatusCode;
     use serde_json::json;
-    use std::{env, fs as stdfs, path::PathBuf, time::{Duration as StdDuration, Instant}};
+    use std::{
+        env, fs as stdfs,
+        path::PathBuf,
+        time::{Duration as StdDuration, Instant},
+    };
 
     use super::{
-        normalize_prompt_body, normalize_pty_output, normalize_work_event_kind, prompt_body_from_ws_value,
-        prompt_body_from_write_session, prompt_submit_key, read_tail_lossy, strip_ansi_for_ui,
-        tail_string_by_bytes, terminal_preview_text_for_ui, PtyOutputProcessor, WriteSession,
+        normalize_prompt_body, normalize_pty_output, normalize_work_event_kind,
+        prompt_body_from_write_session, prompt_body_from_ws_value, prompt_submit_key,
+        read_tail_lossy, strip_ansi_for_ui, tail_string_by_bytes, terminal_preview_text_for_ui,
+        PtyOutputProcessor, WriteSession,
     };
 
     fn encode_prompt_submit_for_test(data: &str) -> String {
@@ -2837,8 +3089,14 @@ mod tests {
 
     #[test]
     fn prompt_submit_preserves_multiline_body_before_submit() {
-        assert_eq!(encode_prompt_submit_for_test("line 1\r\nline 2"), "line 1\nline 2\r");
-        assert_eq!(encode_prompt_submit_for_test("line 1\rline 2\n"), "line 1\nline 2\r");
+        assert_eq!(
+            encode_prompt_submit_for_test("line 1\r\nline 2"),
+            "line 1\nline 2\r"
+        );
+        assert_eq!(
+            encode_prompt_submit_for_test("line 1\rline 2\n"),
+            "line 1\nline 2\r"
+        );
     }
 
     #[test]
@@ -2850,7 +3108,10 @@ mod tests {
 
     #[test]
     fn prompt_submit_preserves_internal_blank_lines() {
-        assert_eq!(encode_prompt_submit_for_test("line 1\n\nline 3\n"), "line 1\n\nline 3\r");
+        assert_eq!(
+            encode_prompt_submit_for_test("line 1\n\nline 3\n"),
+            "line 1\n\nline 3\r"
+        );
     }
 
     #[test]
@@ -2876,18 +3137,20 @@ mod tests {
     }
 
     #[test]
-    fn test_bare_cr_to_crlf() {
+    fn test_bare_cr_stays_cr() {
+        // solo \r = Codex TUI redraw (cursor to col 0, same line) — must NOT become \r\n
         assert_eq!(
             normalize_pty_output("alpha\r\nbravo\rcharlie\ndelta"),
-            "alpha\r\nbravo\r\ncharlie\r\ndelta"
+            "alpha\r\nbravo\rcharlie\r\ndelta"
         );
     }
 
     #[test]
-    fn terminal_output_preserves_vt100_escape_payloads_while_normalizing_cr() {
+    fn terminal_output_preserves_vt100_escape_payloads_while_preserving_cr() {
+        // solo \r after VT100 escape stays as \r (cursor reposition, no new line)
         assert_eq!(
             normalize_pty_output("\x1b[2K\rprompt\r\nnext"),
-            "\x1b[2K\r\nprompt\r\nnext"
+            "\x1b[2K\rprompt\r\nnext"
         );
     }
 
@@ -2896,7 +3159,7 @@ mod tests {
         let once = normalize_pty_output("foo\r\nbar\rba\nz");
         let twice = normalize_pty_output(&once);
         assert_eq!(once, twice);
-        assert_eq!(once, "foo\r\nbar\r\nba\r\nz");
+        assert_eq!(once, "foo\r\nbar\rba\r\nz");
     }
 
     #[test]
@@ -2905,11 +3168,16 @@ mod tests {
         let text = "한글\r다음";
         let bytes = text.as_bytes();
         let split = bytes.len() - 2;
-        assert!(processor.push_chunk(&bytes[..split], Instant::now()).is_none());
+        assert!(processor
+            .push_chunk(&bytes[..split], Instant::now())
+            .is_none());
         let output = processor
-            .push_chunk(&bytes[split..], Instant::now() + StdDuration::from_millis(60))
+            .push_chunk(
+                &bytes[split..],
+                Instant::now() + StdDuration::from_millis(60),
+            )
             .expect("flush after utf8 boundary completion");
-        assert_eq!(output, "한글\r\n다음");
+        assert_eq!(output, "한글\r다음");
     }
 
     #[test]
@@ -2929,7 +3197,7 @@ mod tests {
         let output = processor
             .push_chunk(b"mred\r", start + StdDuration::from_millis(60))
             .expect("flush after escape sequence completion");
-        assert_eq!(output, "\x1b[31mred\r\n");
+        assert_eq!(output, "\x1b[31mred\r");
     }
 
     #[test]
@@ -3028,7 +3296,11 @@ mod tests {
         snapshot.push("ready\r\n");
         snapshot.push("\x1b[2;1HWorking");
 
-        let attach = format!("{}{}", super::TERMINAL_ATTACH_CLEAR_PREFIX, snapshot.ansi_text());
+        let attach = format!(
+            "{}{}",
+            super::TERMINAL_ATTACH_CLEAR_PREFIX,
+            snapshot.ansi_text()
+        );
 
         assert!(attach.starts_with("\x1b[2J\x1b[3J\x1b[H"));
         assert!(attach.contains("Working"));
@@ -3037,7 +3309,9 @@ mod tests {
     #[tokio::test]
     async fn read_tail_lossy_returns_only_the_requested_tail_window() {
         let path = temp_test_file("read-tail-window.log");
-        let content = (0..512).map(|idx| format!("line-{idx:04}\n")).collect::<String>();
+        let content = (0..512)
+            .map(|idx| format!("line-{idx:04}\n"))
+            .collect::<String>();
         stdfs::write(&path, &content).unwrap();
 
         let tail = read_tail_lossy(path.clone(), 64).await.unwrap();
@@ -3067,11 +3341,15 @@ mod tests {
         let path = temp_test_file("terminal-log-writer-chunk-limit.log");
         let mut writer = super::TerminalLogWriter::new(path.clone(), "test-session".to_string());
         writer.write_session_banner();
-        let baseline = stdfs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+        let baseline = stdfs::metadata(&path)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
 
         writer.push(&vec![b'x'; super::TERMINAL_LOG_FLUSH_CHUNK_BYTES]);
 
-        let after_push = stdfs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+        let after_push = stdfs::metadata(&path)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
         assert!(after_push >= baseline + super::TERMINAL_LOG_FLUSH_CHUNK_BYTES as u64);
 
         writer.finish();
@@ -3085,10 +3363,14 @@ mod tests {
         let path = temp_test_file("terminal-log-writer-finish.log");
         let mut writer = super::TerminalLogWriter::new(path.clone(), "test-session".to_string());
         writer.write_session_banner();
-        let baseline = stdfs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+        let baseline = stdfs::metadata(&path)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
 
         writer.push(b"pending-tail");
-        let before_finish = stdfs::metadata(&path).map(|metadata| metadata.len()).unwrap_or(0);
+        let before_finish = stdfs::metadata(&path)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0);
         assert_eq!(before_finish, baseline);
 
         writer.finish();
@@ -3106,9 +3388,18 @@ mod tests {
 
     #[test]
     fn work_event_kind_normalizes_known_state_events() {
-        assert_eq!(normalize_work_event_kind(Some(" ACKNOWLEDGED ".to_string())).unwrap(), "acknowledged");
-        assert_eq!(normalize_work_event_kind(Some("HEARTBEAT".to_string())).unwrap(), "heartbeat");
-        assert_eq!(normalize_work_event_kind(Some("qa-pass".to_string())).unwrap(), "qa-pass");
+        assert_eq!(
+            normalize_work_event_kind(Some(" ACKNOWLEDGED ".to_string())).unwrap(),
+            "acknowledged"
+        );
+        assert_eq!(
+            normalize_work_event_kind(Some("HEARTBEAT".to_string())).unwrap(),
+            "heartbeat"
+        );
+        assert_eq!(
+            normalize_work_event_kind(Some("qa-pass".to_string())).unwrap(),
+            "qa-pass"
+        );
     }
 
     #[test]
@@ -3123,7 +3414,11 @@ mod tests {
     }
 }
 
-async fn resolve_terminal_replay(state: &AppState, id: &str, limit_bytes: u64) -> Result<String, ApiError> {
+async fn resolve_terminal_replay(
+    state: &AppState,
+    id: &str,
+    limit_bytes: u64,
+) -> Result<String, ApiError> {
     let runtime_config = terminal_runtime_config();
     let limit = limit_bytes.clamp(512, runtime_config.max_replay_bytes);
     if state.sessions.read().await.contains_key(id) {
@@ -3138,16 +3433,23 @@ async fn resolve_terminal_replay(state: &AppState, id: &str, limit_bytes: u64) -
     if !os_agent_is_attached(&record).await {
         return Err(ApiError::conflict("OS agent is detached from this API"));
     }
-    let path = record.log_path.map(PathBuf::from).unwrap_or_else(|| terminal_log_path(id));
+    let path = record
+        .log_path
+        .map(PathBuf::from)
+        .unwrap_or_else(|| terminal_log_path(id));
     read_tail_lossy_or_empty(path, limit)
         .await
         .map_err(ApiError::internal)
 }
 
-async fn build_internal_session_view(state: &AppState, meta: SessionMeta) -> Result<SessionView, ApiError> {
+async fn build_internal_session_view(
+    state: &AppState,
+    meta: SessionMeta,
+) -> Result<SessionView, ApiError> {
     let log_path = terminal_log_path(&meta.id);
     let runtime_config = terminal_runtime_config();
-    let preview = terminal_buffer_tail(state, &meta.id, runtime_config.preview_bytes).unwrap_or_default();
+    let preview =
+        terminal_buffer_tail(state, &meta.id, runtime_config.preview_bytes).unwrap_or_default();
     let preview_text = terminal_display_snapshot_text(state, &meta.id)
         .map(|snapshot| tail_string_by_bytes(&snapshot, runtime_config.preview_bytes))
         .unwrap_or_else(|| terminal_preview_text_for_ui(&preview, runtime_config.preview_bytes));
@@ -3193,18 +3495,29 @@ fn terminal_display_snapshot_ansi_text(state: &AppState, id: &str) -> Option<Str
         .filter(|text| !text.is_empty())
 }
 
-async fn write_raw_to_session(state: &AppState, id: &str, data: String) -> Result<SessionView, ApiError> {
+async fn write_raw_to_session(
+    state: &AppState,
+    id: &str,
+    data: String,
+) -> Result<SessionView, ApiError> {
     write_session_bytes(state, id, data, false).await
 }
 
-async fn write_session_bytes(state: &AppState, id: &str, data: String, echo_input: bool) -> Result<SessionView, ApiError> {
+async fn write_session_bytes(
+    state: &AppState,
+    id: &str,
+    data: String,
+    echo_input: bool,
+) -> Result<SessionView, ApiError> {
     let Some(session) = state.sessions.read().await.get(id).cloned() else {
         if let Some(record) = read_os_agent_record(id).await {
             if !os_agent_is_attached(&record).await {
                 return Err(ApiError::conflict("OS agent is detached from this API"));
             }
             let Some(write_url) = os_agent_write_url(&record) else {
-                return Err(ApiError::bad_request("OS agent is attached but does not expose a write endpoint"));
+                return Err(ApiError::bad_request(
+                    "OS agent is attached but does not expose a write endpoint",
+                ));
             };
             os_agent_control_write(&write_url, &data).await?;
             let preview = read_os_agent_preview(&record).await.unwrap_or_default();
@@ -3214,11 +3527,17 @@ async fn write_session_bytes(state: &AppState, id: &str, data: String, echo_inpu
     };
     let mut session = session.lock().await;
     if !data.is_empty() {
-        session.writer.write_all(data.as_bytes()).map_err(ApiError::internal)?;
+        session
+            .writer
+            .write_all(data.as_bytes())
+            .map_err(ApiError::internal)?;
         session.writer.flush().map_err(ApiError::internal)?;
         session.touch();
         if echo_input {
-            let _ = state.tx.send(ServerEvent::Input { session_id: id.to_string(), data });
+            let _ = state.tx.send(ServerEvent::Input {
+                session_id: id.to_string(),
+                data,
+            });
         }
     }
     let meta = session.meta.clone();
@@ -3230,7 +3549,10 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
     let log_path = terminal_log_path(&id);
     thread::spawn(move || {
         if let Ok(mut buffers) = state.terminal_buffers.lock() {
-            buffers.insert(id.clone(), TerminalRingBuffer::new(terminal_runtime_config().ring_buffer_bytes));
+            buffers.insert(
+                id.clone(),
+                TerminalRingBuffer::new(terminal_runtime_config().ring_buffer_bytes),
+            );
         }
         if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
             snapshots.insert(id.clone(), TerminalDisplaySnapshot::new(150));
@@ -3261,9 +3583,17 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
 fn terminal_log_path(id: &str) -> PathBuf {
     let safe_id: String = id
         .chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') { ch } else { '_' })
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
+                ch
+            } else {
+                '_'
+            }
+        })
         .collect();
-    PathBuf::from("data").join("terminal-logs").join(format!("{safe_id}.ansi.log"))
+    PathBuf::from("data")
+        .join("terminal-logs")
+        .join(format!("{safe_id}.ansi.log"))
 }
 
 async fn resolve_session_view(state: &AppState, id: &str) -> Result<SessionView, ApiError> {
@@ -3284,7 +3614,10 @@ async fn resolve_session_log_path(id: &str) -> Result<(SessionSource, PathBuf), 
         if !os_agent_is_attached(&record).await {
             return Err(ApiError::not_found("OS agent is detached from this API"));
         }
-        let path = record.log_path.map(PathBuf::from).unwrap_or_else(|| terminal_log_path(id));
+        let path = record
+            .log_path
+            .map(PathBuf::from)
+            .unwrap_or_else(|| terminal_log_path(id));
         return Ok((SessionSource::Os, path));
     }
     Ok((SessionSource::Internal, terminal_log_path(id)))
@@ -3300,14 +3633,23 @@ where
         let state_for_status = state.clone();
         let id_for_status = id.clone();
         handle.spawn(async move {
-            if let Some(session) = state_for_status.sessions.read().await.get(&id_for_status).cloned() {
+            if let Some(session) = state_for_status
+                .sessions
+                .read()
+                .await
+                .get(&id_for_status)
+                .cloned()
+            {
                 let mut session = session.lock().await;
                 session.meta.status = SessionStatus::Exited;
                 session.meta.exit_code = code;
                 session.meta.updated_at = Utc::now();
             }
         });
-        let _ = state.tx.send(ServerEvent::Exit { session_id: id, code });
+        let _ = state.tx.send(ServerEvent::Exit {
+            session_id: id,
+            code,
+        });
     });
 }
 
@@ -3335,13 +3677,18 @@ async fn read_os_agent_views(internal_ids: &HashSet<String>) -> Vec<SessionView>
 }
 
 async fn read_os_agent_record(id: &str) -> Option<OsAgentRecord> {
-    read_os_agent_records().await.into_iter().find(|record| record.id == id)
+    read_os_agent_records()
+        .await
+        .into_iter()
+        .find(|record| record.id == id)
 }
 
 fn os_agent_registry_path() -> Option<PathBuf> {
     let raw = env::var("LCC_OS_AGENT_REGISTRY").ok();
     match raw.as_deref().map(str::trim) {
-        Some("") | Some("0") | Some("off") | Some("false") | Some("none") | Some("disabled") => None,
+        Some("") | Some("0") | Some("off") | Some("false") | Some("none") | Some("disabled") => {
+            None
+        }
         Some(path) => Some(PathBuf::from(path)),
         None => None,
     }
@@ -3382,10 +3729,14 @@ async fn read_os_agent_attachment_states() -> HashMap<String, OsAgentAttachmentR
     serde_json::from_str::<HashMap<String, OsAgentAttachmentRecord>>(text).unwrap_or_default()
 }
 
-async fn write_os_agent_attachment_states(states: &HashMap<String, OsAgentAttachmentRecord>) -> Result<(), ApiError> {
+async fn write_os_agent_attachment_states(
+    states: &HashMap<String, OsAgentAttachmentRecord>,
+) -> Result<(), ApiError> {
     let path = os_agent_attachment_path();
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).await.map_err(ApiError::internal)?;
+        fs::create_dir_all(parent)
+            .await
+            .map_err(ApiError::internal)?;
     }
     let text = serde_json::to_string_pretty(states).map_err(ApiError::internal)?;
     fs::write(path, text).await.map_err(ApiError::internal)
@@ -3403,11 +3754,17 @@ async fn set_os_agent_attached(id: &str, attached: bool) -> Result<(), ApiError>
     write_os_agent_attachment_states(&states).await
 }
 
-fn os_agent_attached_by_default(record: &OsAgentRecord, states: &HashMap<String, OsAgentAttachmentRecord>) -> bool {
+fn os_agent_attached_by_default(
+    record: &OsAgentRecord,
+    states: &HashMap<String, OsAgentAttachmentRecord>,
+) -> bool {
     if let Some(state) = states.get(&record.id) {
         return state.attached;
     }
-    !matches!(record.status.as_deref(), Some("stopped") | Some("exited") | Some("error"))
+    !matches!(
+        record.status.as_deref(),
+        Some("stopped") | Some("exited") | Some("error")
+    )
 }
 
 async fn os_agent_is_attached(record: &OsAgentRecord) -> bool {
@@ -3447,7 +3804,9 @@ fn normalize_os_agent_write_url(url: &str) -> String {
 async fn os_agent_control_write(write_url: &str, data: &str) -> Result<(), ApiError> {
     let base = write_url.trim_end_matches('/');
     let Some(rest) = base.strip_prefix("http://") else {
-        return Err(ApiError::bad_request("OS agent write endpoint must use http://"));
+        return Err(ApiError::bad_request(
+            "OS agent write endpoint must use http://",
+        ));
     };
     let (host_port, path_prefix) = match rest.split_once('/') {
         Some((host_port, path)) => (host_port, format!("/{path}")),
@@ -3458,19 +3817,27 @@ async fn os_agent_control_write(write_url: &str, data: &str) -> Result<(), ApiEr
         .map_err(ApiError::internal)?
         .next()
         .ok_or_else(|| ApiError::bad_request("OS agent write endpoint did not resolve"))?;
-    let body = serde_json::to_vec(&json!({ "input": data, "data": data })).map_err(ApiError::internal)?;
+    let body =
+        serde_json::to_vec(&json!({ "input": data, "data": data })).map_err(ApiError::internal)?;
     let request = format!(
         "POST {} HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         path_prefix, host_port, body.len()
     );
     let mut stream = TcpStream::connect(addr).await.map_err(ApiError::internal)?;
-    stream.write_all(request.as_bytes()).await.map_err(ApiError::internal)?;
+    stream
+        .write_all(request.as_bytes())
+        .await
+        .map_err(ApiError::internal)?;
     stream.write_all(&body).await.map_err(ApiError::internal)?;
     stream.flush().await.map_err(ApiError::internal)?;
     let mut response = Vec::new();
-    stream.read_to_end(&mut response).await.map_err(ApiError::internal)?;
-    let status = parse_http_response_status(&response)
-        .ok_or_else(|| ApiError::bad_request("OS agent write endpoint returned an invalid HTTP response"))?;
+    stream
+        .read_to_end(&mut response)
+        .await
+        .map_err(ApiError::internal)?;
+    let status = parse_http_response_status(&response).ok_or_else(|| {
+        ApiError::bad_request("OS agent write endpoint returned an invalid HTTP response")
+    })?;
     if !(200..300).contains(&status) {
         return Err(ApiError::bad_request(format!(
             "OS agent control write failed with HTTP {status}: {}",
@@ -3508,7 +3875,11 @@ fn http_response_body_preview(response: &[u8]) -> String {
 fn os_agent_view(record: OsAgentRecord, preview: String, attached: bool) -> SessionView {
     let now = Utc::now();
     let interactive = os_agent_write_url(&record).is_some();
-    let log_path = record.log_path.as_ref().map(PathBuf::from).unwrap_or_else(|| terminal_log_path(&record.id));
+    let log_path = record
+        .log_path
+        .as_ref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| terminal_log_path(&record.id));
     let status = match record.status.as_deref() {
         Some("stopped") => SessionStatus::Stopped,
         Some("error") => SessionStatus::Error,
@@ -3581,7 +3952,9 @@ async fn add_peer_message(
     Json(input): Json<CreatePeerMessage>,
 ) -> Result<(StatusCode, Json<PeerMessage>), ApiError> {
     let message = PeerMessage {
-        id: input.id.unwrap_or_else(|| format!("peer-msg-{}", Utc::now().timestamp_millis())),
+        id: input
+            .id
+            .unwrap_or_else(|| format!("peer-msg-{}", Utc::now().timestamp_millis())),
         at: input.at.unwrap_or_else(Utc::now),
         from_peer: require_field(input.from_peer, "from")?,
         to: require_field(input.to, "to")?,
@@ -3621,7 +3994,9 @@ async fn add_work_task_event(
 ) -> Result<(StatusCode, Json<WorkTaskEvent>), ApiError> {
     let kind = normalize_work_event_kind(input.kind)?;
     let event = WorkTaskEvent {
-        id: input.id.unwrap_or_else(|| format!("work-event-{}", Utc::now().timestamp_millis())),
+        id: input
+            .id
+            .unwrap_or_else(|| format!("work-event-{}", Utc::now().timestamp_millis())),
         task_id: id.clone(),
         at: input.at.unwrap_or_else(Utc::now),
         kind,
@@ -3649,12 +4024,18 @@ async fn add_memory(
     Json(input): Json<CreateMemoryEntry>,
 ) -> Result<(StatusCode, Json<MemoryEntry>), ApiError> {
     let entry = MemoryEntry {
-        id: input.id.unwrap_or_else(|| format!("mem-{}", Utc::now().timestamp_millis())),
+        id: input
+            .id
+            .unwrap_or_else(|| format!("mem-{}", Utc::now().timestamp_millis())),
         at: input.at.unwrap_or_else(Utc::now),
         agent_id: require_field(input.agent_id, "agent_id")?,
         layer: normalize_memory_layer(input.layer)?,
         scope: normalize_memory_scope(input.scope)?,
-        kind: input.kind.unwrap_or_else(|| "note".to_string()).trim().to_ascii_lowercase(),
+        kind: input
+            .kind
+            .unwrap_or_else(|| "note".to_string())
+            .trim()
+            .to_ascii_lowercase(),
         topic: input.topic.filter(|value| !value.trim().is_empty()),
         content: require_field(input.content, "content")?,
         importance: input.importance.unwrap_or(3).clamp(0, 10),
@@ -3701,7 +4082,12 @@ async fn recover_agent_context(
     let active_tasks: Vec<WorkTask> = ledger
         .tasks
         .iter()
-        .filter(|task| matches!(task.status, WorkTaskStatus::Todo | WorkTaskStatus::Doing | WorkTaskStatus::Blocked))
+        .filter(|task| {
+            matches!(
+                task.status,
+                WorkTaskStatus::Todo | WorkTaskStatus::Doing | WorkTaskStatus::Blocked
+            )
+        })
         .cloned()
         .collect();
     let mut recent_events = ledger.events.clone();
@@ -3739,7 +4125,10 @@ async fn get_daily_memory(
     daily_memory_response(&state.daily_memory_store, &date).await
 }
 
-async fn daily_memory_response(store: &DailyMemoryStore, date: &str) -> Result<Json<Value>, ApiError> {
+async fn daily_memory_response(
+    store: &DailyMemoryStore,
+    date: &str,
+) -> Result<Json<Value>, ApiError> {
     let path = store.path_for_date(date)?;
     match fs::read_to_string(&path).await {
         Ok(content) => Ok(Json(json!({
@@ -3766,12 +4155,17 @@ async fn append_daily_memory_checkpoint(
     Json(input): Json<AppendDailyMemoryCheckpoint>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
     let content = require_field(input.content, "content")?;
-    let entry = state.daily_memory_store.append_checkpoint(&date, input.heading, content, input.source, input.tags).await?;
+    let entry = state
+        .daily_memory_store
+        .append_checkpoint(&date, input.heading, content, input.source, input.tags)
+        .await?;
     Ok((StatusCode::CREATED, Json(entry)))
 }
 
 fn current_kst_date() -> String {
-    (Utc::now() + ChronoDuration::hours(9)).format("%Y-%m-%d").to_string()
+    (Utc::now() + ChronoDuration::hours(9))
+        .format("%Y-%m-%d")
+        .to_string()
 }
 
 fn validate_daily_memory_date(date: &str) -> Result<(), ApiError> {
@@ -3790,25 +4184,38 @@ fn validate_daily_memory_date(date: &str) -> Result<(), ApiError> {
 }
 
 fn normalize_memory_layer(layer: Option<String>) -> Result<String, ApiError> {
-    let value = layer.unwrap_or_else(|| "working".to_string()).trim().to_ascii_lowercase();
+    let value = layer
+        .unwrap_or_else(|| "working".to_string())
+        .trim()
+        .to_ascii_lowercase();
     if ["working", "short_term", "long_term"].contains(&value.as_str()) {
         Ok(value)
     } else {
-        Err(ApiError::bad_request("layer must be working, short_term, or long_term"))
+        Err(ApiError::bad_request(
+            "layer must be working, short_term, or long_term",
+        ))
     }
 }
 
 fn normalize_memory_scope(scope: Option<String>) -> Result<String, ApiError> {
-    let value = scope.unwrap_or_else(|| "personal".to_string()).trim().to_ascii_lowercase();
+    let value = scope
+        .unwrap_or_else(|| "personal".to_string())
+        .trim()
+        .to_ascii_lowercase();
     if ["personal", "team", "global"].contains(&value.as_str()) {
         Ok(value)
     } else {
-        Err(ApiError::bad_request("scope must be personal, team, or global"))
+        Err(ApiError::bad_request(
+            "scope must be personal, team, or global",
+        ))
     }
 }
 
 fn normalize_work_event_kind(kind: Option<String>) -> Result<String, ApiError> {
-    let kind = kind.unwrap_or_else(|| "note".to_string()).trim().to_ascii_lowercase();
+    let kind = kind
+        .unwrap_or_else(|| "note".to_string())
+        .trim()
+        .to_ascii_lowercase();
     if allowed_work_event_kinds().contains(&kind.as_str()) {
         return Ok(kind);
     }
@@ -3856,7 +4263,9 @@ async fn create_canvas(
 ) -> Result<(StatusCode, Json<Canvas>), ApiError> {
     let now = Utc::now();
     let canvas = Canvas {
-        id: input.id.unwrap_or_else(|| format!("canvas-{}", now.timestamp_millis())),
+        id: input
+            .id
+            .unwrap_or_else(|| format!("canvas-{}", now.timestamp_millis())),
         title: input.title.unwrap_or_else(|| "Untitled Canvas".to_string()),
         owner: input.owner.unwrap_or_else(|| "Lucas".to_string()),
         status: "active".to_string(),
@@ -3873,7 +4282,10 @@ async fn create_canvas(
     Ok((StatusCode::CREATED, Json(canvas)))
 }
 
-async fn get_canvas(State(state): State<AppState>, Path(id): Path<String>) -> Result<Json<Canvas>, ApiError> {
+async fn get_canvas(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Canvas>, ApiError> {
     state.canvas_store.get(&id).await.map(Json)
 }
 
@@ -3897,7 +4309,10 @@ async fn update_canvas(
     Ok(Json(canvas))
 }
 
-async fn get_content(State(state): State<AppState>, Path(id): Path<String>) -> Result<Json<Vec<CanvasSection>>, ApiError> {
+async fn get_content(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Vec<CanvasSection>>, ApiError> {
     Ok(Json(state.canvas_store.get(&id).await?.content))
 }
 
@@ -3916,7 +4331,10 @@ async fn put_content(
     Ok(Json(canvas.content))
 }
 
-async fn get_messages(State(state): State<AppState>, Path(id): Path<String>) -> Result<Json<Vec<CanvasMessage>>, ApiError> {
+async fn get_messages(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Vec<CanvasMessage>>, ApiError> {
     Ok(Json(state.canvas_store.get(&id).await?.messages))
 }
 
@@ -3976,7 +4394,9 @@ impl CanvasStore {
 
     async fn persist(&self, canvases: &[Canvas]) -> Result<(), ApiError> {
         let raw = serde_json::to_string_pretty(canvases).map_err(ApiError::internal)?;
-        fs::write(&*self.path, raw).await.map_err(ApiError::internal)
+        fs::write(&*self.path, raw)
+            .await
+            .map_err(ApiError::internal)
     }
 
     async fn insert(&self, canvas: Canvas) -> Result<(), ApiError> {
@@ -4041,7 +4461,9 @@ impl PeerStore {
             .open(&*self.path)
             .await
             .map_err(ApiError::internal)?;
-        file.write_all(raw.as_bytes()).await.map_err(ApiError::internal)?;
+        file.write_all(raw.as_bytes())
+            .await
+            .map_err(ApiError::internal)?;
         file.write_all(b"\n").await.map_err(ApiError::internal)?;
         file.flush().await.map_err(ApiError::internal)?;
         self.messages.write().await.push(message);
@@ -4072,7 +4494,9 @@ impl WorkLedgerStore {
 
     async fn persist(&self, ledger: &WorkLedger) -> Result<(), ApiError> {
         let raw = serde_json::to_string_pretty(ledger).map_err(ApiError::internal)?;
-        fs::write(&*self.path, raw).await.map_err(ApiError::internal)
+        fs::write(&*self.path, raw)
+            .await
+            .map_err(ApiError::internal)
     }
 
     async fn upsert_task(&self, id: &str, input: UpsertWorkTask) -> Result<WorkTask, ApiError> {
@@ -4169,7 +4593,9 @@ impl MemoryStore {
             .open(&*self.path)
             .await
             .map_err(ApiError::internal)?;
-        file.write_all(raw.as_bytes()).await.map_err(ApiError::internal)?;
+        file.write_all(raw.as_bytes())
+            .await
+            .map_err(ApiError::internal)?;
         file.write_all(b"\n").await.map_err(ApiError::internal)?;
         file.flush().await.map_err(ApiError::internal)?;
         self.entries.write().await.push(entry);
@@ -4178,7 +4604,10 @@ impl MemoryStore {
 
     async fn search(&self, query: &MemoryQuery) -> Vec<MemoryEntry> {
         let include_archived = query.include_archived.unwrap_or(false);
-        let search = query.search.as_ref().map(|value| value.to_ascii_lowercase());
+        let search = query
+            .search
+            .as_ref()
+            .map(|value| value.to_ascii_lowercase());
         let scope_set: Option<HashSet<String>> = query.scope.as_ref().map(|value| {
             value
                 .split(',')
@@ -4231,9 +4660,20 @@ impl MemoryStore {
                     .as_ref()
                     .map(|needle| {
                         entry.content.to_ascii_lowercase().contains(needle)
-                            || entry.topic.as_ref().map(|topic| topic.to_ascii_lowercase().contains(needle)).unwrap_or(false)
-                            || entry.tags.iter().any(|tag| tag.to_ascii_lowercase().contains(needle))
-                            || entry.ledger_item.as_ref().map(|item| item.to_ascii_lowercase().contains(needle)).unwrap_or(false)
+                            || entry
+                                .topic
+                                .as_ref()
+                                .map(|topic| topic.to_ascii_lowercase().contains(needle))
+                                .unwrap_or(false)
+                            || entry
+                                .tags
+                                .iter()
+                                .any(|tag| tag.to_ascii_lowercase().contains(needle))
+                            || entry
+                                .ledger_item
+                                .as_ref()
+                                .map(|item| item.to_ascii_lowercase().contains(needle))
+                                .unwrap_or(false)
                     })
                     .unwrap_or(true)
             })
@@ -4321,7 +4761,9 @@ impl DailyMemoryStore {
             .open(&path)
             .await
             .map_err(ApiError::internal)?;
-        file.write_all(body.as_bytes()).await.map_err(ApiError::internal)?;
+        file.write_all(body.as_bytes())
+            .await
+            .map_err(ApiError::internal)?;
         file.flush().await.map_err(ApiError::internal)?;
         Ok(json!({
             "ok": true,
@@ -4338,14 +4780,20 @@ impl DailyMemoryStore {
 }
 
 fn default_sections() -> Vec<CanvasSection> {
-    ["Problem", "Decision", "Tasks", "Evidence", "Terminal Agents"]
-        .into_iter()
-        .map(|title| CanvasSection {
-            id: title.to_lowercase().replace(' ', "-"),
-            title: title.to_string(),
-            body: String::new(),
-        })
-        .collect()
+    [
+        "Problem",
+        "Decision",
+        "Tasks",
+        "Evidence",
+        "Terminal Agents",
+    ]
+    .into_iter()
+    .map(|title| CanvasSection {
+        id: title.to_lowercase().replace(' ', "-"),
+        title: title.to_string(),
+        body: String::new(),
+    })
+    .collect()
 }
 
 fn default_work_ledger() -> WorkLedger {
@@ -4392,7 +4840,9 @@ fn default_work_ledger() -> WorkLedger {
 
 fn today_at_utc(hour: u32, minute: u32) -> DateTime<Utc> {
     let date = Utc::now().date_naive();
-    let naive = date.and_hms_opt(hour, minute, 0).expect("seed time must be valid");
+    let naive = date
+        .and_hms_opt(hour, minute, 0)
+        .expect("seed time must be valid");
     DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc)
 }
 
@@ -4414,27 +4864,45 @@ struct ApiError {
 
 impl ApiError {
     fn not_found(message: impl Into<String>) -> Self {
-        Self { status: StatusCode::NOT_FOUND, message: message.into() }
+        Self {
+            status: StatusCode::NOT_FOUND,
+            message: message.into(),
+        }
     }
 
     fn conflict(message: impl Into<String>) -> Self {
-        Self { status: StatusCode::CONFLICT, message: message.into() }
+        Self {
+            status: StatusCode::CONFLICT,
+            message: message.into(),
+        }
     }
 
     fn bad_request(message: impl Into<String>) -> Self {
-        Self { status: StatusCode::BAD_REQUEST, message: message.into() }
+        Self {
+            status: StatusCode::BAD_REQUEST,
+            message: message.into(),
+        }
     }
 
     fn unauthorized(message: impl Into<String>) -> Self {
-        Self { status: StatusCode::UNAUTHORIZED, message: message.into() }
+        Self {
+            status: StatusCode::UNAUTHORIZED,
+            message: message.into(),
+        }
     }
 
     fn service_unavailable(message: impl Into<String>) -> Self {
-        Self { status: StatusCode::SERVICE_UNAVAILABLE, message: message.into() }
+        Self {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            message: message.into(),
+        }
     }
 
     fn internal(error: impl std::fmt::Display) -> Self {
-        Self { status: StatusCode::INTERNAL_SERVER_ERROR, message: error.to_string() }
+        Self {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: error.to_string(),
+        }
     }
 }
 
