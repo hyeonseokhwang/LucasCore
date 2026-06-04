@@ -705,6 +705,20 @@ struct SessionLogTailResponse {
     tail: SessionLogTail,
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct SessionTailQuery {
+    limit: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SessionRuntimeTailResponse {
+    session_id: String,
+    source: SessionSource,
+    tail: String,
+    bytes: usize,
+    truncated: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct SessionLogTail {
     ansi: String,
@@ -1052,6 +1066,7 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/sessions/pty-stats", get(pty_stats))
             .route("/api/sessions/:id", get(get_session).delete(delete_session))
             .route("/api/sessions/:id/log", get(get_session_log))
+            .route("/api/sessions/:id/tail", get(get_session_runtime_tail))
             .route("/api/sessions/:id/write", post(write_session))
             .route("/api/sessions/:id/prompt-text", post(write_session_prompt_text))
             .route("/api/sessions/:id/prompt-submit", post(write_session_prompt_submit))
@@ -1470,6 +1485,47 @@ async fn get_session_log(
             "unsupported log format '{other}'; expected ansi, text, or json"
         ))),
     }
+}
+
+async fn get_session_runtime_tail(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Query(query): Query<SessionTailQuery>,
+) -> Result<Json<SessionRuntimeTailResponse>, ApiError> {
+    let runtime_config = terminal_runtime_config();
+    let limit = query
+        .limit
+        .unwrap_or(runtime_config.card_replay_bytes)
+        .clamp(512, runtime_config.max_replay_bytes) as usize;
+
+    if state.sessions.read().await.contains_key(&id) {
+        let tail = terminal_buffer_tail(&state, &id, limit).unwrap_or_default();
+        let bytes = tail.len();
+        return Ok(Json(SessionRuntimeTailResponse {
+            session_id: id,
+            source: SessionSource::Internal,
+            tail,
+            bytes,
+            truncated: bytes >= limit,
+        }));
+    }
+
+    let Some(record) = read_os_agent_record(&id).await else {
+        return Err(ApiError::not_found("session not found"));
+    };
+    if !os_agent_is_attached(&record).await {
+        return Err(ApiError::conflict("OS agent is detached from this API"));
+    }
+    let tail = read_os_agent_preview(&record).await.unwrap_or_default();
+    let tail = tail_string_by_bytes(&tail, limit);
+    let bytes = tail.len();
+    Ok(Json(SessionRuntimeTailResponse {
+        session_id: id,
+        source: SessionSource::Os,
+        tail,
+        bytes,
+        truncated: bytes >= limit,
+    }))
 }
 
 async fn read_tail_lossy(path: PathBuf, max_bytes: u64) -> std::io::Result<String> {

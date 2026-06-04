@@ -13,6 +13,7 @@ This file is the restart-safe context for branch agents.
 - Restart memory recovery is mandatory: after reading policy, Caesar/Max/agents must search the relevant ledgers, decision logs, recent evidence files, and session state for their current lane, then continue from the latest verified state instead of waiting silently.
 - When port 9001 is restored or restarted, bootstrap only Caesar (`ceo`) and Max (`dev-lead`) by default; worker agents are spawned only after Caesar/Max inspect the ledger and identify required capacity.
 - Do not rely on terminal scrollback as memory. Use file ledgers, decision logs, terminal log tails, evidence artifacts, and API session state as restart memory.
+- Active incident memory: before touching terminal card/fullscreen/popout rendering, terminal snapshot/replay, or newline/submit behavior, read `docs/terminal-cardview-recovery-lessons-20260603.md`. The 2026-06-03 recovery was falsely reported complete because Caesar verified fragment metrics and DOM classes but missed the Codex-like fullscreen visual contract.
 - Do not print or persist real tokens.
 - HQ hotline works through `http://hanwool-board.duckdns.org:9082/api/lcc`.
 - Current HQ live speak passed with msgId `msg-1780198222835-f4b511e9`.

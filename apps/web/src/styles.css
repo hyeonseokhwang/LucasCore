@@ -1469,7 +1469,7 @@ textarea {
   padding: 8px 9px;
   overflow: auto;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   word-break: normal;
   background: #070c15;
   color: #dbe7f6;
@@ -1491,6 +1491,7 @@ textarea {
 .terminal-snapshot-line {
   min-height: 1.28em;
   color: #dbe7f6;
+  white-space: pre-wrap;
 }
 
 .terminal-snapshot-line.is-blank {

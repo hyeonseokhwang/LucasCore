@@ -12,6 +12,7 @@ Required first reads:
 6. `docs/development-architecture-policy-20260603.md`
 7. `docs/developer-source-change-conventions-20260603.md`
 8. `docs/lucas-initiative-operating-principles-20260603.md`
+9. `docs/terminal-cardview-recovery-lessons-20260603.md` when touching terminal card/fullscreen/popout rendering, terminal snapshot/replay, or terminal newline/submit behavior.
 
 Emergency ledger-reference suspension:
 
@@ -23,6 +24,8 @@ Emergency ledger-reference suspension:
 - Every non-trivial task must have one integrated task markdown file before execution continues. Use that file as the shared context, live progress note, decision record, evidence index, and final task report. Managers must keep it current enough that a restarted agent can recover the task without relying on chat scrollback.
 - Before implementation, every assignee must pass an understanding check. The assignee must restate the objective, Lucas intent, forbidden actions, protected contracts, planned files, and acceptance checks in their own words. Max/Caesar must approve that restatement before `permission=edit` work begins.
 - The integrated task file must be written as a complete execution packet, not a terse note. Include the full business/operational context, the user-visible symptom, the wrong interpretations already observed, exact forbidden paths, source root, expected behavior in plain language, and concrete acceptance evidence. A new assignee should be able to read only that file and avoid the same misunderstanding.
+- Reported work is not complete until a final reviewer explicitly gives `OK_SIGN`. If evidence is missing, behavior is wrong, Lucas intent drifted, or the reviewer is unsure, the result is `RETURN_FOR_FIX` and the task returns to the owner with concrete required fixes.
+- Terminal recovery lesson: a fragment-free terminal view is not enough. For card/fullscreen/popout work, completion requires the same current snapshot source, no view-created attach/replay, and a Codex-like visual result verified from screenshots. Read `docs/terminal-cardview-recovery-lessons-20260603.md` before editing or accepting such work.
 
 Operating rules:
 

@@ -1,24 +1,33 @@
-﻿{
-    "sessions":  {
-
-                 },
-    "updatedAt":  "2026-06-02T19:45:12.966Z",
-    "lastResult":  {
-                       "at":  "2026-06-02T19:45:12.966Z",
-                       "ok":  true,
-                       "apiBase":  "http://127.0.0.1:9001",
-                       "thresholdMs":  2000,
-                       "intervalMs":  1000,
-                       "anomalyThresholdMs":  5000,
-                       "sessionCount":  10,
-                       "actions":  [
-
-                                   ],
-                       "alerts":  [
-
-                                  ]
-                   },
-    "anomalies":  {
-
-                  }
+{
+  "sessions": {},
+  "anomalies": {
+    "dev-lead": {
+      "fingerprint": "bbb290565bf7eac7",
+      "firstSeenAt": 1780456783212,
+      "lastSeenAt": 1780456783212,
+      "lastAlertAt": null,
+      "tailState": "non-operational",
+      "preview": "•2"
+    },
+    "developer-8": {
+      "fingerprint": "e72b311319a94e5d",
+      "firstSeenAt": 1780456783212,
+      "lastSeenAt": 1780456783212,
+      "lastAlertAt": null,
+      "tailState": "non-operational",
+      "preview": "•\nW\nWo\nor\nrk"
+    }
+  },
+  "updatedAt": "2026-06-03T03:19:43.285Z",
+  "lastResult": {
+    "at": "2026-06-03T03:19:43.285Z",
+    "ok": true,
+    "apiBase": "http://127.0.0.1:9001",
+    "thresholdMs": 1000,
+    "intervalMs": 1000,
+    "anomalyThresholdMs": 5000,
+    "sessionCount": 5,
+    "actions": [],
+    "alerts": []
+  }
 }

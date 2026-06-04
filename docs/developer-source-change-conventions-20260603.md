@@ -112,6 +112,32 @@ The team lead then:
 
 Workers should not mark a task completed merely because they finished local work. Completion requires team-lead acceptance and the relevant QA/commit gate.
 
+## Final Review OK Or Return Gate
+
+Reported work is not accepted work.
+
+Every task that reaches `reported`, `qa-pass`, or "ready" state must go through a final reviewer before it can be treated as complete, restored to the ledger, committed, promoted, or reported upward as done.
+
+The final reviewer must choose exactly one outcome:
+
+- `OK_SIGN`: the reviewer inspected the report, evidence, and acceptance criteria and explicitly accepts the work.
+- `RETURN_FOR_FIX`: the reviewer rejects the report as incomplete, incorrect, unverified, unclear, or off-intent and sends it back with concrete required fixes.
+
+If the reviewer cannot tell whether the work is correct, the outcome is `RETURN_FOR_FIX`, not silent acceptance.
+
+Required final review line:
+
+```text
+FINAL_REVIEW task=<task-id> reviewer=<id> outcome=<OK_SIGN|RETURN_FOR_FIX> evidence=<file/test/screenshot/session> reason=<why> required_fix=<none|items>
+```
+
+Ledger/status implication:
+
+- Worker `reported` means "please review."
+- `qa-pass` means QA evidence passed, but closure still needs the authorized final reviewer when the task has a protected, policy, UI, runtime, or commit gate.
+- `completed` is valid only after `OK_SIGN` by the authorized reviewer.
+- `RETURN_FOR_FIX` moves the task back to `doing` or `blocked` with a named owner and required fix list.
+
 ## Ledger Authority And Approval Line
 
 Workers may write ledger updates, but their updates are review requests and evidence reports unless they have explicit approval authority for that item.

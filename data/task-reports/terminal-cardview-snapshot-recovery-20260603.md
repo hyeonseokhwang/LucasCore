@@ -65,14 +65,16 @@ For company operation, every task file must preserve the full context, the human
 ## Correct Technical Direction
 
 - Preserve 9001 singleton. Do not restart 9001 without Lucas approval.
-- Keep raw PTY stream/log handling separate from card display source.
-- Add or use a backend current display snapshot for each session.
-- `SessionView.preview_text` for card/fullscreen display must come from that current display snapshot, not from raw PTY stream tail after ANSI stripping.
-- Card/fullscreen/popout should display the snapshot as plain terminal text unless Lucas separately requests an interactive terminal mode.
+- Card/fullscreen/popout display source is the 9001 runtime PTY/Codex terminal buffer tail.
+- Do not use `SessionView.preview`, `preview_text`, spinner snapshots, sanitizer summaries, or file logs as the display source.
+- Do not write terminal output to a file and read it back for this feature.
+- The UI is a passive renderer of the runtime buffer tail only.
 
 ## Known Wrong Interpretations
 
 - "Fix terminal replay" is wrong if it leads to replaying output into every new view.
+- "Choose the best preview" is wrong. `preview`/`preview_text` are not the display source.
+- "Use file log tail" is wrong. Lucas ordered the live terminal text tail, not a file-backed log path.
 - "Use xterm for fullscreen" is wrong if it attaches to the PTY or requests replay on view creation.
 - "Use static preview" is wrong if it makes the terminal look dead and stops live monitoring.
 - "Add sanitizer filters" is wrong if it hides fragments instead of fixing the source.
@@ -163,6 +165,8 @@ REPORT terminal-cardview-snapshot-recovery state=<reported|blocked|completed> ch
 
 ## Active Stop Rules
 
+- 2026-06-03 follow-up critique: the previous completion claim was invalid. It removed replay/fragment symptoms but failed the Lucas-visible contract: fullscreen still did not look like a Codex terminal. Root cause was Caesar narrowing the task to fragment/replay metrics, omitting the opposite-regression guard for plain/static-looking DOM output, and accepting DOM/line-count evidence without screenshot-based visual review.
+- Restart-safe lesson file: `docs/terminal-cardview-recovery-lessons-20260603.md`. Future sessions must read it before terminal card/fullscreen/popout rendering work.
 - Developer 1 must not edit `terminalReplay.ts` or add fragment filters for this task unless Caesar explicitly reopens that lane.
 - Developer 8 must not report DOM state as acceptable unless it is checked against Lucas intent: one source, no view-created replay, no xterm attach for passive display, no raw-tail fragment source.
 - Max must not accept reports that say "tests pass" unless the report also explains whether the implementation preserves Lucas intent.

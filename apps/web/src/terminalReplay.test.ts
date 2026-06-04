@@ -67,6 +67,27 @@ test("terminalRuntimeTailTextForDisplay removes repeated standalone spinner bloc
   assert.equal(terminalRuntimeTailTextForDisplay(input, 20), "report line\r\nnext line");
 });
 
+test("terminalPreviewTextForSnapshot removes working counter residue lines", () => {
+  const text = "real report\r\nWorking 9 01\r\n◦ Working 6\r\nnext prompt";
+  assert.equal(terminalPreviewTextForSnapshot("", text, 20), "real report\r\nnext prompt");
+});
+
+test("terminalPreviewTextForSnapshot removes numbered spinner suffix residue", () => {
+  const text = "real report\r\nng8\r\nH\r\nnext prompt";
+  assert.equal(terminalPreviewTextForSnapshot("", text, 20), "real report\r\nnext prompt");
+});
+
+test("terminalPreviewTextForSnapshot removes compacted spinner residue lines", () => {
+  const text = [
+    "real report",
+    "[K      W",
+    "•Wo  or    rk  ki    in    Wng  Wog    or",
+    "◦  ki    in  ng2    g",
+    "next prompt"
+  ].join("\r\n");
+  assert.equal(terminalPreviewTextForSnapshot("", text, 20), "real report\r\nnext prompt");
+});
+
 test("terminalDisplaySnapshotForPreview keeps the current cursor-overwritten text", () => {
   const input = "ready\r\n\u001b[3;1HWorking\u001b[3;1HW\u001b[3;1HWo\u001b[3;1HWorking";
   const output = terminalDisplaySnapshotForPreview(input, 10);

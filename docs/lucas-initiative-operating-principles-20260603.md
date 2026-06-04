@@ -34,6 +34,19 @@ Every operating surface and loop should help answer or raise these questions:
 
 If a loop observes a state that implies one of these questions, it should record evidence and notify the proper owner instead of only logging raw data.
 
+## Final Review Discipline
+
+LCC work does not close because an agent says it is done.
+
+Every meaningful task must have a final review decision before it is considered complete:
+
+- `OK_SIGN`: the authorized reviewer checked the report, evidence, and Lucas intent and accepts the result.
+- `RETURN_FOR_FIX`: the reviewer sends the work back because evidence is missing, the behavior is wrong, the report is unclear, or the work drifted from Lucas intent.
+
+When in doubt, return it for fix. Silent acceptance is not allowed.
+
+Areum and supervision roles must make missing review gates visible. Max must not promote developer work without final review. Caesar must not report protected or user-visible work as done without an explicit OK sign.
+
 ## 9100 Operating Board Direction
 
 9100 is not a raw ledger list. It is the executive operating board.
@@ -55,4 +68,3 @@ Raw JSON and long event bodies belong behind targeted drilldown only.
 On restart, agents must recover this operating frame from startup policy files before acting.
 
 The boot context should point to this document; this document holds the durable principle. Do not rely on chat scrollback for this memory.
-

@@ -29,15 +29,12 @@
 } from "lucide-react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { WebLinksAddon } from "@xterm/addon-web-links";
-import { Unicode11Addon } from "@xterm/addon-unicode11";
 import React, { FormEvent, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { normalizePromptForSubmit } from "./terminalPrompt";
-import { tailTerminalLines } from "./terminalReplay";
+import { tailTerminalLines, terminalPreviewTextForSnapshot } from "./terminalReplay";
 import { clipboardItemsContainImage, readTerminalCardDraft, writeTerminalCardDraft } from "./terminalCardComposer";
 import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
-import { enqueueTerminalWriteItems, shiftTerminalWriteItem, type TerminalWriteItem } from "./xtermWriteQueue";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
@@ -187,7 +184,10 @@ function sessionsMatch(prev: Session[], next: Session[]) {
       a.status !== b.status ||
       a.pid !== b.pid ||
       a.created_at !== b.created_at ||
+      a.updated_at !== b.updated_at ||
       a.exit_code !== b.exit_code ||
+      a.preview !== b.preview ||
+      a.preview_text !== b.preview_text ||
       a.args.length !== b.args.length
     ) {
       return false;
@@ -747,6 +747,85 @@ function blurActiveXtermHelper() {
   document.querySelectorAll<HTMLTextAreaElement>("textarea.xterm-helper-textarea").forEach((item) => item.blur());
 }
 
+type SnapshotTokenKind = "text" | "model" | "path" | "url" | "kv";
+
+type SnapshotToken = {
+  text: string;
+  kind: SnapshotTokenKind;
+};
+
+function terminalSnapshotLineClass(line: string) {
+  const trimmed = line.trim();
+  if (!trimmed) return "is-blank";
+  if (/^(?:›|\$|PS>|#|>)/.test(trimmed)) return "is-prompt";
+  if (/^(?:•\s+)?(?:Running|Ran|Edited)\b/.test(trimmed)) return "is-ran";
+  if (/^(?:◦\s+)?Working\b/.test(trimmed)) return "is-working";
+  if (/^(?:REPORT|DEV_REPORT|DEV_CHANGE_CHECK|MANAGER_CHECK|ACK|HEARTBEAT|UNDERSTANDING(?:_CHECK|_APPROVED|_CORRECTION)?|POLICY_ACK)\b/.test(trimmed)) {
+    return "is-report";
+  }
+  if (/^(?:warning|warn|error|failed|blocked|conflict)\b/i.test(trimmed)) return "is-warning";
+  if (/^(?:gpt-|claude-|codex|model\b)/i.test(trimmed)) return "is-status";
+  if (/^(?:[-*•]|\d+\.)\s/.test(trimmed)) return "is-list";
+  return "is-output";
+}
+
+function tokenizeTerminalSnapshotLine(line: string): SnapshotToken[] {
+  const pattern = /(https?:\/\/\S+|(?:[A-Za-z]:)?[\\/][^\s]+|(?:^|\s)--[A-Za-z0-9-]+|(?:^|\s)[A-Za-z_][A-Za-z0-9_]*=("[^"]*"|'[^']*'|[^\s]+)|\bgpt-[A-Za-z0-9.\-]+\b)/g;
+  const tokens: SnapshotToken[] = [];
+  let lastIndex = 0;
+  for (const match of line.matchAll(pattern)) {
+    const value = match[0];
+    const index = match.index ?? 0;
+    if (index > lastIndex) tokens.push({ text: line.slice(lastIndex, index), kind: "text" });
+    const normalized = value.trimStart();
+    let kind: SnapshotTokenKind = "text";
+    if (/^https?:\/\//.test(normalized)) kind = "url";
+    else if (/^(?:[A-Za-z]:)?[\\/]/.test(normalized)) kind = "path";
+    else if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(normalized) || /^--[A-Za-z0-9-]+/.test(normalized)) kind = "kv";
+    else if (/^gpt-/.test(normalized)) kind = "model";
+    tokens.push({ text: value, kind });
+    lastIndex = index + value.length;
+  }
+  if (lastIndex < line.length) tokens.push({ text: line.slice(lastIndex), kind: "text" });
+  return tokens;
+}
+
+function PassiveTerminalSnapshot({
+  session,
+  variant = "card"
+}: {
+  session: Session;
+  variant?: "card" | "fullscreen";
+}) {
+  const lastStableSnapshotRef = useRef("");
+  const snapshot = terminalPreviewTextForSnapshot(session.preview || "", session.preview_text || "");
+  if (snapshot.trim()) {
+    lastStableSnapshotRef.current = snapshot;
+  }
+  const displaySnapshot = snapshot.trim() ? snapshot : lastStableSnapshotRef.current;
+  const lines = displaySnapshot ? displaySnapshot.split(/\r?\n/) : ["Loading terminal output..."];
+  return (
+    <div className={`terminal-snapshot-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} aria-label={`${session.name} terminal preview`}>
+      {lines.map((line, index) => {
+        const lineClass = terminalSnapshotLineClass(line);
+        const tokens = tokenizeTerminalSnapshotLine(line);
+        return (
+          <div key={`${session.id}-${index}`} className={`terminal-snapshot-line ${lineClass}`}>
+            {tokens.map((token, tokenIndex) => (
+              <span
+                key={`${session.id}-${index}-${tokenIndex}`}
+                className={token.kind === "text" ? undefined : `terminal-token token-${token.kind}`}
+              >
+                {token.text}
+              </span>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function App() {
   const popoutSessionId = readTerminalPopoutSessionId();
   if (popoutSessionId) return <TerminalPopoutPage sessionId={popoutSessionId} />;
@@ -901,7 +980,7 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
       {error ? (
         <div className="error">{error}</div>
       ) : session ? (
-        <HqTerminalPreview sessionId={session.id} status={session.status} ownsSessionResize={false} />
+        <PassiveTerminalSnapshot session={session} variant="fullscreen" />
       ) : (
         <pre className="terminal-snapshot-preview fullscreen" aria-label="Loading terminal output">
           Loading terminal output...
@@ -2338,7 +2417,7 @@ const TerminalCard = React.memo(function TerminalCard({
           </button>
         </div>
       </header>
-      <HqTerminalPreview sessionId={session.id} status={session.status} />
+      <PassiveTerminalSnapshot session={session} />
       {attachments.length > 0 && (
         <div className="terminal-attachment-strip" onMouseDown={stopTerminalTileFooterMouseDown}>
           {attachments.map((attachment) => (
@@ -2514,7 +2593,7 @@ function FullscreenTerminalModal({
             <X size={16} />
           </button>
         </header>
-        <HqTerminalPreview sessionId={session.id} status={session.status} variant="fullscreen" />
+        <PassiveTerminalSnapshot session={session} variant="fullscreen" />
         <footer onMouseDown={stopTerminalTileFooterMouseDown}>
           <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
             {sessions.map((item) => (
@@ -2549,284 +2628,6 @@ function FullscreenTerminalModal({
     </div>
   );
 }
-
-const HqTerminalPreview = React.memo(function HqTerminalPreview({
-  sessionId,
-  status,
-  variant = "card",
-  isVisible = true,
-  ownsSessionResize = false
-}: {
-  sessionId: string;
-  status: SessionStatus;
-  variant?: "card" | "fullscreen";
-  isVisible?: boolean;
-  ownsSessionResize?: boolean;
-}) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const termRef = useRef<XTerm | null>(null);
-  const fitRef = useRef<FitAddon | null>(null);
-  const socketRef = useRef<WebSocket | null>(null);
-  const attachedRef = useRef(false);
-  const inputQueueRef = useRef<string[]>([]);
-  const writeQueueRef = useRef<TerminalWriteItem[]>([]);
-  const queuedWriteBytesRef = useRef(0);
-  const writeDrainScheduledRef = useRef(false);
-  const writeDrainRafRef = useRef<number | null>(null);
-  const userScrolledUpRef = useRef(false);
-  const programmaticScrollRef = useRef(false);
-  const isVisibleRef = useRef(isVisible);
-  const lastDimsRef = useRef({ cols: 0, rows: 0 });
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const term = new XTerm({
-      fontSize: variant === "fullscreen" ? 13 : 12,
-      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace",
-      fontWeight: 400,
-      fontWeightBold: 700,
-      drawBoldTextInBrightColors: false,
-      cursorBlink: status === "active",
-      scrollback: TERMINAL_SCROLLBACK_LINES,
-      convertEol: true,
-      allowProposedApi: true,
-      theme: {
-        background: "#070c15",
-        foreground: "#e2e8f0",
-        cursor: "#60a5fa",
-        selectionBackground: "#334155",
-        black: "#1e293b",
-        red: "#f87171",
-        green: "#4ade80",
-        yellow: "#facc15",
-        blue: "#60a5fa",
-        magenta: "#c084fc",
-        cyan: "#22d3ee",
-        white: "#f1f5f9",
-        brightBlack: "#475569",
-        brightRed: "#fca5a5",
-        brightGreen: "#86efac",
-        brightYellow: "#fde047",
-        brightBlue: "#93c5fd",
-        brightMagenta: "#d8b4fe",
-        brightCyan: "#67e8f9",
-        brightWhite: "#f8fafc"
-      }
-    });
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.loadAddon(new WebLinksAddon());
-    const unicode11 = new Unicode11Addon();
-    term.loadAddon(unicode11);
-    term.unicode.activeVersion = "11";
-    term.open(container);
-    termRef.current = term;
-    fitRef.current = fit;
-
-    const scrollToBottom = () => {
-      if (userScrolledUpRef.current) return;
-      programmaticScrollRef.current = true;
-      requestAnimationFrame(() => {
-        term.scrollToBottom();
-        window.setTimeout(() => {
-          programmaticScrollRef.current = false;
-        }, 100);
-      });
-    };
-    const fitAndResize = () => {
-      if (!isVisibleRef.current) return;
-      try {
-        fit.fit();
-      } catch {}
-      const dims = { cols: term.cols, rows: term.rows };
-      const last = lastDimsRef.current;
-      if (dims.cols !== last.cols || dims.rows !== last.rows) {
-        lastDimsRef.current = dims;
-        const socket = socketRef.current;
-        if (ownsSessionResize && socket?.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: "resize", sessionId, cols: dims.cols, rows: dims.rows }));
-        }
-      }
-    };
-    const scheduleFit = (delays = [0, 120, 360, 700]) => {
-      const timers = delays.map((delay) =>
-        window.setTimeout(() => {
-          requestAnimationFrame(fitAndResize);
-        }, delay)
-      );
-      return () => {
-        for (const timer of timers) window.clearTimeout(timer);
-      };
-    };
-
-    const viewport = container.querySelector(".xterm-viewport") as HTMLElement | null;
-    const handleViewportScroll = () => {
-      if (programmaticScrollRef.current || !viewport) return;
-      userScrolledUpRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight > 50;
-    };
-    viewport?.addEventListener("scroll", handleViewportScroll, { passive: true });
-
-    const sendSocket = (payload: unknown) => {
-      const socket = socketRef.current;
-      const text = JSON.stringify(payload);
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(text);
-      } else if (socket?.readyState === WebSocket.CONNECTING) {
-        socket.addEventListener("open", () => socket.send(text), { once: true });
-      }
-    };
-    const drainWriteQueue = () => {
-      writeDrainRafRef.current = null;
-      const shifted = shiftTerminalWriteItem(writeQueueRef.current, queuedWriteBytesRef.current);
-      writeQueueRef.current = shifted.queue;
-      queuedWriteBytesRef.current = shifted.queuedBytes;
-      const item = shifted.item;
-      if (!item) {
-        writeDrainScheduledRef.current = false;
-        return;
-      }
-      term.write(item.data, () => {
-        item.onDrained?.();
-        if (item.stickToBottom) scrollToBottom();
-        if (writeQueueRef.current.length > 0) {
-          writeDrainRafRef.current = window.requestAnimationFrame(drainWriteQueue);
-        } else {
-          writeDrainScheduledRef.current = false;
-        }
-      });
-    };
-    const enqueueWrite = (data: string, item: Omit<TerminalWriteItem, "data">) => {
-      if (!data) {
-        item.onDrained?.();
-        return;
-      }
-      const next = enqueueTerminalWriteItems(writeQueueRef.current, queuedWriteBytesRef.current, data, item);
-      writeQueueRef.current = next.queue;
-      queuedWriteBytesRef.current = next.queuedBytes;
-      if (!writeDrainScheduledRef.current) {
-        writeDrainScheduledRef.current = true;
-        writeDrainRafRef.current = window.requestAnimationFrame(drainWriteQueue);
-      }
-    };
-
-    const socket = new WebSocket(terminalWsUrl());
-    socketRef.current = socket;
-    socket.addEventListener("open", () => {
-      attachedRef.current = false;
-      inputQueueRef.current = [];
-      userScrolledUpRef.current = false;
-      term.reset();
-      fitAndResize();
-      const attachMessage: Record<string, unknown> = {
-        type: "attach",
-        sessionId,
-        requestReplay: true,
-        replayBytes: TERMINAL_VIEW_REPLAY_BYTES
-      };
-      if (ownsSessionResize) {
-        attachMessage.cols = term.cols;
-        attachMessage.rows = term.rows;
-      }
-      sendSocket(attachMessage);
-      scheduleFit([0, 120, 360, 700, 1200]);
-      window.setTimeout(scrollToBottom, 1000);
-    });
-    socket.addEventListener("message", (event) => {
-      let message: Record<string, unknown>;
-      try {
-        message = JSON.parse(event.data);
-      } catch {
-        return;
-      }
-      const messageSessionId = message.sessionId ?? message.session_id;
-      if (messageSessionId && messageSessionId !== sessionId) return;
-      if (message.type === "attached") {
-        attachedRef.current = true;
-        const queue = inputQueueRef.current.splice(0);
-        for (const data of queue) sendSocket({ type: "input", sessionId, data });
-        return;
-      }
-      if (message.type === "replay") {
-        term.reset();
-        writeQueueRef.current = [];
-        queuedWriteBytesRef.current = 0;
-        enqueueWrite(String(message.data ?? ""), {
-          kind: "replay",
-          stickToBottom: true,
-          onDrained: () => {
-            scheduleFit([0, 120, 360]);
-            scrollToBottom();
-          }
-        });
-        return;
-      }
-      if (message.type === "output") {
-        enqueueWrite(String(message.data ?? ""), { kind: "output", stickToBottom: true });
-        return;
-      }
-      if (message.type === "exit") {
-        enqueueWrite("\r\n\x1b[31m[Process exited]\x1b[0m\r\n", { kind: "system", stickToBottom: true });
-      }
-    });
-    socket.addEventListener("error", () => undefined);
-
-    const dataDisposable = term.onData((data) => {
-      const processed = data.includes("\n") ? data.replace(/\n/g, "\r") : data;
-      if (!attachedRef.current) {
-        inputQueueRef.current.push(processed);
-        return;
-      }
-      sendSocket({ type: "input", sessionId, data: processed });
-    });
-    term.element?.addEventListener("mousedown", () => term.focus());
-
-    document.fonts.ready.then(() => {
-      term.options.fontFamily = "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace";
-      scheduleFit([0, 120, 360]);
-    }).catch(() => undefined);
-    const cancelInitialFit = scheduleFit();
-    const resizeObserver = new ResizeObserver(() => {
-      scheduleFit([0, 120]);
-    });
-    resizeObserver.observe(container);
-    window.addEventListener("resize", fitAndResize);
-
-    return () => {
-      viewport?.removeEventListener("scroll", handleViewportScroll);
-      window.removeEventListener("resize", fitAndResize);
-      if (writeDrainRafRef.current !== null) window.cancelAnimationFrame(writeDrainRafRef.current);
-      cancelInitialFit();
-      resizeObserver.disconnect();
-      dataDisposable.dispose();
-      closeWebSocket(socket);
-      term.dispose();
-      termRef.current = null;
-      fitRef.current = null;
-      socketRef.current = null;
-      attachedRef.current = false;
-      inputQueueRef.current = [];
-      writeQueueRef.current = [];
-      queuedWriteBytesRef.current = 0;
-      writeDrainScheduledRef.current = false;
-      writeDrainRafRef.current = null;
-    };
-  }, [sessionId, status, variant, ownsSessionResize]);
-
-  useEffect(() => {
-    isVisibleRef.current = isVisible;
-    if (!isVisible) return;
-    requestAnimationFrame(() => {
-      try {
-        fitRef.current?.fit();
-      } catch {}
-      if (!userScrolledUpRef.current) termRef.current?.scrollToBottom();
-    });
-  }, [isVisible]);
-
-  return <div className={`xterm-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} ref={containerRef} />;
-});
 
 function TerminalLogView({ text }: { text: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);

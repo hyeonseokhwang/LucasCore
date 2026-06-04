@@ -26,19 +26,20 @@ export function sanitizeTerminalPreviewForSummary(value: string) {
 }
 
 export function terminalRuntimeTailTextForDisplay(value: string, maxLines = TERMINAL_RENDER_LINE_LIMIT) {
-  const lines = String(value || "")
-    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\x1b[PX^_][\s\S]*?\x1b\\/g, "")
-    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/\x1b\[[^\r\n]*/g, "")
-    .replace(/\x1b[()#%*+\-.\/][0-9A-Za-z]/g, "")
-    .replace(/\x1b[@-Z\\-_]/g, "")
-    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((line) => line.trimEnd())
-    .filter((line) => !isSpinnerFragmentLine(line));
+  const lines = compactTerminalSnapshotLines(
+    String(value || "")
+      .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
+      .replace(/\x1b[PX^_][\s\S]*?\x1b\\/g, "")
+      .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+      .replace(/\x1b\[[^\r\n]*/g, "")
+      .replace(/\x1b[()#%*+\-.\/][0-9A-Za-z]/g, "")
+      .replace(/\x1b[@-Z\\-_]/g, "")
+      .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .map((line) => line.trimEnd())
+  );
   while (lines.length > 0 && isTrailingSpinnerFragment(lines[lines.length - 1])) {
     lines.pop();
   }
@@ -53,6 +54,9 @@ function isTrailingSpinnerFragment(line: string) {
 function isSpinnerFragmentLine(line: string) {
   const trimmed = normalizeVolatileTerminalFragment(line);
   if (!trimmed) return true;
+  const ascii = trimmed.replace(/[^\x20-\x7e]/g, "").trim();
+  if (/^[A-Za-z]$/.test(ascii)) return true;
+  if (/^(?:W|Wo|Wng|Wog|or|rk|ki|in|ng|g|in\d+|ng\d+|\d+)?$/.test(ascii)) return true;
   return /^(?:[◦•°]\s*)?(?:W|Wo|Wng|Wog|or|rk|ki|in|ng|g|in\d+|\d+)?$/.test(trimmed);
 }
 
@@ -62,6 +66,32 @@ function normalizeVolatileTerminalFragment(line: string) {
     .replace(/^\[?\?\d{1,6}[a-z]/i, "")
     .replace(/^\[?\d{1,6}[;:]\d{1,6}[a-z]/i, "")
     .trim();
+}
+
+function isVolatileNoiseLine(line: string) {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  const withoutCursorResidue = trimmed
+    .replace(/\[[0-9;?]*[A-Za-z]/g, " ")
+    .replace(/^[•◦]\s*/, "")
+    .trim();
+  const tokens = withoutCursorResidue.split(/\s+/).filter(Boolean);
+  const fragmentToken = /^(?:W|Wo|Wng|Wog|or|rk|ki|in|ng|g|in\d+|ng\d+|\d+)$/;
+  if (tokens.length > 0 && tokens.every((token) => fragmentToken.test(token))) return true;
+  if (/^(?:[•◦]\s*)?Working\s+(?:\d+\s*){1,4}$/.test(trimmed)) return true;
+  if (/^[•◦]\s*$/.test(trimmed)) return true;
+  if (/^[?▁─━═·•:;,.()\[\]<>|\\/\-_=+*`'"]+$/.test(trimmed)) return true;
+  const visible = Array.from(trimmed).filter((char) => /\S/.test(char));
+  if (visible.length < 12) return false;
+  const noisy = visible.filter((char) => /[?▁─━═]/.test(char)).length;
+  return noisy / visible.length >= 0.6;
+}
+
+function compactTerminalSnapshotLines(lines: string[]) {
+  return lines.filter((line) => {
+    if (!line.trim()) return true;
+    return !isSpinnerFragmentLine(line) && !isVolatileNoiseLine(line);
+  });
 }
 
 type TerminalDisplaySnapshot = {
@@ -203,9 +233,13 @@ export function terminalDisplaySnapshotForPreview(value: string, maxRows = TERMI
 }
 
 export function terminalPreviewTextForSnapshot(rawPreview: string, textPreview: string, maxRows = TERMINAL_RENDER_LINE_LIMIT) {
-  const textSnapshot = sanitizeTerminalPreviewForSummary(tailTerminalLines(textPreview || rawPreview, maxRows));
+  const textSnapshot = compactTerminalSnapshotLines(
+    sanitizeTerminalPreviewForSummary(tailTerminalLines(textPreview || rawPreview, maxRows)).split(/\r?\n/)
+  ).join("\r\n");
   if (/\x1b[\[\]]/.test(rawPreview)) {
-    const rawSnapshot = sanitizeTerminalPreviewForSummary(terminalDisplaySnapshotForPreview(rawPreview, maxRows));
+    const rawSnapshot = compactTerminalSnapshotLines(
+      sanitizeTerminalPreviewForSummary(terminalDisplaySnapshotForPreview(rawPreview, maxRows)).split(/\r?\n/)
+    ).join("\r\n");
     if (!rawSnapshot) return textSnapshot;
     if (!textSnapshot) return rawSnapshot;
     return scoreTerminalSnapshot(textSnapshot) > scoreTerminalSnapshot(rawSnapshot) ? textSnapshot : rawSnapshot;
