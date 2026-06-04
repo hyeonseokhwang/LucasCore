@@ -459,3 +459,20 @@ Verification:
 - Caesar prompt contains `/api/memory/recover/ceo` and daily-memory fallback.
 - Max prompt contains `/api/memory/recover/dev-lead` and daily-memory fallback.
 - `cargo check --manifest-path apps/api/Cargo.toml --bin lcc-core-api`: pass with existing warnings only.
+
+## Phase 4 Live Boot Injection Prompt
+
+Gap found after Phase 3:
+
+- `data/agent-boot-prompts.json` was aligned, but the web-side `codexStartupPolicyPrompt` still injected the older generic startup checklist.
+- A newly spawned agent could therefore receive a live boot prompt that did not explicitly require memory recovery.
+
+Change:
+
+- `apps/web/src/main.tsx`
+- Added boot step 7: recover memory before reporting by inspecting `GET /api/memory/recover/<agent-id>` when 9001 is available, otherwise read `data/daily-memory/YYYY-MM-DD.md` and `data/memory-ledger.jsonl` directly.
+
+Verification:
+
+- `npm --prefix apps/web test -- --runInBand`: pass, 48 tests.
+- `rg` confirmed the live boot prompt, Caesar/Max boot prompts, and restart-safe memory contract all name recover/daily-memory paths.

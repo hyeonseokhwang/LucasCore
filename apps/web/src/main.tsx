@@ -3014,6 +3014,7 @@ function codexStartupPolicyPrompt(agentId: string) {
     "4. Read docs/agent-state-management-policy-20260531.md.",
     "5. Read data/ceo-command-ledger.json and data/work-ledger.json before selecting or accepting work.",
     "6. Read data/agent-boot-prompts.json and follow your own role entry.",
+    "7. Recover memory before reporting: if 9001 is available, inspect GET /api/memory/recover/<agent-id>; otherwise read data/daily-memory/YYYY-MM-DD.md and data/memory-ledger.jsonl directly.",
     "Rules: 9001 startup begins with Caesar and Max. Caesar/Max inspect the ledger before spawning workers. Workers are spawned only for needed active ledger items. Preserve 9001 singleton context. UI work needs CDP/screenshot evidence. Do not code before POLICY_ACK unless Lucas gives a direct emergency instruction.",
     "Reply first with: POLICY_ACK agent=<id> role=<role> read=<files> mode=<normal|lucas-direct|emergency> ledger_item=<id|none> next=<first action> blocker=<none|...>"
   ].join("\n");
