@@ -35,7 +35,7 @@ import React, { FormEvent, startTransition, useCallback, useDeferredValue, useEf
 import { createRoot } from "react-dom/client";
 import { normalizePromptForSubmit } from "./terminalPrompt";
 import { tailTerminalLines } from "./terminalReplay";
-import { clipboardItemsContainImage } from "./terminalCardComposer";
+import { clipboardItemsContainImage, readTerminalCardDraft, writeTerminalCardDraft } from "./terminalCardComposer";
 import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
 import { enqueueTerminalWriteItems, shiftTerminalWriteItem, type TerminalWriteItem } from "./xtermWriteQueue";
 import "@xterm/xterm/css/xterm.css";
@@ -755,14 +755,14 @@ function App() {
 
 function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(() => readTerminalCardDraft(window.localStorage, sessionId));
   const [target, setTarget] = useState(sessionId);
   const [error, setError] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [composerFocused, setComposerFocused] = useState(false);
   const [attachments, setAttachments] = useState<TerminalImageAttachment[]>([]);
   const [expandedAttachment, setExpandedAttachment] = useState<TerminalImageAttachment | null>(null);
-  const promptRef = useRef("");
+  const promptRef = useRef(prompt);
   const sendingRef = useRef(false);
   const attachmentsRef = useRef<TerminalImageAttachment[]>([]);
   const pendingRefreshRef = useRef(false);
@@ -852,6 +852,7 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
   function handlePromptChange(value: string) {
     promptRef.current = value;
     setPrompt(value);
+    writeTerminalCardDraft(window.localStorage, sessionId, value);
   }
 
   async function send() {
@@ -868,6 +869,7 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
       await sendTerminalPrompt(target, payload);
       promptRef.current = "";
       setPrompt("");
+      writeTerminalCardDraft(window.localStorage, sessionId, "");
       setAttachments((current) => {
         current.forEach((attachment) => URL.revokeObjectURL(attachment.url));
         return [];
@@ -2192,11 +2194,17 @@ const TerminalCard = React.memo(function TerminalCard({
   const [composerFocused, setComposerFocused] = useState(false);
   const [attachments, setAttachments] = useState<TerminalImageAttachment[]>([]);
   const [expandedAttachment, setExpandedAttachment] = useState<TerminalImageAttachment | null>(null);
-  const promptRef = useRef("");
+  const promptRef = useRef(prompt);
   const sendingRef = useRef(false);
   const attachmentsRef = useRef<TerminalImageAttachment[]>([]);
   const composerDirty = composerFocused || isSending || prompt.trim().length > 0 || attachments.length > 0;
   useTerminalComposerActivity(`card:${session.id}`, composerDirty);
+
+  useEffect(() => {
+    const nextPrompt = readTerminalCardDraft(window.localStorage, session.id);
+    promptRef.current = nextPrompt;
+    setPrompt(nextPrompt);
+  }, [session.id]);
 
   useEffect(() => {
     attachmentsRef.current = attachments;
@@ -2235,6 +2243,7 @@ const TerminalCard = React.memo(function TerminalCard({
   function handlePromptChange(value: string) {
     promptRef.current = value;
     setPrompt(value);
+    writeTerminalCardDraft(window.localStorage, session.id, value);
   }
 
   async function send() {
@@ -2251,6 +2260,7 @@ const TerminalCard = React.memo(function TerminalCard({
       await sendTerminalPrompt(target, payload);
       promptRef.current = "";
       setPrompt("");
+      writeTerminalCardDraft(window.localStorage, session.id, "");
       setAttachments((current) => {
         current.forEach((attachment) => URL.revokeObjectURL(attachment.url));
         return [];
@@ -2285,8 +2295,8 @@ const TerminalCard = React.memo(function TerminalCard({
     const top = Math.max(0, Math.round((window.screen.height - height) / 2));
     window.open(
       url.toString(),
-      `terminal-${session.id}`,
-      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no,menubar=no,toolbar=no`
+      `terminal-${session.id}-${Date.now()}`,
+      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=no,menubar=no,toolbar=no,noopener=yes`
     );
   }
 
@@ -2437,15 +2447,21 @@ function FullscreenTerminalModal({
   onClose: () => void;
   onChanged: () => Promise<void>;
 }) {
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(() => readTerminalCardDraft(window.localStorage, session.id));
   const [target, setTarget] = useState(session.id);
   const [isSending, setIsSending] = useState(false);
   const [composerFocused, setComposerFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const promptRef = useRef("");
+  const promptRef = useRef(prompt);
   const sendingRef = useRef(false);
   const composerDirty = composerFocused || isSending || prompt.trim().length > 0;
   useTerminalComposerActivity(`fullscreen:${session.id}`, composerDirty);
+
+  useEffect(() => {
+    const nextPrompt = readTerminalCardDraft(window.localStorage, session.id);
+    promptRef.current = nextPrompt;
+    setPrompt(nextPrompt);
+  }, [session.id]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -2465,6 +2481,7 @@ function FullscreenTerminalModal({
       await sendTerminalPrompt(target, payload);
       promptRef.current = "";
       setPrompt("");
+      writeTerminalCardDraft(window.localStorage, session.id, "");
       await onChanged();
     } finally {
       sendingRef.current = false;
@@ -2518,6 +2535,7 @@ function FullscreenTerminalModal({
             onChange={(event) => {
               promptRef.current = event.target.value;
               setPrompt(event.target.value);
+              writeTerminalCardDraft(window.localStorage, session.id, event.target.value);
             }}
             onKeyDown={handleComposerKeyDown}
             placeholder="지시 입력"
