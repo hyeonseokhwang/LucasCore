@@ -2789,6 +2789,19 @@ fn terminal_current_display_for_attach(state: &AppState, id: &str) -> Option<Str
     terminal_display_snapshot_ansi_text(state, id)
         .map(|snapshot| format!("{TERMINAL_ATTACH_CLEAR_PREFIX}{snapshot}"))
         .or_else(|| terminal_display_snapshot_text(state, id))
+        .or_else(|| {
+            // Smart fallback: ring buffer의 마지막 ESC[2J(clear-screen) 이후 내용만 전송.
+            // buffer_tail 전체 전송 시 누적된 CRLF ghost가 같이 오므로, 마지막 화면 갱신
+            // 이전 내용은 버리고 clear+redraw 결과만 클라이언트에 제공한다.
+            let tail = terminal_buffer_tail(state, id, terminal_runtime_config().preview_bytes)?;
+            if let Some(pos) = tail.rfind("\x1b[2J") {
+                let from_clear = &tail[pos..];
+                Some(from_clear.to_string())
+            } else {
+                // 클리어 시퀀스 없음 → 빈 화면 전송 (ghost 방지)
+                Some(TERMINAL_ATTACH_CLEAR_PREFIX.to_string())
+            }
+        })
         .filter(|text| !text.is_empty())
 }
 
