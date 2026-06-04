@@ -2672,16 +2672,25 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     const socket = new WebSocket(terminalWsUrl());
     socketRef.current = socket;
     socket.addEventListener("open", () => {
-      requestAnimationFrame(() => {
-        if (socket.readyState !== WebSocket.OPEN || socketRef.current !== socket) return;
-        try {
-          fitRef.current?.fit();
-        } catch {}
-        const cols = Number.isFinite(term.cols) && term.cols > 0 ? term.cols : 80;
-        const rows = Number.isFinite(term.rows) && term.rows > 0 ? term.rows : 24;
-        socket.send(JSON.stringify({ type: "attach", sessionId, cols, rows }));
-        socket.send(JSON.stringify({ type: "resize", sessionId, cols, rows }));
-      });
+      const tryAttach = (attemptsLeft: number) => {
+        requestAnimationFrame(() => {
+          if (socket.readyState !== WebSocket.OPEN || socketRef.current !== socket) return;
+          const container = containerRef.current;
+          const fit = fitRef.current;
+          if (!container || !fit) return;
+          const { width, height } = container.getBoundingClientRect();
+          if ((width === 0 || height === 0) && attemptsLeft > 0) {
+            tryAttach(attemptsLeft - 1);
+            return;
+          }
+          try { fit.fit(); } catch {}
+          const cols = Number.isFinite(term.cols) && term.cols > 0 ? term.cols : 80;
+          const rows = Number.isFinite(term.rows) && term.rows > 0 ? term.rows : 24;
+          socket.send(JSON.stringify({ type: "attach", sessionId, cols, rows }));
+          socket.send(JSON.stringify({ type: "resize", sessionId, cols, rows }));
+        });
+      };
+      tryAttach(8);
     });
     socket.addEventListener("message", (event) => {
       let message: Record<string, unknown>;
@@ -2704,9 +2713,6 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       }
       const shouldFollowTail = message.type === "snapshot" || term.buffer.active.viewportY >= term.buffer.active.baseY - 1;
       term.write(data, () => {
-        try {
-          fitRef.current?.fit();
-        } catch {}
         if (shouldFollowTail) term.scrollToBottom();
       });
     });
