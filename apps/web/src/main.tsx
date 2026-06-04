@@ -102,8 +102,8 @@ const API_ORIGIN = VITE_ENV.VITE_LCC_API_ORIGIN || window.location.origin;
 const WS_ORIGIN =
   VITE_ENV.VITE_LCC_WS_ORIGIN ||
   API_ORIGIN.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
-const TERMINAL_SCROLLBACK_LINES = 120;
-const TERMINAL_PREVIEW_SCROLLBACK_LINES = 512;
+const TERMINAL_SCROLLBACK_LINES = 500;
+const TERMINAL_PREVIEW_SCROLLBACK_LINES = 500;
 const HIDDEN_TERMINAL_TEAMS = new Set(["verification"]);
 const activeTerminalComposerKeys = new Set<string>();
 const terminalComposerSubscribers = new Set<() => void>();
@@ -2615,7 +2615,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       fontSize: variant === "fullscreen" ? 13 : 12,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace",
       scrollback: TERMINAL_PREVIEW_SCROLLBACK_LINES,
-      convertEol: true,
+      convertEol: false,
       cursorBlink: false,
       disableStdin: true,
       theme: {
@@ -2708,7 +2708,7 @@ function TerminalLogView({ text }: { text: string }) {
       fontSize: 12,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace",
       scrollback: TERMINAL_SCROLLBACK_LINES,
-      convertEol: true,
+      convertEol: false,
       cursorBlink: false,
       theme: {
         background: "#070c15",
