@@ -1,0 +1,15 @@
+{
+  "sessions": {},
+  "updatedAt": "2026-06-04T12:25:41.325Z",
+  "lastRuntime": {
+    "at": "2026-06-04T12:25:41.325Z",
+    "ok": true,
+    "intervalMs": 5000,
+    "detectThresholdMs": 8000,
+    "repeatAlertMs": 120000,
+    "endAtMs": 1780585200000,
+    "activeSessionCount": 5,
+    "trackedIssueCount": 0,
+    "detections": []
+  }
+}
