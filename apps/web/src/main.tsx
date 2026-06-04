@@ -2635,8 +2635,9 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     // Forward keyboard input to PTY via WS input message
     term.onData((data) => {
       const sock = socketRef.current;
-      if (sock?.readyState === WebSocket.OPEN) {
-        sock.send(JSON.stringify({ type: "input", data }));
+      const sid = currentSessionIdRef.current;
+      if (sock?.readyState === WebSocket.OPEN && sid) {
+        sock.send(JSON.stringify({ type: "input", sessionId: sid, data }));
       }
     });
     const runFit = () => {
