@@ -32,7 +32,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import React, { FormEvent, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { normalizePromptForSubmit } from "./terminalPrompt";
-import { tailTerminalLines } from "./terminalReplay";
+import { tailStringByUtf8Bytes, tailTerminalLines } from "./terminalReplay";
 import { isTerminalContainerReady } from "./terminalSurface";
 import { clipboardItemsContainImage, readTerminalCardDraft, writeTerminalCardDraft } from "./terminalCardComposer";
 import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
@@ -105,6 +105,8 @@ const WS_ORIGIN =
   API_ORIGIN.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
 const TERMINAL_SCROLLBACK_LINES = 500;
 const TERMINAL_PREVIEW_SCROLLBACK_LINES = 200;
+const TERMINAL_PREVIEW_SEED_BYTES = 16 * 1024;
+const TERMINAL_PREVIEW_CLEAR_PREFIX = "\x1b[2J\x1b[3J\x1b[H";
 const HIDDEN_TERMINAL_TEAMS = new Set(["verification"]);
 const activeTerminalComposerKeys = new Set<string>();
 const terminalComposerSubscribers = new Set<() => void>();
@@ -198,7 +200,9 @@ function sessionsMatch(prev: Session[], next: Session[]) {
       a.pid !== b.pid ||
       a.created_at !== b.created_at ||
       a.exit_code !== b.exit_code ||
-      a.args.length !== b.args.length
+      a.args.length !== b.args.length ||
+      (!hasMeaningfulTerminalText(a.preview_text) && hasMeaningfulTerminalText(b.preview_text)) ||
+      (!hasMeaningfulTerminalText(a.preview_ansi) && hasMeaningfulTerminalText(b.preview_ansi))
     ) {
       return false;
     }
@@ -207,6 +211,10 @@ function sessionsMatch(prev: Session[], next: Session[]) {
     }
   }
   return true;
+}
+
+function hasMeaningfulTerminalText(value: string | null | undefined) {
+  return typeof value === "string" && value.replace(/\s+/g, "").length > 0;
 }
 
 function canvasesMatch(prev: Canvas[], next: Canvas[]) {
@@ -944,7 +952,12 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
       {error ? (
         <div className="error">{error}</div>
       ) : session ? (
-        <HqTerminalPreview sessionId={session.id} variant="fullscreen" />
+        <HqTerminalPreview
+          sessionId={session.id}
+          initialPreviewText={session.preview_text || session.preview}
+          initialPreviewAnsi={session.preview_ansi}
+          variant="fullscreen"
+        />
       ) : (
         <pre className="terminal-snapshot-preview fullscreen" aria-label="Loading terminal output">
           Loading terminal output...
@@ -2387,7 +2400,11 @@ const TerminalCard = React.memo(function TerminalCard({
           </button>
         </div>
       </header>
-      <HqTerminalPreview sessionId={session.id} />
+      <HqTerminalPreview
+        sessionId={session.id}
+        initialPreviewText={session.preview_text || session.preview}
+        initialPreviewAnsi={session.preview_ansi}
+      />
       {attachments.length > 0 && (
         <div className="terminal-attachment-strip" onMouseDown={stopTerminalTileFooterMouseDown}>
           {attachments.map((attachment) => (
@@ -2563,7 +2580,12 @@ function FullscreenTerminalModal({
             <X size={16} />
           </button>
         </header>
-        <HqTerminalPreview sessionId={session.id} variant="fullscreen" />
+        <HqTerminalPreview
+          sessionId={session.id}
+          initialPreviewText={session.preview_text || session.preview}
+          initialPreviewAnsi={session.preview_ansi}
+          variant="fullscreen"
+        />
         <footer onMouseDown={stopTerminalTileFooterMouseDown}>
           <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
             {sessions.map((item) => (
@@ -2601,9 +2623,13 @@ function FullscreenTerminalModal({
 
 const HqTerminalPreview = React.memo(function HqTerminalPreview({
   sessionId,
+  initialPreviewText,
+  initialPreviewAnsi,
   variant = "card"
 }: {
   sessionId: string;
+  initialPreviewText?: string | null;
+  initialPreviewAnsi?: string | null;
   variant?: "card" | "fullscreen";
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -2611,6 +2637,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   const fitRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const seededSessionRef = useRef<string | null>(null);
+  const seededPreviewRef = useRef<string | null>(null);
   const currentSessionIdRef = useRef<string>("");
   const [wsKey, setWsKey] = React.useState(0);
 
@@ -2676,6 +2703,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       closeWebSocket(socketRef.current);
       socketRef.current = null;
       seededSessionRef.current = null;
+      seededPreviewRef.current = null;
       term.dispose();
     };
   }, [variant]);
@@ -2730,7 +2758,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     socket.addEventListener("close", () => {
       if (socketRef.current === socket) socketRef.current = null;
       setTimeout(() => {
-        if (terminalRef.current && currentSessionIdRef.current === sessionId) {
+        if (terminalRef.current && currentSessionIdRef.current === sessionId && socketRef.current === null) {
           setWsKey(k => k + 1);
         }
       }, 2000);
@@ -2740,6 +2768,22 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       closeWebSocket(socket);
     };
   }, [sessionId, wsKey]);
+
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (!term || seededSessionRef.current === sessionId) return;
+    const seedSource = hasMeaningfulTerminalText(initialPreviewAnsi)
+      ? `${TERMINAL_PREVIEW_CLEAR_PREFIX}${initialPreviewAnsi}`
+      : initialPreviewText;
+    if (typeof seedSource !== "string" || !hasMeaningfulTerminalText(seedSource)) return;
+    const seedKey = `${sessionId}:${seedSource.length}:${seedSource.slice(-80)}`;
+    if (seededPreviewRef.current === seedKey) return;
+    seededPreviewRef.current = seedKey;
+    term.reset();
+    term.write(tailTerminalLines(tailStringByUtf8Bytes(seedSource, TERMINAL_PREVIEW_SEED_BYTES)), () => {
+      term.scrollToBottom();
+    });
+  }, [sessionId, initialPreviewText, initialPreviewAnsi]);
 
   return (
     <div
