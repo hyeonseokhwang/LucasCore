@@ -2639,6 +2639,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   const seededSessionRef = useRef<string | null>(null);
   const seededPreviewRef = useRef<string | null>(null);
   const currentSessionIdRef = useRef<string>("");
+  const firstSnapshotReceivedRef = useRef<boolean>(false);
   const [wsKey, setWsKey] = React.useState(0);
 
   useEffect(() => {
@@ -2676,6 +2677,9 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     term.onResize(({ cols, rows }) => {
       if (resizeDebounce) clearTimeout(resizeDebounce);
       resizeDebounce = setTimeout(() => {
+        // Block resize WS until first snapshot/output received to prevent
+        // fitTimers-induced SIGWINCH clearing the screen before content arrives.
+        if (!firstSnapshotReceivedRef.current) return;
         const sock = socketRef.current;
         const sid = currentSessionIdRef.current;
         if (sock?.readyState === WebSocket.OPEN && sid) {
@@ -2713,6 +2717,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     if (!term) return;
     currentSessionIdRef.current = sessionId;
     seededSessionRef.current = null;
+    firstSnapshotReceivedRef.current = false;
     term.reset();
     closeWebSocket(socketRef.current);
     const socket = new WebSocket(terminalWsUrl());
@@ -2769,6 +2774,8 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       if (messageSessionId !== sessionId || (message.type !== "snapshot" && message.type !== "output")) return;
       const data = typeof message.data === "string" ? message.data : "";
       if (!data) return;
+      // Ungate resize WS on first content received
+      firstSnapshotReceivedRef.current = true;
       if (message.type === "snapshot" && seededSessionRef.current !== sessionId) {
         // Skip blank snapshots (CLEAR_PREFIX only or all whitespace) so initialPreviewText seed remains usable
         const visibleContent = data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").replace(/\s/g, "");
