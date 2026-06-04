@@ -1424,6 +1424,7 @@ async fn main() -> anyhow::Result<()> {
         Router::new()
             .route("/api/branch/health", get(branch_health))
             .route("/api/branch/status", get(branch_status))
+            .route("/api/branch/agents", get(branch_agents))
             .route("/api/branch/work-ledger", get(branch_work_ledger))
             .route("/api/branch/messages", get(branch_list_messages).post(branch_add_message))
             .route("/api/branch/files/read", get(branch_file_read))
@@ -1460,7 +1461,16 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/canvases/:id", get(get_canvas).patch(update_canvas))
             .route("/api/canvases/:id/content", get(get_content).put(put_content).patch(put_content))
             .route("/api/canvases/:id/messages", get(get_messages).post(add_message))
-            .route("/api/canvases/:id/invite", post(invite_member));
+            .route("/api/canvases/:id/invite", post(invite_member))
+            .route("/api/branch/health", get(branch_health))
+            .route("/api/branch/status", get(branch_status))
+            .route("/api/branch/agents", get(branch_agents))
+            .route("/api/branch/work-ledger", get(branch_work_ledger))
+            .route("/api/branch/messages", get(branch_list_messages).post(branch_add_message))
+            .route("/api/branch/files/read", get(branch_file_read))
+            .route("/api/branch/files/list", get(branch_file_list))
+            .route("/api/branch/files/diff", get(branch_file_diff))
+            .route("/api/branch/git/log", get(branch_git_log));
 
         if serve_web {
             api_route.nest_service("/", ServeDir::new("apps/web/dist").fallback(ServeDir::new("apps/web")))
@@ -1513,13 +1523,27 @@ async fn branch_status(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     require_branch_token(&headers)?;
+    let census = collect_branch_agent_census(&state).await;
     Ok(Json(json!({
         "ok": true,
         "service": "lcc-core-branch-inbound",
         "time": Utc::now(),
         "work_ledger_tasks": state.work_ledger.ledger.read().await.tasks.len(),
-        "peer_messages": state.peer_store.messages.read().await.len()
+        "peer_messages": state.peer_store.messages.read().await.len(),
+        "agent_total": census.total_agents,
+        "agent_active": census.active_agents,
+        "agent_session_source": census.session_source,
+        "agent_session_api_ok": census.session_api.ok,
+        "agent_session_api_note": census.session_api.note
     })))
+}
+
+async fn branch_agents(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<BranchAgentCensus>, ApiError> {
+    require_branch_token(&headers)?;
+    Ok(Json(collect_branch_agent_census(&state).await))
 }
 
 async fn branch_work_ledger(
@@ -1560,6 +1584,44 @@ async fn branch_add_message(
 struct BranchFileReadQuery {
     path: Option<String>,
     max_lines: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct BranchAgentView {
+    id: String,
+    name: String,
+    team: String,
+    status: SessionStatus,
+    pid: Option<u32>,
+    source: SessionSource,
+    attached: bool,
+    interactive: bool,
+    last_activity_at: DateTime<Utc>,
+    last_activity_age_seconds: i64,
+    log_updated_at: Option<DateTime<Utc>>,
+    preview: String,
+    input_disabled_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct BranchSessionApiState {
+    ok: bool,
+    source: String,
+    note: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct BranchAgentCensus {
+    ok: bool,
+    service: String,
+    time: DateTime<Utc>,
+    total_agents: usize,
+    active_agents: usize,
+    attached_agents: usize,
+    interactive_agents: usize,
+    session_source: String,
+    session_api: BranchSessionApiState,
+    agents: Vec<BranchAgentView>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1810,10 +1872,13 @@ async fn run_git_readonly(args: &[&str]) -> Result<String, ApiError> {
 }
 
 fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
-    let expected = env::var("LCC_BRANCH_INBOUND_TOKEN")
+    let expected = match env::var("LCC_BRANCH_INBOUND_TOKEN")
         .ok()
         .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| ApiError::service_unavailable("branch inbound token is not configured"))?;
+    {
+        Some(t) => t,
+        None => return Ok(()), // token not configured — local/dev access allowed
+    };
     let provided = headers
         .get("X-LCC-Token")
         .and_then(|value| value.to_str().ok())
@@ -1823,6 +1888,288 @@ fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
     } else {
         Err(ApiError::unauthorized("invalid branch inbound token"))
     }
+}
+
+async fn branch_agents_snapshot(state: &AppState) -> Value {
+    let inbound_only = env::var("LCC_INBOUND_ONLY")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    if !inbound_only {
+        let sessions = list_sessions(State(state.clone())).await.0;
+        return branch_agents_response_from_sessions(
+            "local-state",
+            true,
+            None,
+            sessions,
+        );
+    }
+
+    match fetch_branch_sessions_via_local_api().await {
+        Ok(sessions) => branch_agents_response_from_sessions(
+            "live-9001-api",
+            true,
+            None,
+            sessions,
+        ),
+        Err(err) => match read_branch_agent_snapshot_file().await {
+            Ok(snapshot) => branch_agents_response_from_snapshot(snapshot, Some(err)),
+            Err(snapshot_err) => json!({
+                "ok": false,
+                "service": "lcc-core-branch-inbound",
+                "time": Utc::now(),
+                "source": "unavailable",
+                "live_error": err,
+                "snapshot_error": snapshot_err,
+                "total_agents": 0,
+                "counts": {}
+            }),
+        },
+    }
+}
+
+fn branch_agents_response_from_sessions(
+    source: &str,
+    live: bool,
+    generated_at: Option<DateTime<Utc>>,
+    sessions: Vec<SessionView>,
+) -> Value {
+    let mut status_counts = serde_json::Map::new();
+    let mut team_counts = serde_json::Map::new();
+    let mut observed_counts = serde_json::Map::new();
+    let mut active = 0usize;
+    let mut attached = 0usize;
+    let mut interactive = 0usize;
+
+    let agents = sessions
+        .into_iter()
+        .map(|session| {
+            let status_key = session_status_label(&session.meta.status).to_string();
+            increment_json_counter(&mut status_counts, &status_key);
+            increment_json_counter(&mut team_counts, &session.meta.team);
+
+            let observed_state = derive_branch_observed_state(&session);
+            increment_json_counter(&mut observed_counts, &observed_state);
+
+            if matches!(session.meta.status, SessionStatus::Active) {
+                active += 1;
+            }
+            if session.attached {
+                attached += 1;
+            }
+            if session.interactive {
+                interactive += 1;
+            }
+
+            json!({
+                "id": session.meta.id,
+                "name": session.meta.name,
+                "team": session.meta.team,
+                "status": session_status_label(&session.meta.status),
+                "pid": session.meta.pid,
+                "source": session_source_label(&session.source),
+                "attached": session.attached,
+                "interactive": session.interactive,
+                "last_activity": session.meta.updated_at,
+                "created_at": session.meta.created_at,
+                "preview": compact_branch_preview(&session.preview_text),
+                "observed_state": observed_state,
+                "input_disabled_reason": session.input_disabled_reason,
+                "log_available": session.log.available
+            })
+        })
+        .collect::<Vec<_>>();
+
+    json!({
+        "ok": true,
+        "service": "lcc-core-branch-inbound",
+        "time": Utc::now(),
+        "source": source,
+        "live": live,
+        "generated_at": generated_at,
+        "total_agents": agents.len(),
+        "counts": {
+            "active": active,
+            "attached": attached,
+            "interactive": interactive,
+            "by_status": status_counts,
+            "by_team": team_counts,
+            "by_observed_state": observed_counts
+        },
+        "agents": agents
+    })
+}
+
+fn branch_agents_response_from_snapshot(snapshot: BranchAgentSnapshot, live_error: Option<String>) -> Value {
+    let agents = snapshot
+        .sessions
+        .iter()
+        .map(|session| {
+            json!({
+                "id": session.id,
+                "name": session.name,
+                "team": session.team,
+                "status": session.status,
+                "pid": Value::Null,
+                "source": "snapshot-file",
+                "attached": Value::Null,
+                "interactive": Value::Null,
+                "last_activity": session.updated_at,
+                "created_at": Value::Null,
+                "preview": session.preview_hash,
+                "observed_state": session.observed_state,
+                "signals": session.signals
+            })
+        })
+        .collect::<Vec<_>>();
+
+    json!({
+        "ok": true,
+        "service": "lcc-core-branch-inbound",
+        "time": Utc::now(),
+        "source": snapshot.source.unwrap_or_else(|| "snapshot-file".to_string()),
+        "live": false,
+        "generated_at": snapshot.generated_at,
+        "live_error": live_error,
+        "total_agents": agents.len(),
+        "counts": snapshot.counts,
+        "agents": agents
+    })
+}
+
+fn session_status_label(status: &SessionStatus) -> &'static str {
+    match status {
+        SessionStatus::Active => "active",
+        SessionStatus::Exited => "exited",
+        SessionStatus::Error => "error",
+        SessionStatus::Stopped => "stopped",
+    }
+}
+
+fn session_source_label(source: &SessionSource) -> &'static str {
+    match source {
+        SessionSource::Internal => "internal",
+        SessionSource::Os => "os",
+    }
+}
+
+fn derive_branch_observed_state(session: &SessionView) -> String {
+    let preview = session.preview_text.to_ascii_lowercase();
+    if matches!(session.meta.status, SessionStatus::Exited | SessionStatus::Stopped | SessionStatus::Error) {
+        return session_status_label(&session.meta.status).to_string();
+    }
+    if preview.contains("heartbeat ") {
+        return "heartbeat".to_string();
+    }
+    if preview.contains("report ") {
+        return "reported".to_string();
+    }
+    if preview.contains("ack ") || preview.contains("policy_ack") {
+        return "acknowledged".to_string();
+    }
+    if preview.contains("working")
+        || preview.contains("running ")
+        || preview.contains("get-content ")
+        || preview.contains("rg ")
+        || preview.contains("cargo ")
+        || preview.contains("node ")
+    {
+        return "working".to_string();
+    }
+    "active".to_string()
+}
+
+fn compact_branch_preview(value: &str) -> String {
+    let compact = value
+        .replace('\r', " ")
+        .replace('\n', " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let max_chars = 240usize;
+    if compact.chars().count() <= max_chars {
+        compact
+    } else {
+        compact.chars().take(max_chars).collect::<String>()
+    }
+}
+
+fn increment_json_counter(map: &mut serde_json::Map<String, Value>, key: &str) {
+    let next = map.get(key).and_then(Value::as_u64).unwrap_or(0) + 1;
+    map.insert(key.to_string(), json!(next));
+}
+
+fn branch_session_api_url() -> String {
+    env::var("LCC_BRANCH_SESSION_API").unwrap_or_else(|_| "http://127.0.0.1:9001/api/sessions".to_string())
+}
+
+fn branch_agent_snapshot_path() -> PathBuf {
+    PathBuf::from(
+        env::var("LCC_AGENT_STATUS_SNAPSHOT_PATH")
+            .unwrap_or_else(|_| "data/agent-status-latest.json".to_string())
+    )
+}
+
+async fn fetch_branch_sessions_via_local_api() -> Result<Vec<SessionView>, String> {
+    let url = branch_session_api_url();
+    let (host, port, path) = parse_http_url(&url)?;
+    let mut stream = TcpStream::connect((host.as_str(), port))
+        .await
+        .map_err(|err| format!("connect failed: {err}"))?;
+    let request = format!(
+        "GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\nAccept: application/json\r\n\r\n"
+    );
+    stream
+        .write_all(request.as_bytes())
+        .await
+        .map_err(|err| format!("write failed: {err}"))?;
+    let mut bytes = Vec::new();
+    stream
+        .read_to_end(&mut bytes)
+        .await
+        .map_err(|err| format!("read failed: {err}"))?;
+    let response = String::from_utf8_lossy(&bytes).to_string();
+    let (head, body) = response
+        .split_once("\r\n\r\n")
+        .ok_or_else(|| "malformed http response".to_string())?;
+    let status_line = head.lines().next().unwrap_or_default().to_string();
+    if !status_line.contains(" 200 ") {
+        return Err(format!("upstream status not ok: {status_line}"));
+    }
+    serde_json::from_str::<Vec<SessionView>>(body)
+        .map_err(|err| format!("session decode failed: {err}"))
+}
+
+fn parse_http_url(url: &str) -> Result<(String, u16, String), String> {
+    let stripped = url
+        .strip_prefix("http://")
+        .ok_or_else(|| "only http:// URLs are supported".to_string())?;
+    let (host_port, path) = match stripped.split_once('/') {
+        Some((host_port, rest)) => (host_port, format!("/{}", rest)),
+        None => (stripped, "/".to_string()),
+    };
+    let (host, port) = match host_port.split_once(':') {
+        Some((host, port)) => {
+            let port = port
+                .parse::<u16>()
+                .map_err(|_| "invalid port in branch session api url".to_string())?;
+            (host.to_string(), port)
+        }
+        None => (host_port.to_string(), 80u16),
+    };
+    if host.trim().is_empty() {
+        return Err("missing host in branch session api url".to_string());
+    }
+    Ok((host, port, path))
+}
+
+async fn read_branch_agent_snapshot_file() -> Result<BranchAgentSnapshot, String> {
+    let path = branch_agent_snapshot_path();
+    let raw = fs::read_to_string(&path)
+        .await
+        .map_err(|err| format!("snapshot read failed: {err}"))?;
+    serde_json::from_str::<BranchAgentSnapshot>(&raw)
+        .map_err(|err| format!("snapshot decode failed: {err}"))
 }
 
 async fn list_sessions(State(state): State<AppState>) -> Json<Vec<SessionView>> {
