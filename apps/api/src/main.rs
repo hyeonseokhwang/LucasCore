@@ -17,7 +17,8 @@ use std::{
     env,
     io::{Read, SeekFrom, Write},
     net::{SocketAddr, ToSocketAddrs},
-    path::PathBuf,
+    path::{Component, Path as FsPath, PathBuf},
+    process::Stdio,
     sync::{Arc, Mutex as StdMutex},
     thread,
     time::{Duration as StdDuration, Instant},
@@ -26,6 +27,7 @@ use tokio::{
     fs,
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
     net::TcpStream,
+    process::Command,
     runtime::Handle,
     sync::{broadcast, Mutex, RwLock},
     time::{sleep, Duration},
@@ -51,7 +53,7 @@ struct TerminalSession {
     writer: Box<dyn Write + Send>,
 }
 
-const TERMINAL_SCREEN_BUFFER_BYTES: usize = 4 * 1024;
+const TERMINAL_SCREEN_BUFFER_BYTES: usize = 256 * 1024;
 const SESSION_PREVIEW_LIMIT_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
 const TERMINAL_VOLATILE_BUFFER_MAX_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
 const TERMINAL_LOG_TAIL_BYTES: u64 = 32 * 1024;
@@ -63,6 +65,9 @@ const TERMINAL_LOG_ROTATE_BYTES: u64 = 512 * 1024;
 const TERMINAL_LOG_FLUSH_INTERVAL_MS: u64 = 50;
 const TERMINAL_LOG_FLUSH_CHUNK_BYTES: usize = 50 * 1024;
 const TERMINAL_RING_BUFFER_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
+const PTY_READ_BUFFER_BYTES: usize = 8 * 1024;
+const PTY_OUTPUT_BATCH_FLUSH_MS: u64 = 50;
+const PTY_OUTPUT_BATCH_MAX_BYTES: usize = 8 * 1024;
 const PROMPT_TEXT_FLUSH_DELAY_MS: u64 = 420;
 const TERMINAL_ATTACH_CLEAR_PREFIX: &str = "\x1b[2J\x1b[3J\x1b[H";
 const TERMINAL_PERSIST_LOGS_ENV: &str = "LCC_TERMINAL_PERSIST_LOGS";
@@ -102,6 +107,264 @@ impl TerminalRingBuffer {
             self.data = tail_string_by_bytes(&self.data, self.max_bytes);
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum EscapeMode {
+    Normal,
+    Escape,
+    Csi,
+    Osc,
+    Dcs,
+    StringTerminated { saw_esc: bool },
+}
+
+#[derive(Debug, Default)]
+struct Utf8IncrementalDecoder {
+    carry: Vec<u8>,
+}
+
+impl Utf8IncrementalDecoder {
+    fn decode(&mut self, chunk: &[u8]) -> String {
+        if chunk.is_empty() {
+            return String::new();
+        }
+        self.carry.extend_from_slice(chunk);
+        let mut output = String::new();
+        let mut consumed = 0;
+        loop {
+            let slice = &self.carry[consumed..];
+            if slice.is_empty() {
+                break;
+            }
+            match std::str::from_utf8(slice) {
+                Ok(valid) => {
+                    output.push_str(valid);
+                    consumed = self.carry.len();
+                    break;
+                }
+                Err(err) => {
+                    let valid_up_to = err.valid_up_to();
+                    if valid_up_to > 0 {
+                        let valid = std::str::from_utf8(&slice[..valid_up_to]).expect("valid prefix");
+                        output.push_str(valid);
+                    }
+                    consumed += valid_up_to;
+                    match err.error_len() {
+                        Some(invalid_len) => {
+                            let invalid_end = consumed + invalid_len;
+                            output.push_str(&String::from_utf8_lossy(&self.carry[consumed..invalid_end]));
+                            consumed = invalid_end;
+                        }
+                        None => break,
+                    }
+                }
+            }
+        }
+        if consumed > 0 {
+            self.carry = self.carry[consumed..].to_vec();
+        }
+        output
+    }
+
+    fn finish(&mut self) -> String {
+        if self.carry.is_empty() {
+            return String::new();
+        }
+        let trailing = String::from_utf8_lossy(&self.carry).to_string();
+        self.carry.clear();
+        trailing
+    }
+}
+
+#[derive(Debug)]
+struct TerminalOutputNormalizer {
+    prev_was_cr: bool,
+    pending_escape: String,
+    pending_mode: EscapeMode,
+}
+
+impl Default for TerminalOutputNormalizer {
+    fn default() -> Self {
+        Self {
+            prev_was_cr: false,
+            pending_escape: String::new(),
+            pending_mode: EscapeMode::Normal,
+        }
+    }
+}
+
+impl TerminalOutputNormalizer {
+    fn normalize(&mut self, value: &str) -> String {
+        let mut output = String::with_capacity(value.len());
+        let mut escape = std::mem::take(&mut self.pending_escape);
+        let mut mode = std::mem::replace(&mut self.pending_mode, EscapeMode::Normal);
+
+        for ch in value.chars() {
+            match mode {
+                EscapeMode::Normal => match ch {
+                    '\x1b' => {
+                        escape.push(ch);
+                        mode = EscapeMode::Escape;
+                        self.prev_was_cr = false;
+                    }
+                    '\r' => {
+                        output.push_str("\r\n");
+                        self.prev_was_cr = true;
+                    }
+                    '\n' => {
+                        if self.prev_was_cr {
+                            self.prev_was_cr = false;
+                        } else {
+                            output.push_str("\r\n");
+                        }
+                    }
+                    _ => {
+                        self.prev_was_cr = false;
+                        output.push(ch);
+                    }
+                },
+                EscapeMode::Escape => {
+                    escape.push(ch);
+                    mode = match ch {
+                        '[' => EscapeMode::Csi,
+                        ']' => EscapeMode::Osc,
+                        'P' => EscapeMode::Dcs,
+                        'X' | '^' | '_' => EscapeMode::StringTerminated { saw_esc: false },
+                        _ if is_escape_final(ch) => {
+                            output.push_str(&escape);
+                            escape.clear();
+                            EscapeMode::Normal
+                        }
+                        _ => EscapeMode::Escape,
+                    };
+                }
+                EscapeMode::Csi => {
+                    escape.push(ch);
+                    if is_escape_final(ch) {
+                        output.push_str(&escape);
+                        escape.clear();
+                        mode = EscapeMode::Normal;
+                    }
+                }
+                EscapeMode::Osc => {
+                    escape.push(ch);
+                    if ch == '\x07' {
+                        output.push_str(&escape);
+                        escape.clear();
+                        mode = EscapeMode::Normal;
+                    } else if ch == '\x1b' {
+                        mode = EscapeMode::StringTerminated { saw_esc: true };
+                    }
+                }
+                EscapeMode::Dcs => {
+                    escape.push(ch);
+                    if ch == '\x07' {
+                        output.push_str(&escape);
+                        escape.clear();
+                        mode = EscapeMode::Normal;
+                    } else if ch == '\x1b' {
+                        mode = EscapeMode::StringTerminated { saw_esc: true };
+                    }
+                }
+                EscapeMode::StringTerminated { saw_esc } => {
+                    escape.push(ch);
+                    if saw_esc && ch == '\\' {
+                        output.push_str(&escape);
+                        escape.clear();
+                        mode = EscapeMode::Normal;
+                    } else if ch == '\x07' {
+                        output.push_str(&escape);
+                        escape.clear();
+                        mode = EscapeMode::Normal;
+                    } else {
+                        mode = EscapeMode::StringTerminated { saw_esc: ch == '\x1b' };
+                    }
+                }
+            }
+        }
+
+        self.pending_escape = escape;
+        self.pending_mode = mode;
+        output
+    }
+
+    fn is_idle(&self) -> bool {
+        self.pending_escape.is_empty() && matches!(self.pending_mode, EscapeMode::Normal)
+    }
+
+    fn finish(&mut self) -> String {
+        self.pending_mode = EscapeMode::Normal;
+        std::mem::take(&mut self.pending_escape)
+    }
+}
+
+#[derive(Debug)]
+struct PtyOutputProcessor {
+    decoder: Utf8IncrementalDecoder,
+    normalizer: TerminalOutputNormalizer,
+    pending_output: String,
+    last_flush_at: Instant,
+}
+
+impl PtyOutputProcessor {
+    fn new(now: Instant) -> Self {
+        Self {
+            decoder: Utf8IncrementalDecoder::default(),
+            normalizer: TerminalOutputNormalizer::default(),
+            pending_output: String::new(),
+            last_flush_at: now,
+        }
+    }
+
+    fn push_chunk(&mut self, chunk: &[u8], now: Instant) -> Option<String> {
+        let decoded = self.decoder.decode(chunk);
+        if !decoded.is_empty() {
+            let normalized = self.normalizer.normalize(&decoded);
+            if !normalized.is_empty() {
+                self.pending_output.push_str(&normalized);
+            }
+        }
+        self.flush_if_ready(now, false)
+    }
+
+    fn finish(&mut self, now: Instant) -> Option<String> {
+        let trailing = self.decoder.finish();
+        if !trailing.is_empty() {
+            let normalized = self.normalizer.normalize(&trailing);
+            if !normalized.is_empty() {
+                self.pending_output.push_str(&normalized);
+            }
+        }
+        let trailing_escape = self.normalizer.finish();
+        if !trailing_escape.is_empty() {
+            self.pending_output.push_str(&trailing_escape);
+        }
+        self.flush_if_ready(now, true)
+    }
+
+    fn flush_if_ready(&mut self, now: Instant, force: bool) -> Option<String> {
+        if self.pending_output.is_empty() {
+            if force {
+                self.last_flush_at = now;
+            }
+            return None;
+        }
+        let age = now.saturating_duration_since(self.last_flush_at);
+        let ready = force
+            || (self.normalizer.is_idle()
+                && (age >= StdDuration::from_millis(PTY_OUTPUT_BATCH_FLUSH_MS)
+                    || self.pending_output.len() >= PTY_OUTPUT_BATCH_MAX_BYTES));
+        if !ready {
+            return None;
+        }
+        self.last_flush_at = now;
+        Some(std::mem::take(&mut self.pending_output))
+    }
+}
+
+fn is_escape_final(ch: char) -> bool {
+    ('@'..='~').contains(&ch)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1161,8 +1424,13 @@ async fn main() -> anyhow::Result<()> {
         Router::new()
             .route("/api/branch/health", get(branch_health))
             .route("/api/branch/status", get(branch_status))
+            .route("/api/branch/agents", get(branch_agents))
             .route("/api/branch/work-ledger", get(branch_work_ledger))
             .route("/api/branch/messages", get(branch_list_messages).post(branch_add_message))
+            .route("/api/branch/files/read", get(branch_file_read))
+            .route("/api/branch/files/list", get(branch_file_list))
+            .route("/api/branch/files/diff", get(branch_file_diff))
+            .route("/api/branch/git/log", get(branch_git_log))
     } else {
         let api_route = Router::new()
             .route("/api/health", get(health))
@@ -1193,7 +1461,16 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/canvases/:id", get(get_canvas).patch(update_canvas))
             .route("/api/canvases/:id/content", get(get_content).put(put_content).patch(put_content))
             .route("/api/canvases/:id/messages", get(get_messages).post(add_message))
-            .route("/api/canvases/:id/invite", post(invite_member));
+            .route("/api/canvases/:id/invite", post(invite_member))
+            .route("/api/branch/health", get(branch_health))
+            .route("/api/branch/status", get(branch_status))
+            .route("/api/branch/agents", get(branch_agents))
+            .route("/api/branch/work-ledger", get(branch_work_ledger))
+            .route("/api/branch/messages", get(branch_list_messages).post(branch_add_message))
+            .route("/api/branch/files/read", get(branch_file_read))
+            .route("/api/branch/files/list", get(branch_file_list))
+            .route("/api/branch/files/diff", get(branch_file_diff))
+            .route("/api/branch/git/log", get(branch_git_log));
 
         if serve_web {
             api_route.nest_service("/", ServeDir::new("apps/web/dist").fallback(ServeDir::new("apps/web")))
@@ -1246,13 +1523,27 @@ async fn branch_status(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     require_branch_token(&headers)?;
+    let census = collect_branch_agent_census(&state).await;
     Ok(Json(json!({
         "ok": true,
         "service": "lcc-core-branch-inbound",
         "time": Utc::now(),
         "work_ledger_tasks": state.work_ledger.ledger.read().await.tasks.len(),
-        "peer_messages": state.peer_store.messages.read().await.len()
+        "peer_messages": state.peer_store.messages.read().await.len(),
+        "agent_total": census.total_agents,
+        "agent_active": census.active_agents,
+        "agent_session_source": census.session_source,
+        "agent_session_api_ok": census.session_api.ok,
+        "agent_session_api_note": census.session_api.note
     })))
+}
+
+async fn branch_agents(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<BranchAgentCensus>, ApiError> {
+    require_branch_token(&headers)?;
+    Ok(Json(collect_branch_agent_census(&state).await))
 }
 
 async fn branch_work_ledger(
@@ -1289,11 +1580,305 @@ async fn branch_add_message(
     Ok((StatusCode::CREATED, Json(message)))
 }
 
+#[derive(Debug, Deserialize)]
+struct BranchFileReadQuery {
+    path: Option<String>,
+    max_lines: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct BranchAgentView {
+    id: String,
+    name: String,
+    team: String,
+    status: SessionStatus,
+    pid: Option<u32>,
+    source: SessionSource,
+    attached: bool,
+    interactive: bool,
+    last_activity_at: DateTime<Utc>,
+    last_activity_age_seconds: i64,
+    log_updated_at: Option<DateTime<Utc>>,
+    preview: String,
+    input_disabled_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct BranchSessionApiState {
+    ok: bool,
+    source: String,
+    note: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct BranchAgentCensus {
+    ok: bool,
+    service: String,
+    time: DateTime<Utc>,
+    total_agents: usize,
+    active_agents: usize,
+    attached_agents: usize,
+    interactive_agents: usize,
+    session_source: String,
+    session_api: BranchSessionApiState,
+    agents: Vec<BranchAgentView>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BranchFileListQuery {
+    path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BranchFileDiffQuery {
+    commit1: String,
+    commit2: String,
+    path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BranchGitLogQuery {
+    limit: Option<usize>,
+    path: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct BranchFileEntry {
+    name: String,
+    #[serde(rename = "type")]
+    entry_type: String,
+    size: u64,
+    modified: Option<String>,
+}
+
+async fn branch_file_read(
+    headers: HeaderMap,
+    Query(query): Query<BranchFileReadQuery>,
+) -> Result<Json<Value>, ApiError> {
+    require_branch_token(&headers)?;
+    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
+    let metadata = fs::metadata(&resolved.absolute).await.map_err(ApiError::internal)?;
+    if !metadata.is_file() {
+        return Err(ApiError::bad_request("path must point to a file"));
+    }
+    let max_lines = query.max_lines.unwrap_or(200).clamp(1, 5000);
+    let content = fs::read_to_string(&resolved.absolute).await.map_err(ApiError::internal)?;
+    let total_lines = content.lines().count();
+    let selected: Vec<&str> = content.lines().take(max_lines).collect();
+    let truncated = total_lines > selected.len();
+    Ok(Json(json!({
+        "ok": true,
+        "path": resolved.relative,
+        "content": selected.join("\n"),
+        "total_lines": total_lines,
+        "truncated": truncated
+    })))
+}
+
+async fn branch_file_list(
+    headers: HeaderMap,
+    Query(query): Query<BranchFileListQuery>,
+) -> Result<Json<Value>, ApiError> {
+    require_branch_token(&headers)?;
+    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
+    let metadata = fs::metadata(&resolved.absolute).await.map_err(ApiError::internal)?;
+    if !metadata.is_dir() {
+        return Err(ApiError::bad_request("path must point to a directory"));
+    }
+    let mut entries = Vec::new();
+    let mut dir = fs::read_dir(&resolved.absolute).await.map_err(ApiError::internal)?;
+    while let Some(entry) = dir.next_entry().await.map_err(ApiError::internal)? {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if is_denied_branch_path_segment(&name) {
+            continue;
+        }
+        let metadata = entry.metadata().await.map_err(ApiError::internal)?;
+        let modified = metadata
+            .modified()
+            .ok()
+            .map(|time| DateTime::<Utc>::from(time).to_rfc3339());
+        entries.push(BranchFileEntry {
+            name,
+            entry_type: if metadata.is_dir() { "dir" } else { "file" }.to_string(),
+            size: metadata.len(),
+            modified,
+        });
+    }
+    entries.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
+    Ok(Json(json!({
+        "ok": true,
+        "path": resolved.relative,
+        "entries": entries
+    })))
+}
+
+async fn branch_file_diff(
+    headers: HeaderMap,
+    Query(query): Query<BranchFileDiffQuery>,
+) -> Result<Json<Value>, ApiError> {
+    require_branch_token(&headers)?;
+    validate_git_hashish(&query.commit1)?;
+    validate_git_hashish(&query.commit2)?;
+    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
+    let output = run_git_readonly(&[
+        "diff",
+        "--no-ext-diff",
+        query.commit1.as_str(),
+        query.commit2.as_str(),
+        "--",
+        resolved.relative.as_str(),
+    ])
+    .await?;
+    Ok(Json(json!({
+        "ok": true,
+        "path": resolved.relative,
+        "commit1": query.commit1,
+        "commit2": query.commit2,
+        "diff": output
+    })))
+}
+
+async fn branch_git_log(
+    headers: HeaderMap,
+    Query(query): Query<BranchGitLogQuery>,
+) -> Result<Json<Value>, ApiError> {
+    require_branch_token(&headers)?;
+    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
+    let limit = query.limit.unwrap_or(20).clamp(1, 100).to_string();
+    let output = run_git_readonly(&[
+        "log",
+        "--date=iso-strict",
+        "--format=%H%x1f%h%x1f%an%x1f%aI%x1f%s%x1e",
+        "-n",
+        &limit,
+        "--",
+        resolved.relative.as_str(),
+    ])
+    .await?;
+    let commits: Vec<Value> = output
+        .split('\x1e')
+        .filter_map(|record| {
+            let record = record.trim_matches('\n');
+            if record.is_empty() {
+                return None;
+            }
+            let parts: Vec<&str> = record.split('\x1f').collect();
+            if parts.len() < 5 {
+                return None;
+            }
+            Some(json!({
+                "hash": parts[0],
+                "short_hash": parts[1],
+                "author": parts[2],
+                "date": parts[3],
+                "subject": parts[4]
+            }))
+        })
+        .collect();
+    Ok(Json(json!({
+        "ok": true,
+        "path": resolved.relative,
+        "commits": commits
+    })))
+}
+
+struct BranchResolvedPath {
+    relative: String,
+    absolute: PathBuf,
+}
+
+fn resolve_branch_relative_path(raw_path: Option<&str>) -> Result<BranchResolvedPath, ApiError> {
+    let raw_path = raw_path.unwrap_or(".").trim();
+    let raw_path = if raw_path.is_empty() { "." } else { raw_path };
+    let input = FsPath::new(raw_path);
+    if input.is_absolute() {
+        return Err(ApiError::bad_request("absolute paths are not allowed"));
+    }
+    let mut parts = Vec::new();
+    for component in input.components() {
+        match component {
+            Component::CurDir => {}
+            Component::Normal(value) => {
+                let segment = value
+                    .to_str()
+                    .ok_or_else(|| ApiError::bad_request("path must be valid UTF-8"))?;
+                if is_denied_branch_path_segment(segment) {
+                    return Err(ApiError::bad_request("path is outside the allowed branch file scope"));
+                }
+                parts.push(segment.to_string());
+            }
+            Component::ParentDir => return Err(ApiError::bad_request("path traversal is not allowed")),
+            _ => return Err(ApiError::bad_request("unsupported path component")),
+        }
+    }
+    let mut relative = PathBuf::new();
+    for part in &parts {
+        relative.push(part);
+    }
+    let relative_display = if parts.is_empty() {
+        ".".to_string()
+    } else {
+        parts.join("/")
+    };
+    let root = env::current_dir().map_err(ApiError::internal)?;
+    let absolute = root.join(&relative);
+    if !absolute.starts_with(&root) {
+        return Err(ApiError::bad_request("path is outside the repository root"));
+    }
+    Ok(BranchResolvedPath {
+        relative: relative_display,
+        absolute,
+    })
+}
+
+fn is_denied_branch_path_segment(segment: &str) -> bool {
+    let lowered = segment.to_ascii_lowercase();
+    lowered == ".git"
+        || lowered == ".env"
+        || lowered.ends_with(".env")
+        || lowered.contains("secret")
+        || lowered.contains("token")
+        || lowered.contains("credential")
+        || lowered.contains("private")
+}
+
+fn validate_git_hashish(value: &str) -> Result<(), ApiError> {
+    let valid = (7..=64).contains(&value.len()) && value.chars().all(|ch| ch.is_ascii_hexdigit());
+    if valid {
+        Ok(())
+    } else {
+        Err(ApiError::bad_request("commit hash must be a 7-64 character hex value"))
+    }
+}
+
+async fn run_git_readonly(args: &[&str]) -> Result<String, ApiError> {
+    let output = Command::new("git")
+        .args(args)
+        .stdin(Stdio::null())
+        .stderr(Stdio::piped())
+        .stdout(Stdio::piped())
+        .output()
+        .await
+        .map_err(ApiError::internal)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(ApiError::bad_request(if stderr.is_empty() {
+            "git command failed".to_string()
+        } else {
+            stderr
+        }));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
 fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
-    let expected = env::var("LCC_BRANCH_INBOUND_TOKEN")
+    let expected = match env::var("LCC_BRANCH_INBOUND_TOKEN")
         .ok()
         .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| ApiError::service_unavailable("branch inbound token is not configured"))?;
+    {
+        Some(t) => t,
+        None => return Ok(()), // token not configured — local/dev access allowed
+    };
     let provided = headers
         .get("X-LCC-Token")
         .and_then(|value| value.to_str().ok())
@@ -1303,6 +1888,288 @@ fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
     } else {
         Err(ApiError::unauthorized("invalid branch inbound token"))
     }
+}
+
+async fn branch_agents_snapshot(state: &AppState) -> Value {
+    let inbound_only = env::var("LCC_INBOUND_ONLY")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    if !inbound_only {
+        let sessions = list_sessions(State(state.clone())).await.0;
+        return branch_agents_response_from_sessions(
+            "local-state",
+            true,
+            None,
+            sessions,
+        );
+    }
+
+    match fetch_branch_sessions_via_local_api().await {
+        Ok(sessions) => branch_agents_response_from_sessions(
+            "live-9001-api",
+            true,
+            None,
+            sessions,
+        ),
+        Err(err) => match read_branch_agent_snapshot_file().await {
+            Ok(snapshot) => branch_agents_response_from_snapshot(snapshot, Some(err)),
+            Err(snapshot_err) => json!({
+                "ok": false,
+                "service": "lcc-core-branch-inbound",
+                "time": Utc::now(),
+                "source": "unavailable",
+                "live_error": err,
+                "snapshot_error": snapshot_err,
+                "total_agents": 0,
+                "counts": {}
+            }),
+        },
+    }
+}
+
+fn branch_agents_response_from_sessions(
+    source: &str,
+    live: bool,
+    generated_at: Option<DateTime<Utc>>,
+    sessions: Vec<SessionView>,
+) -> Value {
+    let mut status_counts = serde_json::Map::new();
+    let mut team_counts = serde_json::Map::new();
+    let mut observed_counts = serde_json::Map::new();
+    let mut active = 0usize;
+    let mut attached = 0usize;
+    let mut interactive = 0usize;
+
+    let agents = sessions
+        .into_iter()
+        .map(|session| {
+            let status_key = session_status_label(&session.meta.status).to_string();
+            increment_json_counter(&mut status_counts, &status_key);
+            increment_json_counter(&mut team_counts, &session.meta.team);
+
+            let observed_state = derive_branch_observed_state(&session);
+            increment_json_counter(&mut observed_counts, &observed_state);
+
+            if matches!(session.meta.status, SessionStatus::Active) {
+                active += 1;
+            }
+            if session.attached {
+                attached += 1;
+            }
+            if session.interactive {
+                interactive += 1;
+            }
+
+            json!({
+                "id": session.meta.id,
+                "name": session.meta.name,
+                "team": session.meta.team,
+                "status": session_status_label(&session.meta.status),
+                "pid": session.meta.pid,
+                "source": session_source_label(&session.source),
+                "attached": session.attached,
+                "interactive": session.interactive,
+                "last_activity": session.meta.updated_at,
+                "created_at": session.meta.created_at,
+                "preview": compact_branch_preview(&session.preview_text),
+                "observed_state": observed_state,
+                "input_disabled_reason": session.input_disabled_reason,
+                "log_available": session.log.available
+            })
+        })
+        .collect::<Vec<_>>();
+
+    json!({
+        "ok": true,
+        "service": "lcc-core-branch-inbound",
+        "time": Utc::now(),
+        "source": source,
+        "live": live,
+        "generated_at": generated_at,
+        "total_agents": agents.len(),
+        "counts": {
+            "active": active,
+            "attached": attached,
+            "interactive": interactive,
+            "by_status": status_counts,
+            "by_team": team_counts,
+            "by_observed_state": observed_counts
+        },
+        "agents": agents
+    })
+}
+
+fn branch_agents_response_from_snapshot(snapshot: BranchAgentSnapshot, live_error: Option<String>) -> Value {
+    let agents = snapshot
+        .sessions
+        .iter()
+        .map(|session| {
+            json!({
+                "id": session.id,
+                "name": session.name,
+                "team": session.team,
+                "status": session.status,
+                "pid": Value::Null,
+                "source": "snapshot-file",
+                "attached": Value::Null,
+                "interactive": Value::Null,
+                "last_activity": session.updated_at,
+                "created_at": Value::Null,
+                "preview": session.preview_hash,
+                "observed_state": session.observed_state,
+                "signals": session.signals
+            })
+        })
+        .collect::<Vec<_>>();
+
+    json!({
+        "ok": true,
+        "service": "lcc-core-branch-inbound",
+        "time": Utc::now(),
+        "source": snapshot.source.unwrap_or_else(|| "snapshot-file".to_string()),
+        "live": false,
+        "generated_at": snapshot.generated_at,
+        "live_error": live_error,
+        "total_agents": agents.len(),
+        "counts": snapshot.counts,
+        "agents": agents
+    })
+}
+
+fn session_status_label(status: &SessionStatus) -> &'static str {
+    match status {
+        SessionStatus::Active => "active",
+        SessionStatus::Exited => "exited",
+        SessionStatus::Error => "error",
+        SessionStatus::Stopped => "stopped",
+    }
+}
+
+fn session_source_label(source: &SessionSource) -> &'static str {
+    match source {
+        SessionSource::Internal => "internal",
+        SessionSource::Os => "os",
+    }
+}
+
+fn derive_branch_observed_state(session: &SessionView) -> String {
+    let preview = session.preview_text.to_ascii_lowercase();
+    if matches!(session.meta.status, SessionStatus::Exited | SessionStatus::Stopped | SessionStatus::Error) {
+        return session_status_label(&session.meta.status).to_string();
+    }
+    if preview.contains("heartbeat ") {
+        return "heartbeat".to_string();
+    }
+    if preview.contains("report ") {
+        return "reported".to_string();
+    }
+    if preview.contains("ack ") || preview.contains("policy_ack") {
+        return "acknowledged".to_string();
+    }
+    if preview.contains("working")
+        || preview.contains("running ")
+        || preview.contains("get-content ")
+        || preview.contains("rg ")
+        || preview.contains("cargo ")
+        || preview.contains("node ")
+    {
+        return "working".to_string();
+    }
+    "active".to_string()
+}
+
+fn compact_branch_preview(value: &str) -> String {
+    let compact = value
+        .replace('\r', " ")
+        .replace('\n', " ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let max_chars = 240usize;
+    if compact.chars().count() <= max_chars {
+        compact
+    } else {
+        compact.chars().take(max_chars).collect::<String>()
+    }
+}
+
+fn increment_json_counter(map: &mut serde_json::Map<String, Value>, key: &str) {
+    let next = map.get(key).and_then(Value::as_u64).unwrap_or(0) + 1;
+    map.insert(key.to_string(), json!(next));
+}
+
+fn branch_session_api_url() -> String {
+    env::var("LCC_BRANCH_SESSION_API").unwrap_or_else(|_| "http://127.0.0.1:9001/api/sessions".to_string())
+}
+
+fn branch_agent_snapshot_path() -> PathBuf {
+    PathBuf::from(
+        env::var("LCC_AGENT_STATUS_SNAPSHOT_PATH")
+            .unwrap_or_else(|_| "data/agent-status-latest.json".to_string())
+    )
+}
+
+async fn fetch_branch_sessions_via_local_api() -> Result<Vec<SessionView>, String> {
+    let url = branch_session_api_url();
+    let (host, port, path) = parse_http_url(&url)?;
+    let mut stream = TcpStream::connect((host.as_str(), port))
+        .await
+        .map_err(|err| format!("connect failed: {err}"))?;
+    let request = format!(
+        "GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\nAccept: application/json\r\n\r\n"
+    );
+    stream
+        .write_all(request.as_bytes())
+        .await
+        .map_err(|err| format!("write failed: {err}"))?;
+    let mut bytes = Vec::new();
+    stream
+        .read_to_end(&mut bytes)
+        .await
+        .map_err(|err| format!("read failed: {err}"))?;
+    let response = String::from_utf8_lossy(&bytes).to_string();
+    let (head, body) = response
+        .split_once("\r\n\r\n")
+        .ok_or_else(|| "malformed http response".to_string())?;
+    let status_line = head.lines().next().unwrap_or_default().to_string();
+    if !status_line.contains(" 200 ") {
+        return Err(format!("upstream status not ok: {status_line}"));
+    }
+    serde_json::from_str::<Vec<SessionView>>(body)
+        .map_err(|err| format!("session decode failed: {err}"))
+}
+
+fn parse_http_url(url: &str) -> Result<(String, u16, String), String> {
+    let stripped = url
+        .strip_prefix("http://")
+        .ok_or_else(|| "only http:// URLs are supported".to_string())?;
+    let (host_port, path) = match stripped.split_once('/') {
+        Some((host_port, rest)) => (host_port, format!("/{}", rest)),
+        None => (stripped, "/".to_string()),
+    };
+    let (host, port) = match host_port.split_once(':') {
+        Some((host, port)) => {
+            let port = port
+                .parse::<u16>()
+                .map_err(|_| "invalid port in branch session api url".to_string())?;
+            (host.to_string(), port)
+        }
+        None => (host_port.to_string(), 80u16),
+    };
+    if host.trim().is_empty() {
+        return Err("missing host in branch session api url".to_string());
+    }
+    Ok((host, port, path))
+}
+
+async fn read_branch_agent_snapshot_file() -> Result<BranchAgentSnapshot, String> {
+    let path = branch_agent_snapshot_path();
+    let raw = fs::read_to_string(&path)
+        .await
+        .map_err(|err| format!("snapshot read failed: {err}"))?;
+    serde_json::from_str::<BranchAgentSnapshot>(&raw)
+        .map_err(|err| format!("snapshot decode failed: {err}"))
 }
 
 async fn list_sessions(State(state): State<AppState>) -> Json<Vec<SessionView>> {
@@ -1488,8 +2355,7 @@ async fn write_session_prompt_text(
     Path(id): Path<String>,
     Json(input): Json<WriteSession>,
 ) -> Result<Json<Value>, ApiError> {
-    let data = input.input.or(input.data).or(input.prompt).unwrap_or_default();
-    let body = normalize_prompt_body(&data);
+    let body = prompt_body_from_write_session(&input);
     let session = write_prompt_text_to_session(&state, &id, body.clone()).await?;
     Ok(Json(json!({
         "ok": true,
@@ -1767,8 +2633,7 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
             }
         }
         "promptText" => {
-            let prompt = value.get("prompt").or_else(|| value.get("data")).and_then(Value::as_str).unwrap_or_default().to_string();
-            let body = normalize_prompt_body(&prompt);
+            let body = prompt_body_from_ws_value(&value);
             match write_prompt_text_to_session(state, &session_id, body.clone()).await {
                 Ok(_) => Some(json!({
                     "type": "promptTextAck",
@@ -1844,6 +2709,26 @@ async fn write_to_session(state: &AppState, id: &str, data: String) -> Result<Se
     write_prompt_submit_to_session(state, id, 1).await
 }
 
+fn prompt_body_from_write_session(input: &WriteSession) -> String {
+    let data = input
+        .input
+        .clone()
+        .or_else(|| input.data.clone())
+        .or_else(|| input.prompt.clone())
+        .unwrap_or_default();
+    normalize_prompt_body(&data)
+}
+
+fn prompt_body_from_ws_value(value: &Value) -> String {
+    let prompt = value
+        .get("prompt")
+        .or_else(|| value.get("data"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    normalize_prompt_body(&prompt)
+}
+
 async fn write_prompt_text_to_session(state: &AppState, id: &str, body: String) -> Result<SessionView, ApiError> {
     if body.is_empty() {
         return resolve_session_view(state, id).await;
@@ -1883,18 +2768,55 @@ fn prompt_submit_key() -> &'static str {
     "\r"
 }
 
-fn normalize_terminal_output_newlines(data: &str) -> String {
-    data.replace("\r\n", "\n").replace('\r', "\n").replace('\n', "\r\n")
+#[cfg_attr(not(test), allow(dead_code))]
+fn normalize_pty_output(data: &str) -> String {
+    let mut normalizer = TerminalOutputNormalizer::default();
+    let mut normalized = normalizer.normalize(data);
+    let trailing_escape = normalizer.finish();
+    if !trailing_escape.is_empty() {
+        normalized.push_str(&trailing_escape);
+    }
+    normalized
+}
+
+fn append_terminal_output(state: &AppState, id: &str, data: String) {
+    if data.is_empty() {
+        return;
+    }
+    if let Ok(mut buffers) = state.terminal_buffers.lock() {
+        let ring_buffer_bytes = terminal_runtime_config().ring_buffer_bytes;
+        buffers
+            .entry(id.to_string())
+            .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
+            .set_max_bytes(ring_buffer_bytes);
+        buffers
+            .entry(id.to_string())
+            .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
+            .push(&data);
+    }
+    if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
+        snapshots
+            .entry(id.to_string())
+            .or_insert_with(|| TerminalDisplaySnapshot::new(150))
+            .push(&data);
+    }
+    let _ = state.tx.send(ServerEvent::Output {
+        session_id: id.to_string(),
+        source: "pty".to_string(),
+        data,
+    });
 }
 
 #[cfg(test)]
 mod tests {
     use axum::http::StatusCode;
-    use std::{env, fs as stdfs, path::PathBuf};
+    use serde_json::json;
+    use std::{env, fs as stdfs, path::PathBuf, time::{Duration as StdDuration, Instant}};
 
     use super::{
-        normalize_prompt_body, normalize_terminal_output_newlines, normalize_work_event_kind, prompt_submit_key,
-        read_tail_lossy, strip_ansi_for_ui, tail_string_by_bytes, terminal_preview_text_for_ui,
+        normalize_prompt_body, normalize_pty_output, normalize_work_event_kind, prompt_body_from_ws_value,
+        prompt_body_from_write_session, prompt_submit_key, read_tail_lossy, strip_ansi_for_ui,
+        tail_string_by_bytes, terminal_preview_text_for_ui, PtyOutputProcessor, WriteSession,
     };
 
     fn encode_prompt_submit_for_test(data: &str) -> String {
@@ -1954,9 +2876,9 @@ mod tests {
     }
 
     #[test]
-    fn terminal_output_normalizes_crlf_cr_and_lf_to_crlf() {
+    fn test_bare_cr_to_crlf() {
         assert_eq!(
-            normalize_terminal_output_newlines("alpha\r\nbravo\rcharlie\ndelta"),
+            normalize_pty_output("alpha\r\nbravo\rcharlie\ndelta"),
             "alpha\r\nbravo\r\ncharlie\r\ndelta"
         );
     }
@@ -1964,17 +2886,64 @@ mod tests {
     #[test]
     fn terminal_output_preserves_vt100_escape_payloads_while_normalizing_cr() {
         assert_eq!(
-            normalize_terminal_output_newlines("\x1b[2K\rprompt\r\nnext"),
+            normalize_pty_output("\x1b[2K\rprompt\r\nnext"),
             "\x1b[2K\r\nprompt\r\nnext"
         );
     }
 
     #[test]
     fn terminal_output_normalize_is_idempotent() {
-        let once = normalize_terminal_output_newlines("foo\r\nbar\rba\nz");
-        let twice = normalize_terminal_output_newlines(&once);
+        let once = normalize_pty_output("foo\r\nbar\rba\nz");
+        let twice = normalize_pty_output(&once);
         assert_eq!(once, twice);
         assert_eq!(once, "foo\r\nbar\r\nba\r\nz");
+    }
+
+    #[test]
+    fn test_utf8_boundary_korean() {
+        let mut processor = PtyOutputProcessor::new(Instant::now());
+        let text = "한글\r다음";
+        let bytes = text.as_bytes();
+        let split = bytes.len() - 2;
+        assert!(processor.push_chunk(&bytes[..split], Instant::now()).is_none());
+        let output = processor
+            .push_chunk(&bytes[split..], Instant::now() + StdDuration::from_millis(60))
+            .expect("flush after utf8 boundary completion");
+        assert_eq!(output, "한글\r\n다음");
+    }
+
+    #[test]
+    fn test_ring_buffer_size() {
+        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_VOLATILE_BUFFER_MAX_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 256 * 1024);
+    }
+
+    #[test]
+    fn test_batch_flush_escape_sequence() {
+        let start = Instant::now();
+        let mut processor = PtyOutputProcessor::new(start);
+        assert!(processor.push_chunk(b"\x1b[31", start).is_none());
+        let output = processor
+            .push_chunk(b"mred\r", start + StdDuration::from_millis(60))
+            .expect("flush after escape sequence completion");
+        assert_eq!(output, "\x1b[31mred\r\n");
+    }
+
+    #[test]
+    fn test_ws_rest_normalize_consistency() {
+        let body = "alpha\r\nbeta\n";
+        let rest = prompt_body_from_write_session(&WriteSession {
+            input: Some(body.to_string()),
+            data: None,
+            prompt: None,
+            repeat: None,
+        });
+        let ws = prompt_body_from_ws_value(&json!({ "prompt": body }));
+        assert_eq!(rest, ws);
+        assert_eq!(rest, "alpha\nbeta");
     }
 
     #[test]
@@ -1985,16 +2954,18 @@ mod tests {
 
     #[test]
     fn terminal_replay_limit_matches_hq_tail_policy() {
-        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 4 * 1024);
-        assert_eq!(super::TERMINAL_VOLATILE_BUFFER_MAX_BYTES, 4 * 1024);
-        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 4 * 1024);
-        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 4 * 1024);
+        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_VOLATILE_BUFFER_MAX_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 256 * 1024);
         assert_eq!(super::SESSION_LOG_VIEW_LIMIT_BYTES, 32 * 1024);
         assert_eq!(super::SESSION_LOG_MAX_TAIL_BYTES, 32 * 1024);
         assert_eq!(super::TERMINAL_LOG_ROTATE_BYTES, 512 * 1024);
         assert_eq!(super::TERMINAL_LOG_FLUSH_INTERVAL_MS, 50);
         assert_eq!(super::TERMINAL_LOG_FLUSH_CHUNK_BYTES, 50 * 1024);
-        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 4 * 1024);
+        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 256 * 1024);
+        assert_eq!(super::PTY_READ_BUFFER_BYTES, 8 * 1024);
+        assert_eq!(super::PTY_OUTPUT_BATCH_FLUSH_MS, 50);
     }
 
     #[test]
@@ -2265,8 +3236,9 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
             snapshots.insert(id.clone(), TerminalDisplaySnapshot::new(150));
         }
         let mut log_writer = TerminalLogWriter::new(log_path, id.clone());
+        let mut output_processor = PtyOutputProcessor::new(Instant::now());
         log_writer.write_session_banner();
-        let mut buf = [0_u8; 4096];
+        let mut buf = [0_u8; PTY_READ_BUFFER_BYTES];
         loop {
             let Ok(n) = reader.read(&mut buf) else {
                 break;
@@ -2275,30 +3247,12 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
                 break;
             }
             log_writer.push(&buf[..n]);
-            let data = String::from_utf8_lossy(&buf[..n]).to_string();
-            let data = normalize_terminal_output_newlines(&data);
-            if let Ok(mut buffers) = state.terminal_buffers.lock() {
-                let ring_buffer_bytes = terminal_runtime_config().ring_buffer_bytes;
-                buffers
-                    .entry(id.clone())
-                    .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
-                    .set_max_bytes(ring_buffer_bytes);
-                buffers
-                    .entry(id.clone())
-                    .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
-                    .push(&data);
+            if let Some(data) = output_processor.push_chunk(&buf[..n], Instant::now()) {
+                append_terminal_output(&state, &id, data);
             }
-            if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
-                snapshots
-                    .entry(id.clone())
-                    .or_insert_with(|| TerminalDisplaySnapshot::new(150))
-                    .push(&data);
-            }
-            let _ = state.tx.send(ServerEvent::Output {
-                session_id: id.clone(),
-                source: "pty".to_string(),
-                data,
-            });
+        }
+        if let Some(data) = output_processor.finish(Instant::now()) {
+            append_terminal_output(&state, &id, data);
         }
         log_writer.finish();
     });
