@@ -494,3 +494,28 @@ Verification:
 
 - `node` JSON parse confirms Caesar/Max prompts include `recovered_context.daily_memory is missing`.
 - `npm --prefix apps/web test -- --runInBand`: pass, 48 tests.
+
+## Phase 6 Live 9001 Recovery Proof After Restart
+
+Post-restart live 9001 check:
+
+- 9001 core is live at PID `24228`.
+- `GET http://127.0.0.1:9001/api/memory/recover/ceo?limit=3` returned `recovered_context.daily_memory`.
+- `GET http://127.0.0.1:9001/api/memory/recover/dev-lead?limit=3` returned `recovered_context.daily_memory`.
+- `GET http://127.0.0.1:9001/api/daily-memory/today` returned the daily memory document.
+- Node UTF-8 file checks show replacement character count `0` for:
+  - `data/daily-memory/2026-06-04.md`
+  - `data/task-reports/human-grade-memory-system-20260604.md`
+  - `data/directives/human-grade-memory-system-20260604.md`
+
+Evidence:
+
+- `data/system-logs/human-grade-memory-system-20260604/memory-recover-ceo-live9001.json`
+- `data/system-logs/human-grade-memory-system-20260604/memory-recover-dev-lead-live9001.json`
+- `data/system-logs/human-grade-memory-system-20260604/daily-memory-today-live9001.json`
+
+Current completion state:
+
+- Memory recovery requirement is satisfied on live 9001.
+- Daily memory contains the post-restart operating state, current priorities, Max restore note, terminal split-submit semantic evidence, and next action.
+- Remaining related terminal issue: newline RCA is externally monitored by Lucas-assigned GPT-5.4 and should not block memory recovery closure unless its evidence contradicts the recovery contract.

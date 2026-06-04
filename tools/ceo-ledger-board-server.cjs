@@ -212,7 +212,109 @@ function renderList(items, renderItem, empty = "표시할 항목이 없습니다
   return `<div class="list">${items.map(renderItem).join("")}</div>`;
 }
 
+function renderPriorityResetPage(board) {
+  const counts = board.counts || {};
+  const activeItems = Array.isArray(board.active) ? board.active : [];
+  const completedItems = Array.isArray(board.completed) ? board.completed : [];
+  const approvals = Array.isArray(board.approvals) ? board.approvals : [];
+  const evidenceIndex = Array.isArray(board.evidence_index) ? board.evidence_index : [];
+  const pausedCount = counts.paused || (Array.isArray(board.paused) ? board.paused.length : 0);
+
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>9100 Priority Board</title>
+  <style>
+    :root { color-scheme: light; --bg:#f6f7f9; --panel:#fff; --ink:#172033; --muted:#667085; --line:#d8dee8; --red:#b42318; --green:#067647; --amber:#b54708; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 "Segoe UI","Malgun Gothic",Arial,sans-serif; }
+    .page { max-width:1280px; margin:0 auto; padding:18px 20px 28px; }
+    header { border-bottom:1px solid var(--line); padding-bottom:14px; margin-bottom:14px; }
+    h1 { margin:0; font-size:22px; letter-spacing:0; }
+    h2 { margin:0 0 10px; font-size:16px; }
+    .sub,.muted { color:var(--muted); }
+    .bar { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .pill { border:1px solid var(--line); background:#fff; padding:5px 9px; border-radius:6px; }
+    .pill strong { color:var(--muted); font-size:12px; margin-right:6px; }
+    .layout { display:grid; grid-template-columns:1.4fr .8fr; gap:14px; align-items:start; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px; }
+    table { width:100%; border-collapse:collapse; }
+    th,td { border-top:1px solid #edf0f5; padding:10px 8px; text-align:left; vertical-align:top; }
+    th { color:var(--muted); font-size:12px; font-weight:700; }
+    .rank { font-weight:800; color:var(--red); }
+    .state { display:inline-block; border-radius:4px; padding:2px 6px; font-size:12px; font-weight:700; background:#ecfdf3; color:var(--green); }
+    .warn { color:var(--amber); font-weight:700; }
+    .evidence { margin:0; padding-left:18px; color:var(--muted); }
+    @media (max-width:900px) { .layout { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>9100 Priority Board</h1>
+      <div class="sub">Lucas-directed operating view: terminal first, memory second. Other work is held, not deleted.</div>
+      <div class="bar">
+        <span class="pill"><strong>mode</strong>${esc(board.policy_mode || "normal")}</span>
+        <span class="pill"><strong>active</strong>${esc(counts.active || activeItems.length)}</span>
+        <span class="pill"><strong>held</strong>${esc(pausedCount)}</span>
+        <span class="pill"><strong>9001</strong>PID 24228, do not restart</span>
+        <span class="pill"><strong>generated</strong>${esc(timeLabel(board.generated_at))}</span>
+      </div>
+    </header>
+
+    <section class="layout">
+      <section class="panel">
+        <h2>Active Priorities</h2>
+        <table>
+          <thead><tr><th>Rank</th><th>Work</th><th>Owner</th><th>Next</th><th>Gate</th></tr></thead>
+          <tbody>
+            ${activeItems.map((item, index) => `<tr>
+              <td class="rank">${index + 1}</td>
+              <td><strong>${esc(item.title || item.id)}</strong><br><span class="muted">${esc(item.id)}</span></td>
+              <td>${esc(item.lead || item.owner || "Caesar")}</td>
+              <td>${esc(item.next || "-")}</td>
+              <td><span class="state">${esc(item.approval_state || item.status || "doing")}</span><br><span class="muted">${esc(item.protected_contract || "none")}</span></td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </section>
+
+      <aside class="panel">
+        <h2>Operating Rules</h2>
+        <p><strong>Forbidden:</strong> source edits without task packet and understanding; 9001 restart; raw ledger sprawl on first view; confusing 9100 dashboard with core.</p>
+        <p><strong>Areum:</strong> ledger hygiene and readable priority board.</p>
+        <p><strong>Lux:</strong> audit for drift, evidence gaps, and protected-contract risk.</p>
+        <p><strong>Caesar:</strong> supervise through ledger, then dispatch terminal task packet.</p>
+        <p class="warn">Memory work waits behind terminal normalization unless Lucas changes order.</p>
+      </aside>
+
+      <section class="panel">
+        <h2>Evidence</h2>
+        <ul class="evidence">${evidenceIndex.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
+      </section>
+
+      <section class="panel">
+        <h2>Completed</h2>
+        ${completedItems.length ? `<ul class="evidence">${completedItems.map((item) => `<li><strong>${esc(item.title || item.id)}</strong><br>${esc(item.evidence || item.completed_at || "")}</li>`).join("")}</ul>` : `<p class="muted">No completed priority yet.</p>`}
+      </section>
+
+      <aside class="panel">
+        <h2>Approvals</h2>
+        <ul class="evidence">${approvals.map((item) => `<li>${esc(item.gate)}: ${esc(item.state)}</li>`).join("")}</ul>
+      </aside>
+    </section>
+  </main>
+</body>
+</html>`;
+}
+
 function renderPage(board, workLedger) {
+  if (board.policy_mode === "lucas-directed-priority-reset") {
+    return renderPriorityResetPage(board);
+  }
+
   const counts = board.counts || {};
   const activeItems = Array.isArray(board.active) ? board.active : [];
   const decisionQueue = Array.isArray(board.decision_needed) ? board.decision_needed : [];

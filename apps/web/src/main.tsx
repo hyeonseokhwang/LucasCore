@@ -63,10 +63,19 @@ type Session = {
 
 const SESSION_GROUPS = [
   {
+    filter: "executive",
+    label: "Executive",
+    members: [
+      { id: "ceo", name: "Caesar", role: "Supervisor", session: true },
+      { id: "audit-officer", name: "Lux", role: "Audit supervisor", session: true },
+      { id: "dev-lead", name: "Max", role: "Development lead", session: true },
+      { id: "areum", name: "Areum", role: "Ledger secretary", session: true }
+    ]
+  },
+  {
     filter: "spring-msa-tf",
     label: "SpringMSA TF",
     members: [
-      { id: "chief-min", name: "Chief Min", role: "Context and TF coordination", session: true },
       { id: "joon-msa", name: "Joon MSA", role: "MSA study owner", session: true },
       { id: "spring-msa-research-1", name: "Researcher 1", role: "Spring MSA researcher", session: true },
       { id: "spring-msa-research-2", name: "Researcher 2", role: "Spring MSA researcher", session: true },
@@ -78,7 +87,7 @@ const SESSION_GROUPS = [
     filter: "development-team",
     label: "Development Team",
     members: [
-      { id: "dev-lead", name: "Dev Lead", role: "Development lead", session: true },
+      { id: "dev-lead", name: "Max", role: "Development lead", session: true },
       ...Array.from({ length: 8 }, (_, index) => ({
         id: `developer-${index + 1}`,
         name: `Developer ${index + 1}`,
@@ -936,7 +945,7 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
         <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
           {(sessions.length ? sessions : [{ id: sessionId, name: sessionId } as Session]).map((item) => (
             <option key={item.id} value={item.id}>
-              {item.name}
+              {sessionDisplayName(item)}
             </option>
           ))}
         </select>
@@ -2280,7 +2289,7 @@ const TerminalCard = React.memo(function TerminalCard({
   }
 
   async function stop() {
-    if (!confirm(`${session.name} 세션을 중지할까요?`)) return;
+    if (!confirm(`${sessionDisplayName(session)} 세션을 중지할까요?`)) return;
     await api.send(`/api/sessions/${session.id}`, "DELETE");
     await onChanged();
   }
@@ -2288,7 +2297,7 @@ const TerminalCard = React.memo(function TerminalCard({
   function openPopout() {
     const url = new URL(window.location.href);
     url.searchParams.set("popout", session.id);
-    url.searchParams.set("name", session.name);
+    url.searchParams.set("name", sessionDisplayName(session));
     const width = 1200;
     const height = 800;
     const left = Math.max(0, Math.round((window.screen.width - width) / 2));
@@ -2312,7 +2321,7 @@ const TerminalCard = React.memo(function TerminalCard({
       <header>
         <div>
           <span className="status-dot" />
-          <strong>{session.name}</strong>
+          <strong>{sessionDisplayName(session)}</strong>
           <em>{session.team}</em>
           {session.model && <em>{session.model}</em>}
           {composerDirty && <span className="composer-state">Editing</span>}
@@ -2368,7 +2377,7 @@ const TerminalCard = React.memo(function TerminalCard({
         <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
           {sessions.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.name}
+              {sessionDisplayName(item)}
             </option>
           ))}
         </select>
@@ -2417,7 +2426,7 @@ const TerminalCard = React.memo(function TerminalCard({
         <div className="log-modal" role="dialog" aria-modal="true">
           <div className="log-panel">
             <header>
-              <strong>{session.name} 터미널 로그</strong>
+              <strong>{sessionDisplayName(session)} 터미널 로그</strong>
               <button onClick={() => setLogOpen(false)}>닫기</button>
             </header>
             <TerminalLogView text={tailTerminalLines(logText || "아직 이 세션에 저장된 로그가 없습니다. 로그 기능이 켜진 뒤 세션을 다시 시작해야 합니다.\r\n")} />
@@ -2504,7 +2513,7 @@ function FullscreenTerminalModal({
         <header>
           <div>
             <span className="status-dot" />
-            <strong>{session.name}</strong>
+            <strong>{sessionDisplayName(session)}</strong>
             <em>{session.status}</em>
             <em>{session.team}</em>
             {session.model && <em>{session.model}</em>}
@@ -2519,7 +2528,7 @@ function FullscreenTerminalModal({
           <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
             {sessions.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.name}
+                {sessionDisplayName(item)}
               </option>
             ))}
           </select>
@@ -2963,7 +2972,7 @@ function CanvasWorkspace({
             </option>
             {sessions.map((session) => (
               <option key={session.id} value={session.id}>
-                {session.name}
+                {sessionDisplayName(session)}
               </option>
             ))}
           </select>
@@ -3020,6 +3029,13 @@ function codexStartupPolicyPrompt(agentId: string) {
   ].join("\n");
 }
 
+function sessionDisplayName(session: Pick<Session, "id" | "name">) {
+  if (session.id === "audit-officer") return "Lux";
+  if (session.id === "dev-lead") return "Max";
+  if (session.id === "ceo") return "Caesar";
+  return session.name;
+}
+
 async function sendCodexStartupPolicy(agentId: string) {
   await sleep(2200);
   await api.send(`/api/sessions/${agentId}/write`, "POST", { data: "\r" }).catch(() => undefined);
@@ -3029,7 +3045,7 @@ async function sendCodexStartupPolicy(agentId: string) {
 
 function standardDevAgents(cmd: string, model: string) {
   return [
-    { id: "dev-lead", name: "Dev Lead", team: "development", cwd: "workspaces/dev-lead/repo", cmd, args: codexYoloArgs(model), model },
+    { id: "dev-lead", name: "Max", team: "development", cwd: "workspaces/dev-lead/repo", cmd, args: codexYoloArgs(model), model },
     ...Array.from({ length: 8 }, (_, index) => {
       const n = index + 1;
       return {

@@ -1,8 +1,8 @@
 {
-  "disabled": true,
-  "mode": "enterprise-ledger-reference-off",
-  "reason": "Lucas ordered enterprise-wide ledger reference suspension until the current issue is fixed.",
+  "disabled": false,
+  "mode": "lucas-directed-ledger-priority-reset",
+  "reason": "Lucas restored ledger-system operation on 2026-06-04 for terminal normalization and human-grade memory completion priority control.",
   "owner": "Lucas",
   "set_at": "2026-06-03T00:00:00+09:00",
-  "restore": "Remove this file or set disabled=false only after Lucas explicitly restores ledger reference."
+  "restore": "Restored by explicit Lucas instruction: operate 9100/work-ledger with terminal normalization as priority 1 and human-grade memory completion as priority 2."
 }
