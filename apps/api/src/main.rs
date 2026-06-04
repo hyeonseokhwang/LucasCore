@@ -2798,8 +2798,9 @@ fn terminal_current_display_for_attach(state: &AppState, id: &str) -> Option<Str
                 let from_clear = &tail[pos..];
                 Some(from_clear.to_string())
             } else {
-                // 클리어 시퀀스 없음 → 빈 화면 전송 (ghost 방지)
-                Some(TERMINAL_ATTACH_CLEAR_PREFIX.to_string())
+                // ESC[2J 없음 → CLEAR_PREFIX + 마지막 2048바이트 전송.
+                // CLEAR_PREFIX가 화면을 먼저 클리어하므로 ghost 재발 없이 최신 출력 표시.
+                Some(format!("{TERMINAL_ATTACH_CLEAR_PREFIX}{}", &tail[tail.len().saturating_sub(2048)..]))
             }
         })
         .filter(|text| !text.is_empty())
