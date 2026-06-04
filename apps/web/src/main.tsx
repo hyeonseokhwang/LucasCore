@@ -2640,6 +2640,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   const seededPreviewRef = useRef<string | null>(null);
   const currentSessionIdRef = useRef<string>("");
   const firstSnapshotReceivedRef = useRef<boolean>(false);
+  const resizeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [wsKey, setWsKey] = React.useState(0);
 
   useEffect(() => {
@@ -2673,10 +2674,9 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
         sock.send(JSON.stringify({ type: "input", sessionId: sid, data }));
       }
     });
-    let resizeDebounce: ReturnType<typeof setTimeout> | null = null;
     term.onResize(({ cols, rows }) => {
-      if (resizeDebounce) clearTimeout(resizeDebounce);
-      resizeDebounce = setTimeout(() => {
+      if (resizeDebounceRef.current) clearTimeout(resizeDebounceRef.current);
+      resizeDebounceRef.current = setTimeout(() => {
         // Block resize WS until first snapshot/output received to prevent
         // fitTimers-induced SIGWINCH clearing the screen before content arrives.
         if (!firstSnapshotReceivedRef.current) return;
@@ -2685,6 +2685,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
         if (sock?.readyState === WebSocket.OPEN && sid) {
           sock.send(JSON.stringify({ type: "resize", sessionId: sid, cols, rows }));
         }
+        resizeDebounceRef.current = null;
       }, 300);
     });
     const runFit = () => {
@@ -2699,7 +2700,10 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     resizeObserver?.observe(container);
     document.fonts?.ready.then(runFit).catch(() => undefined);
     return () => {
-      if (resizeDebounce) clearTimeout(resizeDebounce);
+      if (resizeDebounceRef.current) {
+        clearTimeout(resizeDebounceRef.current);
+        resizeDebounceRef.current = null;
+      }
       fitTimers.forEach((timer) => window.clearTimeout(timer));
       resizeObserver?.disconnect();
       terminalRef.current = null;
@@ -2718,6 +2722,10 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     currentSessionIdRef.current = sessionId;
     seededSessionRef.current = null;
     firstSnapshotReceivedRef.current = false;
+    if (resizeDebounceRef.current) {
+      clearTimeout(resizeDebounceRef.current);
+      resizeDebounceRef.current = null;
+    }
     term.reset();
     closeWebSocket(socketRef.current);
     const socket = new WebSocket(terminalWsUrl());
@@ -2774,6 +2782,10 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       if (messageSessionId !== sessionId || (message.type !== "snapshot" && message.type !== "output")) return;
       const data = typeof message.data === "string" ? message.data : "";
       if (!data) return;
+      if (!firstSnapshotReceivedRef.current && resizeDebounceRef.current) {
+        clearTimeout(resizeDebounceRef.current);
+        resizeDebounceRef.current = null;
+      }
       // Ungate resize WS on first content received
       firstSnapshotReceivedRef.current = true;
       if (message.type === "snapshot" && seededSessionRef.current !== sessionId) {
