@@ -64,6 +64,7 @@ const TERMINAL_LOG_FLUSH_INTERVAL_MS: u64 = 50;
 const TERMINAL_LOG_FLUSH_CHUNK_BYTES: usize = 50 * 1024;
 const TERMINAL_RING_BUFFER_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
 const PROMPT_TEXT_FLUSH_DELAY_MS: u64 = 420;
+const TERMINAL_ATTACH_CLEAR_PREFIX: &str = "\x1b[2J\x1b[3J\x1b[H";
 const TERMINAL_PERSIST_LOGS_ENV: &str = "LCC_TERMINAL_PERSIST_LOGS";
 const TERMINAL_RUNTIME_CONFIG_PATH_ENV: &str = "LCC_TERMINAL_RUNTIME_CONFIG";
 const TERMINAL_RUNTIME_CONFIG_DEFAULT_PATH: &str = "data/terminal-runtime-config.json";
@@ -1715,6 +1716,7 @@ fn event_session_id(event: &ServerEvent) -> Option<&str> {
 
 fn terminal_current_display_for_attach(state: &AppState, id: &str) -> Option<String> {
     terminal_display_snapshot_ansi_text(state, id)
+        .map(|snapshot| format!("{TERMINAL_ATTACH_CLEAR_PREFIX}{snapshot}"))
         .or_else(|| terminal_display_snapshot_text(state, id))
         .or_else(|| terminal_buffer_tail(state, id, terminal_runtime_config().preview_bytes))
         .filter(|text| !text.is_empty())
@@ -1881,14 +1883,18 @@ fn prompt_submit_key() -> &'static str {
     "\r"
 }
 
+fn normalize_terminal_output_newlines(data: &str) -> String {
+    data.replace("\r\n", "\n").replace('\r', "\n").replace('\n', "\r\n")
+}
+
 #[cfg(test)]
 mod tests {
     use axum::http::StatusCode;
     use std::{env, fs as stdfs, path::PathBuf};
 
     use super::{
-        normalize_prompt_body, normalize_work_event_kind, prompt_submit_key, read_tail_lossy, strip_ansi_for_ui,
-        tail_string_by_bytes, terminal_preview_text_for_ui,
+        normalize_prompt_body, normalize_terminal_output_newlines, normalize_work_event_kind, prompt_submit_key,
+        read_tail_lossy, strip_ansi_for_ui, tail_string_by_bytes, terminal_preview_text_for_ui,
     };
 
     fn encode_prompt_submit_for_test(data: &str) -> String {
@@ -1945,6 +1951,30 @@ mod tests {
     #[test]
     fn prompt_submit_key_is_plain_carriage_return_for_delayed_write() {
         assert_eq!(prompt_submit_key(), "\r");
+    }
+
+    #[test]
+    fn terminal_output_normalizes_crlf_cr_and_lf_to_crlf() {
+        assert_eq!(
+            normalize_terminal_output_newlines("alpha\r\nbravo\rcharlie\ndelta"),
+            "alpha\r\nbravo\r\ncharlie\r\ndelta"
+        );
+    }
+
+    #[test]
+    fn terminal_output_preserves_vt100_escape_payloads_while_normalizing_cr() {
+        assert_eq!(
+            normalize_terminal_output_newlines("\x1b[2K\rprompt\r\nnext"),
+            "\x1b[2K\r\nprompt\r\nnext"
+        );
+    }
+
+    #[test]
+    fn terminal_output_normalize_is_idempotent() {
+        let once = normalize_terminal_output_newlines("foo\r\nbar\rba\nz");
+        let twice = normalize_terminal_output_newlines(&once);
+        assert_eq!(once, twice);
+        assert_eq!(once, "foo\r\nbar\r\nba\r\nz");
     }
 
     #[test]
@@ -2019,6 +2049,18 @@ mod tests {
         let ansi = snapshot.ansi_text();
 
         assert!(ansi.ends_with("\x1b[0m\x1b[3;11H"));
+    }
+
+    #[test]
+    fn terminal_attach_snapshot_includes_full_clear_prefix() {
+        let mut snapshot = super::TerminalDisplaySnapshot::new(10);
+        snapshot.push("ready\r\n");
+        snapshot.push("\x1b[2;1HWorking");
+
+        let attach = format!("{}{}", super::TERMINAL_ATTACH_CLEAR_PREFIX, snapshot.ansi_text());
+
+        assert!(attach.starts_with("\x1b[2J\x1b[3J\x1b[H"));
+        assert!(attach.contains("Working"));
     }
 
     #[tokio::test]
@@ -2234,7 +2276,7 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
             }
             log_writer.push(&buf[..n]);
             let data = String::from_utf8_lossy(&buf[..n]).to_string();
-            let data = data.replace('\r', "\r\n").replace("\r\n\n", "\r\n");
+            let data = normalize_terminal_output_newlines(&data);
             if let Ok(mut buffers) = state.terminal_buffers.lock() {
                 let ring_buffer_bytes = terminal_runtime_config().ring_buffer_bytes;
                 buffers
