@@ -11,7 +11,7 @@ Terminal normalization is priority 1. Human-grade memory completion is priority 
 ## Current Symptom / Evidence
 
 - 9001 core was restarted and is healthy at PID 24228.
-- 9100 is a dashboard and is now running at PID 4640 after a 9100-only restart.
+- 9100 is a dashboard and is now running at PID 29492 after 9100-only restarts.
 - Prompt delivery has recently shown failure modes where text appeared as pasted content but did not produce semantic ACK until a separate submit retry.
 - Some terminal previews have shown stale or visually noisy state.
 - 9100 was visually noisy and blocked by ledger-reference-disabled until Lucas restored ledger-system operation for this priority reset.
@@ -141,9 +141,17 @@ Prepared deploy candidate:
 
 - executable: `D:\Lucas Core v0.1\target-9001-deploy\debug\lcc-core-api.exe`
 - evidence: `data/system-logs/terminal-normalization-20260604/deploy-candidate.json`
+- guarded script: `tools/controlled-9001-deploy.cjs`
+- dry-run evidence: `data/system-logs/terminal-normalization-20260604/controlled-9001-deploy.json`
 - reason: built in a separate target directory so the live `target-9001` executable is not overwritten while PID `24228` is running.
 
 Do not run this gate without explicit Lucas approval.
+
+Execution command after explicit Lucas approval only:
+
+```powershell
+node tools/controlled-9001-deploy.cjs --execute --approval LUCAS_APPROVED_9001_DEPLOY
+```
 
 When approved:
 
