@@ -2689,13 +2689,27 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       } catch {}
     };
     const fitTimers = [0, 120, 360].map((delay) => window.setTimeout(runFit, delay));
+    let prevCols = 0;
+    let zeroToNFired = false;
+    let zeroToNTimer: ReturnType<typeof setTimeout> | null = null;
     const resizeObserver = typeof ResizeObserver !== "undefined"
-      ? new ResizeObserver(() => runFit())
+      ? new ResizeObserver(() => {
+          runFit();
+          // 0→N guard: cols 0→N 전환 감지 시 WS 재연결 (1회, 500ms debounce)
+          const curCols = terminalRef.current?.cols ?? 0;
+          if (!zeroToNFired && prevCols === 0 && curCols > 0) {
+            zeroToNFired = true;
+            if (zeroToNTimer) clearTimeout(zeroToNTimer);
+            zeroToNTimer = setTimeout(() => setWsKey(k => k + 1), 500);
+          }
+          prevCols = curCols;
+        })
       : null;
     resizeObserver?.observe(container);
     document.fonts?.ready.then(runFit).catch(() => undefined);
     return () => {
       if (resizeDebounce) clearTimeout(resizeDebounce);
+      if (zeroToNTimer) clearTimeout(zeroToNTimer);
       fitTimers.forEach((timer) => window.clearTimeout(timer));
       resizeObserver?.disconnect();
       terminalRef.current = null;
@@ -2718,18 +2732,41 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     const socket = new WebSocket(terminalWsUrl());
     socketRef.current = socket;
     socket.addEventListener("open", () => {
-      // Unconditional immediate attach — server must receive this before streaming snapshot.
-      // The tryAttach/RAF retry approach failed because columns-layout reflow takes
-      // longer than 8×rAF (~128ms), so all attempts saw width=0 and gave up.
-      socket.send(JSON.stringify({ type: "attach", sessionId }));
-      // Deferred fit: adjust xterm display cols to card width (no PTY resize — avoids SIGWINCH)
-      requestAnimationFrame(() => {
+      // P1 warm-attach fix: delay attach until xterm has non-zero cols.
+      // Sending attach with cols=0 causes snapshot to be written but not rendered (DOM blank).
+      const doAttach = () => {
         if (socket.readyState !== WebSocket.OPEN || socketRef.current !== socket) return;
-        const fit = fitRef.current;
-        if (fit) {
-          try { fit.fit(); } catch {}
-        }
-      });
+        socket.send(JSON.stringify({ type: "attach", sessionId }));
+      };
+      const fitAddon = fitRef.current;
+      if (fitAddon) { try { fitAddon.fit(); } catch {} }
+      const curCols = terminalRef.current?.cols ?? 0;
+      if (curCols > 0) {
+        doAttach();
+      } else {
+        // Container not yet laid out — wait for first non-zero cols, then attach
+        const c = containerRef.current;
+        if (!c) { doAttach(); return; }
+        let attachSent = false;
+        const attachObserver = new ResizeObserver(() => {
+          if (attachSent) return;
+          if (fitAddon) { try { fitAddon.fit(); } catch {} }
+          const cols = terminalRef.current?.cols ?? 0;
+          if (cols > 0) {
+            attachSent = true;
+            attachObserver.disconnect();
+            doAttach();
+          }
+        });
+        attachObserver.observe(c);
+        // Safety fallback: attach after 2s even if container never becomes non-zero
+        setTimeout(() => {
+          if (attachSent) return;
+          attachSent = true;
+          attachObserver.disconnect();
+          doAttach();
+        }, 2000);
+      }
     });
     socket.addEventListener("message", (event) => {
       let message: Record<string, unknown>;
