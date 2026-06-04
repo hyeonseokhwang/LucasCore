@@ -51,7 +51,7 @@ struct TerminalSession {
     writer: Box<dyn Write + Send>,
 }
 
-const TERMINAL_SCREEN_BUFFER_BYTES: usize = 4 * 1024;
+const TERMINAL_SCREEN_BUFFER_BYTES: usize = 256 * 1024;
 const SESSION_PREVIEW_LIMIT_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
 const TERMINAL_VOLATILE_BUFFER_MAX_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
 const TERMINAL_LOG_TAIL_BYTES: u64 = 32 * 1024;
@@ -63,6 +63,9 @@ const TERMINAL_LOG_ROTATE_BYTES: u64 = 512 * 1024;
 const TERMINAL_LOG_FLUSH_INTERVAL_MS: u64 = 50;
 const TERMINAL_LOG_FLUSH_CHUNK_BYTES: usize = 50 * 1024;
 const TERMINAL_RING_BUFFER_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
+const PTY_READ_BUFFER_BYTES: usize = 8 * 1024;
+const PTY_OUTPUT_BATCH_FLUSH_MS: u64 = 50;
+const PTY_OUTPUT_BATCH_MAX_BYTES: usize = 8 * 1024;
 const PROMPT_TEXT_FLUSH_DELAY_MS: u64 = 420;
 const TERMINAL_ATTACH_CLEAR_PREFIX: &str = "\x1b[2J\x1b[3J\x1b[H";
 const TERMINAL_PERSIST_LOGS_ENV: &str = "LCC_TERMINAL_PERSIST_LOGS";
@@ -102,6 +105,264 @@ impl TerminalRingBuffer {
             self.data = tail_string_by_bytes(&self.data, self.max_bytes);
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum EscapeMode {
+    Normal,
+    Escape,
+    Csi,
+    Osc,
+    Dcs,
+    StringTerminated { saw_esc: bool },
+}
+
+#[derive(Debug, Default)]
+struct Utf8IncrementalDecoder {
+    carry: Vec<u8>,
+}
+
+impl Utf8IncrementalDecoder {
+    fn decode(&mut self, chunk: &[u8]) -> String {
+        if chunk.is_empty() {
+            return String::new();
+        }
+        self.carry.extend_from_slice(chunk);
+        let mut output = String::new();
+        let mut consumed = 0;
+        loop {
+            let slice = &self.carry[consumed..];
+            if slice.is_empty() {
+                break;
+            }
+            match std::str::from_utf8(slice) {
+                Ok(valid) => {
+                    output.push_str(valid);
+                    consumed = self.carry.len();
+                    break;
+                }
+                Err(err) => {
+                    let valid_up_to = err.valid_up_to();
+                    if valid_up_to > 0 {
+                        let valid = std::str::from_utf8(&slice[..valid_up_to]).expect("valid prefix");
+                        output.push_str(valid);
+                    }
+                    consumed += valid_up_to;
+                    match err.error_len() {
+                        Some(invalid_len) => {
+                            let invalid_end = consumed + invalid_len;
+                            output.push_str(&String::from_utf8_lossy(&self.carry[consumed..invalid_end]));
+                            consumed = invalid_end;
+                        }
+                        None => break,
+                    }
+                }
+            }
+        }
+        if consumed > 0 {
+            self.carry = self.carry[consumed..].to_vec();
+        }
+        output
+    }
+
+    fn finish(&mut self) -> String {
+        if self.carry.is_empty() {
+            return String::new();
+        }
+        let trailing = String::from_utf8_lossy(&self.carry).to_string();
+        self.carry.clear();
+        trailing
+    }
+}
+
+#[derive(Debug)]
+struct TerminalOutputNormalizer {
+    prev_was_cr: bool,
+    pending_escape: String,
+    pending_mode: EscapeMode,
+}
+
+impl Default for TerminalOutputNormalizer {
+    fn default() -> Self {
+        Self {
+            prev_was_cr: false,
+            pending_escape: String::new(),
+            pending_mode: EscapeMode::Normal,
+        }
+    }
+}
+
+impl TerminalOutputNormalizer {
+    fn normalize(&mut self, value: &str) -> String {
+        let mut output = String::with_capacity(value.len());
+        let mut escape = std::mem::take(&mut self.pending_escape);
+        let mut mode = std::mem::replace(&mut self.pending_mode, EscapeMode::Normal);
+
+        for ch in value.chars() {
+            match mode {
+                EscapeMode::Normal => match ch {
+                    '\x1b' => {
+                        escape.push(ch);
+                        mode = EscapeMode::Escape;
+                        self.prev_was_cr = false;
+                    }
+                    '\r' => {
+                        output.push_str("\r\n");
+                        self.prev_was_cr = true;
+                    }
+                    '\n' => {
+                        if self.prev_was_cr {
+                            self.prev_was_cr = false;
+                        } else {
+                            output.push_str("\r\n");
+                        }
+                    }
+                    _ => {
+                        self.prev_was_cr = false;
+                        output.push(ch);
+                    }
+                },
+                EscapeMode::Escape => {
+                    escape.push(ch);
+                    mode = match ch {
+                        '[' => EscapeMode::Csi,
+                        ']' => EscapeMode::Osc,
+                        'P' => EscapeMode::Dcs,
+                        'X' | '^' | '_' => EscapeMode::StringTerminated { saw_esc: false },
+                        _ if is_escape_final(ch) => {
+                            output.push_str(&escape);
+                            escape.clear();
+                            EscapeMode::Normal
+                        }
+                        _ => EscapeMode::Escape,
+                    };
+                }
+                EscapeMode::Csi => {
+                    escape.push(ch);
+                    if is_escape_final(ch) {
+                        output.push_str(&escape);
+                        escape.clear();
+                        mode = EscapeMode::Normal;
+                    }
+                }
+                EscapeMode::Osc => {
+                    escape.push(ch);
+                    if ch == '\x07' {
+                        output.push_str(&escape);
+                        escape.clear();
+                        mode = EscapeMode::Normal;
+                    } else if ch == '\x1b' {
+                        mode = EscapeMode::StringTerminated { saw_esc: true };
+                    }
+                }
+                EscapeMode::Dcs => {
+                    escape.push(ch);
+                    if ch == '\x07' {
+                        output.push_str(&escape);
+                        escape.clear();
+                        mode = EscapeMode::Normal;
+                    } else if ch == '\x1b' {
+                        mode = EscapeMode::StringTerminated { saw_esc: true };
+                    }
+                }
+                EscapeMode::StringTerminated { saw_esc } => {
+                    escape.push(ch);
+                    if saw_esc && ch == '\\' {
+                        output.push_str(&escape);
+                        escape.clear();
+                        mode = EscapeMode::Normal;
+                    } else if ch == '\x07' {
+                        output.push_str(&escape);
+                        escape.clear();
+                        mode = EscapeMode::Normal;
+                    } else {
+                        mode = EscapeMode::StringTerminated { saw_esc: ch == '\x1b' };
+                    }
+                }
+            }
+        }
+
+        self.pending_escape = escape;
+        self.pending_mode = mode;
+        output
+    }
+
+    fn is_idle(&self) -> bool {
+        self.pending_escape.is_empty() && matches!(self.pending_mode, EscapeMode::Normal)
+    }
+
+    fn finish(&mut self) -> String {
+        self.pending_mode = EscapeMode::Normal;
+        std::mem::take(&mut self.pending_escape)
+    }
+}
+
+#[derive(Debug)]
+struct PtyOutputProcessor {
+    decoder: Utf8IncrementalDecoder,
+    normalizer: TerminalOutputNormalizer,
+    pending_output: String,
+    last_flush_at: Instant,
+}
+
+impl PtyOutputProcessor {
+    fn new(now: Instant) -> Self {
+        Self {
+            decoder: Utf8IncrementalDecoder::default(),
+            normalizer: TerminalOutputNormalizer::default(),
+            pending_output: String::new(),
+            last_flush_at: now,
+        }
+    }
+
+    fn push_chunk(&mut self, chunk: &[u8], now: Instant) -> Option<String> {
+        let decoded = self.decoder.decode(chunk);
+        if !decoded.is_empty() {
+            let normalized = self.normalizer.normalize(&decoded);
+            if !normalized.is_empty() {
+                self.pending_output.push_str(&normalized);
+            }
+        }
+        self.flush_if_ready(now, false)
+    }
+
+    fn finish(&mut self, now: Instant) -> Option<String> {
+        let trailing = self.decoder.finish();
+        if !trailing.is_empty() {
+            let normalized = self.normalizer.normalize(&trailing);
+            if !normalized.is_empty() {
+                self.pending_output.push_str(&normalized);
+            }
+        }
+        let trailing_escape = self.normalizer.finish();
+        if !trailing_escape.is_empty() {
+            self.pending_output.push_str(&trailing_escape);
+        }
+        self.flush_if_ready(now, true)
+    }
+
+    fn flush_if_ready(&mut self, now: Instant, force: bool) -> Option<String> {
+        if self.pending_output.is_empty() {
+            if force {
+                self.last_flush_at = now;
+            }
+            return None;
+        }
+        let age = now.saturating_duration_since(self.last_flush_at);
+        let ready = force
+            || (self.normalizer.is_idle()
+                && (age >= StdDuration::from_millis(PTY_OUTPUT_BATCH_FLUSH_MS)
+                    || self.pending_output.len() >= PTY_OUTPUT_BATCH_MAX_BYTES));
+        if !ready {
+            return None;
+        }
+        self.last_flush_at = now;
+        Some(std::mem::take(&mut self.pending_output))
+    }
+}
+
+fn is_escape_final(ch: char) -> bool {
+    ('@'..='~').contains(&ch)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1488,8 +1749,7 @@ async fn write_session_prompt_text(
     Path(id): Path<String>,
     Json(input): Json<WriteSession>,
 ) -> Result<Json<Value>, ApiError> {
-    let data = input.input.or(input.data).or(input.prompt).unwrap_or_default();
-    let body = normalize_prompt_body(&data);
+    let body = prompt_body_from_write_session(&input);
     let session = write_prompt_text_to_session(&state, &id, body.clone()).await?;
     Ok(Json(json!({
         "ok": true,
@@ -1767,8 +2027,7 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
             }
         }
         "promptText" => {
-            let prompt = value.get("prompt").or_else(|| value.get("data")).and_then(Value::as_str).unwrap_or_default().to_string();
-            let body = normalize_prompt_body(&prompt);
+            let body = prompt_body_from_ws_value(&value);
             match write_prompt_text_to_session(state, &session_id, body.clone()).await {
                 Ok(_) => Some(json!({
                     "type": "promptTextAck",
@@ -1844,6 +2103,26 @@ async fn write_to_session(state: &AppState, id: &str, data: String) -> Result<Se
     write_prompt_submit_to_session(state, id, 1).await
 }
 
+fn prompt_body_from_write_session(input: &WriteSession) -> String {
+    let data = input
+        .input
+        .clone()
+        .or_else(|| input.data.clone())
+        .or_else(|| input.prompt.clone())
+        .unwrap_or_default();
+    normalize_prompt_body(&data)
+}
+
+fn prompt_body_from_ws_value(value: &Value) -> String {
+    let prompt = value
+        .get("prompt")
+        .or_else(|| value.get("data"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    normalize_prompt_body(&prompt)
+}
+
 async fn write_prompt_text_to_session(state: &AppState, id: &str, body: String) -> Result<SessionView, ApiError> {
     if body.is_empty() {
         return resolve_session_view(state, id).await;
@@ -1883,18 +2162,55 @@ fn prompt_submit_key() -> &'static str {
     "\r"
 }
 
-fn normalize_terminal_output_newlines(data: &str) -> String {
-    data.replace("\r\n", "\n").replace('\r', "\n").replace('\n', "\r\n")
+#[cfg_attr(not(test), allow(dead_code))]
+fn normalize_pty_output(data: &str) -> String {
+    let mut normalizer = TerminalOutputNormalizer::default();
+    let mut normalized = normalizer.normalize(data);
+    let trailing_escape = normalizer.finish();
+    if !trailing_escape.is_empty() {
+        normalized.push_str(&trailing_escape);
+    }
+    normalized
+}
+
+fn append_terminal_output(state: &AppState, id: &str, data: String) {
+    if data.is_empty() {
+        return;
+    }
+    if let Ok(mut buffers) = state.terminal_buffers.lock() {
+        let ring_buffer_bytes = terminal_runtime_config().ring_buffer_bytes;
+        buffers
+            .entry(id.to_string())
+            .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
+            .set_max_bytes(ring_buffer_bytes);
+        buffers
+            .entry(id.to_string())
+            .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
+            .push(&data);
+    }
+    if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
+        snapshots
+            .entry(id.to_string())
+            .or_insert_with(|| TerminalDisplaySnapshot::new(150))
+            .push(&data);
+    }
+    let _ = state.tx.send(ServerEvent::Output {
+        session_id: id.to_string(),
+        source: "pty".to_string(),
+        data,
+    });
 }
 
 #[cfg(test)]
 mod tests {
     use axum::http::StatusCode;
-    use std::{env, fs as stdfs, path::PathBuf};
+    use serde_json::json;
+    use std::{env, fs as stdfs, path::PathBuf, time::{Duration as StdDuration, Instant}};
 
     use super::{
-        normalize_prompt_body, normalize_terminal_output_newlines, normalize_work_event_kind, prompt_submit_key,
-        read_tail_lossy, strip_ansi_for_ui, tail_string_by_bytes, terminal_preview_text_for_ui,
+        normalize_prompt_body, normalize_pty_output, normalize_work_event_kind, prompt_body_from_ws_value,
+        prompt_body_from_write_session, prompt_submit_key, read_tail_lossy, strip_ansi_for_ui,
+        tail_string_by_bytes, terminal_preview_text_for_ui, PtyOutputProcessor, WriteSession,
     };
 
     fn encode_prompt_submit_for_test(data: &str) -> String {
@@ -1954,9 +2270,9 @@ mod tests {
     }
 
     #[test]
-    fn terminal_output_normalizes_crlf_cr_and_lf_to_crlf() {
+    fn test_bare_cr_to_crlf() {
         assert_eq!(
-            normalize_terminal_output_newlines("alpha\r\nbravo\rcharlie\ndelta"),
+            normalize_pty_output("alpha\r\nbravo\rcharlie\ndelta"),
             "alpha\r\nbravo\r\ncharlie\r\ndelta"
         );
     }
@@ -1964,17 +2280,64 @@ mod tests {
     #[test]
     fn terminal_output_preserves_vt100_escape_payloads_while_normalizing_cr() {
         assert_eq!(
-            normalize_terminal_output_newlines("\x1b[2K\rprompt\r\nnext"),
+            normalize_pty_output("\x1b[2K\rprompt\r\nnext"),
             "\x1b[2K\r\nprompt\r\nnext"
         );
     }
 
     #[test]
     fn terminal_output_normalize_is_idempotent() {
-        let once = normalize_terminal_output_newlines("foo\r\nbar\rba\nz");
-        let twice = normalize_terminal_output_newlines(&once);
+        let once = normalize_pty_output("foo\r\nbar\rba\nz");
+        let twice = normalize_pty_output(&once);
         assert_eq!(once, twice);
         assert_eq!(once, "foo\r\nbar\r\nba\r\nz");
+    }
+
+    #[test]
+    fn test_utf8_boundary_korean() {
+        let mut processor = PtyOutputProcessor::new(Instant::now());
+        let text = "한글\r다음";
+        let bytes = text.as_bytes();
+        let split = bytes.len() - 2;
+        assert!(processor.push_chunk(&bytes[..split], Instant::now()).is_none());
+        let output = processor
+            .push_chunk(&bytes[split..], Instant::now() + StdDuration::from_millis(60))
+            .expect("flush after utf8 boundary completion");
+        assert_eq!(output, "한글\r\n다음");
+    }
+
+    #[test]
+    fn test_ring_buffer_size() {
+        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_VOLATILE_BUFFER_MAX_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 256 * 1024);
+    }
+
+    #[test]
+    fn test_batch_flush_escape_sequence() {
+        let start = Instant::now();
+        let mut processor = PtyOutputProcessor::new(start);
+        assert!(processor.push_chunk(b"\x1b[31", start).is_none());
+        let output = processor
+            .push_chunk(b"mred\r", start + StdDuration::from_millis(60))
+            .expect("flush after escape sequence completion");
+        assert_eq!(output, "\x1b[31mred\r\n");
+    }
+
+    #[test]
+    fn test_ws_rest_normalize_consistency() {
+        let body = "alpha\r\nbeta\n";
+        let rest = prompt_body_from_write_session(&WriteSession {
+            input: Some(body.to_string()),
+            data: None,
+            prompt: None,
+            repeat: None,
+        });
+        let ws = prompt_body_from_ws_value(&json!({ "prompt": body }));
+        assert_eq!(rest, ws);
+        assert_eq!(rest, "alpha\nbeta");
     }
 
     #[test]
@@ -1985,16 +2348,18 @@ mod tests {
 
     #[test]
     fn terminal_replay_limit_matches_hq_tail_policy() {
-        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 4 * 1024);
-        assert_eq!(super::TERMINAL_VOLATILE_BUFFER_MAX_BYTES, 4 * 1024);
-        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 4 * 1024);
-        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 4 * 1024);
+        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_VOLATILE_BUFFER_MAX_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 256 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 256 * 1024);
         assert_eq!(super::SESSION_LOG_VIEW_LIMIT_BYTES, 32 * 1024);
         assert_eq!(super::SESSION_LOG_MAX_TAIL_BYTES, 32 * 1024);
         assert_eq!(super::TERMINAL_LOG_ROTATE_BYTES, 512 * 1024);
         assert_eq!(super::TERMINAL_LOG_FLUSH_INTERVAL_MS, 50);
         assert_eq!(super::TERMINAL_LOG_FLUSH_CHUNK_BYTES, 50 * 1024);
-        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 4 * 1024);
+        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 256 * 1024);
+        assert_eq!(super::PTY_READ_BUFFER_BYTES, 8 * 1024);
+        assert_eq!(super::PTY_OUTPUT_BATCH_FLUSH_MS, 50);
     }
 
     #[test]
@@ -2265,8 +2630,9 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
             snapshots.insert(id.clone(), TerminalDisplaySnapshot::new(150));
         }
         let mut log_writer = TerminalLogWriter::new(log_path, id.clone());
+        let mut output_processor = PtyOutputProcessor::new(Instant::now());
         log_writer.write_session_banner();
-        let mut buf = [0_u8; 4096];
+        let mut buf = [0_u8; PTY_READ_BUFFER_BYTES];
         loop {
             let Ok(n) = reader.read(&mut buf) else {
                 break;
@@ -2275,30 +2641,12 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
                 break;
             }
             log_writer.push(&buf[..n]);
-            let data = String::from_utf8_lossy(&buf[..n]).to_string();
-            let data = normalize_terminal_output_newlines(&data);
-            if let Ok(mut buffers) = state.terminal_buffers.lock() {
-                let ring_buffer_bytes = terminal_runtime_config().ring_buffer_bytes;
-                buffers
-                    .entry(id.clone())
-                    .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
-                    .set_max_bytes(ring_buffer_bytes);
-                buffers
-                    .entry(id.clone())
-                    .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
-                    .push(&data);
+            if let Some(data) = output_processor.push_chunk(&buf[..n], Instant::now()) {
+                append_terminal_output(&state, &id, data);
             }
-            if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
-                snapshots
-                    .entry(id.clone())
-                    .or_insert_with(|| TerminalDisplaySnapshot::new(150))
-                    .push(&data);
-            }
-            let _ = state.tx.send(ServerEvent::Output {
-                session_id: id.clone(),
-                source: "pty".to_string(),
-                data,
-            });
+        }
+        if let Some(data) = output_processor.finish(Instant::now()) {
+            append_terminal_output(&state, &id, data);
         }
         log_writer.finish();
     });
