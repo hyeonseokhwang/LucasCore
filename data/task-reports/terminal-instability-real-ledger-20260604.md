@@ -162,7 +162,9 @@ LCC_AUTO_SUBMIT_ON_STABLE_TAIL_V1
   - developer-1: `UNDERSTANDING_CHECK ... source=one-pty-tail views=independent-renderers problem=unknown edit_permission=none blocker=none`
   - developer-4: `UNDERSTANDING_CHECK ... source=one-pty-tail views=independent-renderers problem=preview-pollution edit_permission=none blocker=none`
 - 2026-06-04T13:44: Caesar decision: understanding check is sufficient to proceed to inspect-only root-cause review. Edit permission remains denied.
+- 2026-06-04T13:45: Max reported `MANAGER_REPORT ... suspected_root=mixed ... files_to_inspect=apps/api/src/main.rs;apps/web/src/main.tsx;apps/web/src/terminalReplay.ts;apps/web/src/styles.css;tools/terminal-stuck-input-watchdog.cjs edit_request=yes ... blocker=none`.
+- 2026-06-04T13:46: Caesar decision: approve narrow edit for developer-4 only. developer-1 remains verify-only. No 9001 restart. No commit by developers. Required QA: terminal tests, web build, operator-facing 9000 card/fullscreen/popout evidence, 9001 PID preservation, rollback anchors.
 
 ## Current Decision
 
-WS dispatch is proven for Max, Areum, Lux, developer-1, and developer-4. QA bar upgraded to operating-terminal stability. Current blockers are polluted 9001 preview source, Max false-positive delivery evidence, no root-cause proposal yet, and missing terminal QA evidence. Edit work remains denied pending inspect report and Caesar approval.
+WS dispatch is proven for Max, Areum, Lux, developer-1, and developer-4. QA bar upgraded to operating-terminal stability. Narrow edit is approved for developer-4 only; developer-1 verifies. Current blockers are polluted 9001 preview source, Max false-positive delivery evidence, and missing terminal QA evidence.
