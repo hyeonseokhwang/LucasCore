@@ -2734,6 +2734,9 @@ async fn terminal_socket(mut socket: WebSocket, state: AppState) {
                             if let Some(session_id) = value.get("sessionId").or_else(|| value.get("session_id")).and_then(Value::as_str) {
                                 attach_session_id = Some(session_id.to_string());
                                 attached_sessions.insert(session_id.to_string());
+                                // Snapshot captured BEFORE resize to avoid SIGWINCH race:
+                                // resize → Codex ESC[2J (async) → snapshot empty if read after resize.
+                                let pre_resize_snapshot = terminal_current_display_for_attach(&state, session_id);
                                 if let Err(err) = apply_attach_terminal_dims(&state, session_id, &value).await {
                                     attach_error = Some(
                                         json!({ "type": "error", "sessionId": session_id, "message": err.message }),
@@ -2750,7 +2753,7 @@ async fn terminal_socket(mut socket: WebSocket, state: AppState) {
                                     if socket.send(Message::Text(attached.to_string())).await.is_err() {
                                         break;
                                     }
-                                    if let Some(snapshot) = terminal_current_display_for_attach(&state, session_id) {
+                                    if let Some(snapshot) = pre_resize_snapshot {
                                         let current = json!({ "type": "snapshot", "sessionId": session_id, "data": snapshot });
                                         if socket.send(Message::Text(current.to_string())).await.is_err() {
                                             break;
