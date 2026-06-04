@@ -104,7 +104,7 @@ const WS_ORIGIN =
   VITE_ENV.VITE_LCC_WS_ORIGIN ||
   API_ORIGIN.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
 const TERMINAL_SCROLLBACK_LINES = 500;
-const TERMINAL_PREVIEW_SCROLLBACK_LINES = 500;
+const TERMINAL_PREVIEW_SCROLLBACK_LINES = 0;
 const HIDDEN_TERMINAL_TEAMS = new Set(["verification"]);
 const activeTerminalComposerKeys = new Set<string>();
 const terminalComposerSubscribers = new Set<() => void>();
@@ -2632,13 +2632,6 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     fitRef.current = fit;
     term.loadAddon(fit);
     term.open(container);
-    term.onResize(({ cols, rows }) => {
-      const sock = socketRef.current;
-      const sid = currentSessionIdRef.current;
-      if (sock?.readyState === WebSocket.OPEN && sid) {
-        sock.send(JSON.stringify({ type: "resize", sessionId: sid, cols, rows }));
-      }
-    });
     // Forward keyboard input to PTY via WS input message
     term.onData((data) => {
       const sock = socketRef.current;
@@ -2683,15 +2676,12 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       // The tryAttach/RAF retry approach failed because columns-layout reflow takes
       // longer than 8×rAF (~128ms), so all attempts saw width=0 and gave up.
       socket.send(JSON.stringify({ type: "attach", sessionId }));
-      // Deferred fit+resize: send actual viewport cols once layout has settled
+      // Deferred fit: adjust xterm display cols to card width (no PTY resize — avoids SIGWINCH)
       requestAnimationFrame(() => {
         if (socket.readyState !== WebSocket.OPEN || socketRef.current !== socket) return;
         const fit = fitRef.current;
         if (fit) {
           try { fit.fit(); } catch {}
-          const cols = Number.isFinite(term.cols) && term.cols > 0 ? term.cols : 80;
-          const rows = Number.isFinite(term.rows) && term.rows > 0 ? term.rows : 24;
-          socket.send(JSON.stringify({ type: "resize", sessionId, cols, rows }));
         }
       });
     });
@@ -2729,7 +2719,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   }, [sessionId]);
 
   return (
-    <div className={`terminal-snapshot-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} aria-label="Terminal output" role="log" ref={containerRef} />
+    <div className={`terminal-snapshot-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} aria-label="Terminal output" role="log" ref={containerRef} onClick={() => terminalRef.current?.focus()} />
   );
 });
 
