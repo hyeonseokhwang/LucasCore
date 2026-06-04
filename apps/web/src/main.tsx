@@ -33,6 +33,7 @@ import React, { FormEvent, startTransition, useCallback, useDeferredValue, useEf
 import { createRoot } from "react-dom/client";
 import { normalizePromptForSubmit } from "./terminalPrompt";
 import { tailTerminalLines } from "./terminalReplay";
+import { isTerminalContainerReady } from "./terminalSurface";
 import { clipboardItemsContainImage, readTerminalCardDraft, writeTerminalCardDraft } from "./terminalCardComposer";
 import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
 import "@xterm/xterm/css/xterm.css";
@@ -2606,6 +2607,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   const fitRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const seededSessionRef = useRef<string | null>(null);
+  const currentSessionIdRef = useRef<string>("");
 
   useEffect(() => {
     const container = containerRef.current;
@@ -2630,12 +2632,28 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     fitRef.current = fit;
     term.loadAddon(fit);
     term.open(container);
-    requestAnimationFrame(() => {
+    // Propagate xterm viewport size to PTY so Codex TUI redraws at actual col width
+    term.onResize(({ cols, rows }) => {
+      const sock = socketRef.current;
+      const sid = currentSessionIdRef.current;
+      if (sock?.readyState === WebSocket.OPEN && sid) {
+        sock.send(JSON.stringify({ type: "resize", sessionId: sid, cols, rows }));
+      }
+    });
+    const runFit = () => {
       try {
         fit.fit();
       } catch {}
-    });
+    };
+    const fitTimers = [0, 120, 360].map((delay) => window.setTimeout(runFit, delay));
+    const resizeObserver = typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(() => runFit())
+      : null;
+    resizeObserver?.observe(container);
+    document.fonts?.ready.then(runFit).catch(() => undefined);
     return () => {
+      fitTimers.forEach((timer) => window.clearTimeout(timer));
+      resizeObserver?.disconnect();
       terminalRef.current = null;
       fitRef.current = null;
       closeWebSocket(socketRef.current);
@@ -2648,6 +2666,7 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
   useEffect(() => {
     const term = terminalRef.current;
     if (!term) return;
+    currentSessionIdRef.current = sessionId;
     seededSessionRef.current = null;
     term.reset();
     closeWebSocket(socketRef.current);
@@ -2655,6 +2674,12 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     socketRef.current = socket;
     socket.addEventListener("open", () => {
       socket.send(JSON.stringify({ type: "attach", sessionId }));
+      // Immediately sync actual xterm cols to PTY before first snapshot arrives
+      const fit = fitRef.current;
+      if (fit) {
+        try { fit.fit(); } catch {}
+        socket.send(JSON.stringify({ type: "resize", sessionId, cols: term.cols, rows: term.rows }));
+      }
     });
     socket.addEventListener("message", (event) => {
       let message: Record<string, unknown>;
