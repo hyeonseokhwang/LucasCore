@@ -34,17 +34,20 @@ Load these first because they are the branch source of truth for restart recover
 7. `data/branch-session-restart-plan.json`
 8. `data/branch-org.json`
 9. `data/memory-ledger.jsonl` when present
+10. `data/daily-memory/YYYY-MM-DD.md` for the current KST day when present
 
 ### Runtime API Data To Load After 9001 Is Available
 
 These are restart readers, not mandatory writers:
 
 - `GET /api/memory/recover/:agent_id`
+- `GET /api/daily-memory/today`
 - `GET /api/memory`
 - `GET /api/work-ledger`
 
 Current API recovery already returns:
 
+- daily memory for the current KST day
 - personal memories
 - shared/team memories
 - active work-ledger tasks
@@ -63,6 +66,7 @@ These should survive reboot and may be copied to a second PC when portable conte
 - `data/work-ledger.json`
 - `data/ceo-command-ledger.json`
 - `data/memory-ledger.jsonl`
+- `data/daily-memory/`
 - `data/branch-boot-context.md`
 - `data/agent-boot-prompts.json`
 - `data/branch-decisions.jsonl`
@@ -107,11 +111,12 @@ This is lower-context recovery but still valid.
 
 If memory is present, recovery merges:
 
-1. personal memory
-2. shared/team memory
-3. active tasks
-4. recent events
-5. policy/role boot instructions
+1. daily memory for the current KST day
+2. personal memory
+3. shared/team memory
+4. active tasks
+5. recent events
+6. policy/role boot instructions
 
 This matches the first-cut HQ-style memory direction already documented in:
 
@@ -158,7 +163,7 @@ Until a dedicated portal implementation exists, blocker and decision recovery sh
    - `handoff`
    - `dev-request`
 3. cross-check active directives in `data/ceo-command-ledger.json`
-4. load `GET /api/memory/recover/:agent_id` for Caesar and Max
+4. load `GET /api/memory/recover/:agent_id` for Caesar and Max; confirm `recovered_context.daily_memory` is present or fall back to `data/daily-memory/YYYY-MM-DD.md`
 5. open selected evidence paths from `data/system-logs/` when referenced
 
 ## Durable Schema Contract
@@ -237,6 +242,7 @@ Max can treat the restart-safe memory contract as:
   - policy/context files
   - branch decisions
   - optional but preferred `memory-ledger`
+  - current KST `daily-memory`
 - local/private exclusions:
   - terminal logs
   - Chrome temp profiles

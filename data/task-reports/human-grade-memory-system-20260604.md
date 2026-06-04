@@ -433,3 +433,29 @@ Evidence caveat:
 
 - PowerShell `Set-Content -Encoding utf8` wrote a BOM. Node verification stripped BOM before JSON parse.
 - Future JSON evidence should prefer Node `fs.writeFileSync(..., "utf8")` or another no-BOM writer.
+
+## Phase 3 Boot Contract Alignment
+
+Gap found after Phase 2:
+
+- Caesar/Max boot prompts still said to recover memory generically.
+- They did not explicitly name `GET /api/memory/recover/<agent>` or the daily-memory fallback.
+
+Changes:
+
+- `data/agent-boot-prompts.json`
+  - Caesar now explicitly calls or inspects `GET /api/memory/recover/ceo` when 9001 is available.
+  - Max now explicitly calls or inspects `GET /api/memory/recover/dev-lead` when 9001 is available.
+  - Both fall back to `data/daily-memory/YYYY-MM-DD.md` and `data/memory-ledger.jsonl` when 9001 is unavailable.
+- `docs/restart-safe-memory-contract-20260602.md`
+  - adds `data/daily-memory/YYYY-MM-DD.md` as a durable recovery source
+  - adds `GET /api/daily-memory/today`
+  - defines `recovered_context.daily_memory` as part of full recovery
+  - requires Caesar/Max to confirm daily memory is present or fall back to file read
+
+Verification:
+
+- `node` JSON parse of `data/agent-boot-prompts.json`: pass.
+- Caesar prompt contains `/api/memory/recover/ceo` and daily-memory fallback.
+- Max prompt contains `/api/memory/recover/dev-lead` and daily-memory fallback.
+- `cargo check --manifest-path apps/api/Cargo.toml --bin lcc-core-api`: pass with existing warnings only.
