@@ -2632,7 +2632,6 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     fitRef.current = fit;
     term.loadAddon(fit);
     term.open(container);
-    // Propagate xterm viewport size to PTY so Codex TUI redraws at actual col width
     term.onResize(({ cols, rows }) => {
       const sock = socketRef.current;
       const sid = currentSessionIdRef.current;
@@ -2673,13 +2672,16 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
     const socket = new WebSocket(terminalWsUrl());
     socketRef.current = socket;
     socket.addEventListener("open", () => {
-      socket.send(JSON.stringify({ type: "attach", sessionId }));
-      // Immediately sync actual xterm cols to PTY before first snapshot arrives
-      const fit = fitRef.current;
-      if (fit) {
-        try { fit.fit(); } catch {}
-        socket.send(JSON.stringify({ type: "resize", sessionId, cols: term.cols, rows: term.rows }));
-      }
+      requestAnimationFrame(() => {
+        if (socket.readyState !== WebSocket.OPEN || socketRef.current !== socket) return;
+        try {
+          fitRef.current?.fit();
+        } catch {}
+        const cols = Number.isFinite(term.cols) && term.cols > 0 ? term.cols : 80;
+        const rows = Number.isFinite(term.rows) && term.rows > 0 ? term.rows : 24;
+        socket.send(JSON.stringify({ type: "attach", sessionId, cols, rows }));
+        socket.send(JSON.stringify({ type: "resize", sessionId, cols, rows }));
+      });
     });
     socket.addEventListener("message", (event) => {
       let message: Record<string, unknown>;

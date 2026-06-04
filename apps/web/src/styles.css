@@ -1463,6 +1463,7 @@ textarea {
 
 .terminal-snapshot-preview {
   box-sizing: border-box;
+  width: 100%;
   min-width: 0;
   min-height: 0;
   height: 100%;
