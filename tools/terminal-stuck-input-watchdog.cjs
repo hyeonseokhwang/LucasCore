@@ -254,15 +254,15 @@ async function submitEnter(sessionId) {
       return { method: "prompt-submit" };
     }
 
-    const rawEnterResponse = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(sessionId)}/write`, {
+    const enterFallbackResponse = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(sessionId)}/write`, {
       method: "POST",
       headers: { "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ data: "\r" })
+      body: JSON.stringify({ data: "" })
     });
-    if (!rawEnterResponse.ok) {
-      throw new Error(`${sessionId} write-cr fallback failed: ${rawEnterResponse.status} ${await rawEnterResponse.text()}`);
+    if (!enterFallbackResponse.ok) {
+      throw new Error(`${sessionId} write-empty fallback failed: ${enterFallbackResponse.status} ${await enterFallbackResponse.text()}`);
     }
-    return { method: "prompt-submit+write-cr-fallback" };
+    return { method: "prompt-submit+write-empty-fallback" };
   }
   if (splitResponse.status !== 404 && splitResponse.status !== 405) {
     throw new Error(`${sessionId} prompt-submit failed: ${splitResponse.status} ${await splitResponse.text()}`);

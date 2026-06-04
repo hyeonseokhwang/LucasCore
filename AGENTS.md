@@ -36,7 +36,7 @@ Operating rules:
 - If a manager compresses Lucas's instruction into a short label, the manager owns any resulting drift. Preserve the original context and explain what the task is not.
 - Do not silently switch scope. Report command conflicts explicitly.
 - Preserve the 9001 singleton backend. Do not restart 9001 unless Lucas explicitly orders context loss.
-- 9000 web source changes may be restarted when needed. 9002 is the current control plane. 9003 is OS attach testbed only.
+- Current Lucas LCC runtime scope is 9000 web UI, 9001 terminal/core API, and 9100 dashboard only. Do not use, restart, inspect, or route work through 9002 unless Lucas explicitly restores it for a separate task.
 - UI work requires screenshot or CDP evidence, DOM/text check, console check, and viewport note where feasible.
 - Do not commit unverified work, unrelated dirty changes, generated noise, or wrong-source restoration.
 - Benchmark actual HQ/source files before implementing meeting, ledger, or workflow features.

@@ -1,6 +1,6 @@
 ﻿{
-    "preview_bytes":  32768,
-    "card_replay_bytes":  32768,
-    "max_replay_bytes":  32768,
-    "ring_buffer_bytes":  32768
+    "preview_bytes":  4096,
+    "card_replay_bytes":  4096,
+    "max_replay_bytes":  4096,
+    "ring_buffer_bytes":  4096
 }

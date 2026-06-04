@@ -182,13 +182,6 @@ async function dispatch(session, issue) {
     body: JSON.stringify({ data: prompt })
   });
   if (!res.ok) throw new Error(`${session.id} dispatch failed ${res.status}`);
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  const submitRes = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(session.id)}/write`, {
-    method: "POST",
-    headers: { "content-type": "application/json; charset=utf-8" },
-    body: JSON.stringify({ data: "" })
-  });
-  if (!submitRes.ok) throw new Error(`${session.id} fallback submit failed ${submitRes.status}`);
   return { sent: true, snapshot };
 }
 

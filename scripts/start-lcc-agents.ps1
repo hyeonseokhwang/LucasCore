@@ -145,8 +145,7 @@ function Send-AgentBootPrompt {
       $bootSubmitMethod = Submit-AgentPromptFallback -TargetAgentId $AgentId
     } catch {
       Invoke-RestMethod -Uri "$ApiUrl/api/sessions/$AgentId/write" -Method Post -ContentType "application/json" -Body (@{ data = $prompt } | ConvertTo-Json -Compress) -TimeoutSec 20 | Out-Null
-      Start-Sleep -Milliseconds 300
-      $bootSubmitMethod = Submit-AgentPromptFallback -TargetAgentId $AgentId
+      $bootSubmitMethod = "write-fallback"
     }
     Write-AgentOpsLog -Event "boot_prompt.sent" -AgentId $AgentId -Status "sent" -Message "policy-first boot prompt submitted" -Data @{
       api_url = $ApiUrl

@@ -10,8 +10,8 @@
       "last_reminded_at": null,
       "owner": "Caesar",
       "lead": "Caesar",
-      "notes": "Controlled 9001 deploy script ready and dry-run verified. Live 9001 remains PID 24228 until Lucas approves --execute with LUCAS_APPROVED_9001_DEPLOY.",
-      "updated_at": "2026-06-04T10:00:15.453Z"
+      "notes": "UI ACK-gated path verified. Live 9001 REST split still fails before deploy. Guarded deploy script now includes post-deploy health, memory, and newline smoke verification. Await explicit Lucas approval for 9001 switch.",
+      "updated_at": "2026-06-04T11:27:32.687Z"
     },
     {
       "id": "human-grade-memory-completion-20260604",
@@ -1557,6 +1557,27 @@
       "at": "2026-06-04T10:00:15.453Z",
       "kind": "deploy_gate_script_ready",
       "body": "Guarded 9001 deploy script added at tools/controlled-9001-deploy.cjs. Dry-run verified candidate exists, listener_pid=24228, session_count=12, and no execution occurs without --execute --approval LUCAS_APPROVED_9001_DEPLOY. Evidence=data/system-logs/terminal-normalization-20260604/controlled-9001-deploy.json. Live 9001 untouched."
+    },
+    {
+      "id": "work-event-1780572023043",
+      "task_id": "terminal-normalization-20260604",
+      "at": "2026-06-04T11:20:23.040Z",
+      "kind": "evidence",
+      "body": "Caesar newline lane completed injection-path audit and UI ACK-gated fix. Changed apps/web/src/main.tsx sendTerminalProtocol to wait for promptTextAck and promptSubmitAck; removed double-submit fallback in scripts/start-lcc-agents.ps1 and tools/caesar-newline-monitor.cjs; fixed newline channel smoke detector. Verification passed: cargo check, targeted cargo prompt test, npm web tests 49/49, npm web build, node --check ops scripts, PowerShell parser, newline channel smoke all ok, UI CDP ok=true with promptTextAck+promptSubmitAck and semantic verifier pass. Evidence=data/task-reports/terminal-newline-fix-20260604.md; data/system-logs/terminal-normalization-20260604/newline-channel-smoke.json; data/system-logs/terminal-normalization-20260604/ui-ack-wait-cdp.json. Runtime: 9000 PID 11900, 9001 PID 24228 preserved, 9003 not listening."
+    },
+    {
+      "id": "work-event-1780572313094",
+      "task_id": "terminal-normalization-20260604",
+      "at": "2026-06-04T11:25:13.092Z",
+      "kind": "risk",
+      "body": "Correction to newline evidence: 9000 UI ACK-gated path is verified ok=true with promptTextAck+promptSubmitAck and semantic verifier pass, but live 9001 PID 24228 still fails the first REST split case in tools/check-terminal-newline-channels.cjs; split response appears only when a later input arrives. This confirms guarded 9001 deploy candidate is still required before closure. Dry-run passed and candidate exists; do not execute without explicit Lucas approval. Evidence=data/task-reports/terminal-newline-fix-20260604.md; data/system-logs/terminal-normalization-20260604/newline-channel-smoke.json; data/system-logs/terminal-normalization-20260604/controlled-9001-deploy.json."
+    },
+    {
+      "id": "work-event-1780572452689",
+      "task_id": "terminal-normalization-20260604",
+      "at": "2026-06-04T11:27:32.687Z",
+      "kind": "evidence",
+      "body": "Controlled 9001 deploy script hardened without executing deploy: tools/controlled-9001-deploy.cjs now runs post-deploy newline channel smoke after health and memory recovery, and fails the deploy report if split/newline semantic smoke fails. node --check passed; dry-run passed with listener_pid=24228 and candidate_exists=true; runtime unchanged: 9000 PID 11900, 9001 PID 24228. Evidence=data/system-logs/terminal-normalization-20260604/controlled-9001-deploy.json; data/task-reports/terminal-newline-fix-20260604.md."
     }
   ]
 }

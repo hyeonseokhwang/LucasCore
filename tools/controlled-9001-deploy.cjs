@@ -91,6 +91,38 @@ async function waitForHealth(timeoutMs = 12000) {
   throw new Error(`9001 health did not recover: ${lastError}`);
 }
 
+async function runPostDeployNewlineSmoke() {
+  const result = await run(process.execPath, [path.join(root, "tools", "check-terminal-newline-channels.cjs")], {
+    env: {
+      ...process.env,
+      LCC_API_BASE: apiBase,
+      LCC_NEWLINE_SMOKE_SESSION: process.env.LCC_NEWLINE_SMOKE_SESSION || "terminal-post-deploy-verify",
+      LCC_NEWLINE_SMOKE_CREATE: "1"
+    }
+  });
+  const smokePath = path.join(evidenceDir, "newline-channel-smoke.json");
+  let smoke = null;
+  try {
+    smoke = JSON.parse(fs.readFileSync(smokePath, "utf8"));
+  } catch (error) {
+    smoke = { ok: false, error: `Could not read ${smokePath}: ${error.message}` };
+  }
+  return {
+    ok: smoke?.ok === true,
+    evidence: smokePath,
+    stdout_tail: result.stdout.slice(-2000),
+    stderr_tail: result.stderr.slice(-2000),
+    results: Array.isArray(smoke?.results)
+      ? smoke.results.map((item) => ({
+          channel: item.channel,
+          semanticAck: item.semanticAck,
+          marker: item.marker,
+          updated_at: item.updated_at
+        }))
+      : []
+  };
+}
+
 function summarizeSessions(sessions) {
   const items = Array.isArray(sessions) ? sessions : Array.isArray(sessions?.value) ? sessions.value : [];
   return items.map((session) => ({
@@ -161,7 +193,13 @@ async function main() {
     has_daily_memory: Boolean(item.json?.recovered_context?.daily_memory),
     daily_exists: item.json?.recovered_context?.daily_memory?.exists
   }));
-  report.next = "Run dedicated split-submit semantic ACK verification.";
+  report.post.newline_smoke = await runPostDeployNewlineSmoke();
+  if (!report.post.newline_smoke.ok) {
+    report.next = "Post-deploy newline smoke failed; inspect newline-channel-smoke.json before accepting deploy.";
+    fs.writeFileSync(evidencePath, JSON.stringify(report, null, 2), "utf8");
+    throw new Error("Post-deploy newline smoke failed");
+  }
+  report.next = "Post-deploy health, memory recovery, and newline channel smoke passed.";
 
   fs.writeFileSync(evidencePath, JSON.stringify(report, null, 2), "utf8");
   console.log(JSON.stringify(report, null, 2));

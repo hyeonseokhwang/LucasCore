@@ -29,15 +29,12 @@
 } from "lucide-react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { WebLinksAddon } from "@xterm/addon-web-links";
-import { Unicode11Addon } from "@xterm/addon-unicode11";
 import React, { FormEvent, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { normalizePromptForSubmit } from "./terminalPrompt";
 import { tailTerminalLines } from "./terminalReplay";
 import { clipboardItemsContainImage, readTerminalCardDraft, writeTerminalCardDraft } from "./terminalCardComposer";
 import { shouldSubmitTerminalTileComposer, stopTerminalTileFooterMouseDown } from "./terminalTileFooter";
-import { enqueueTerminalWriteItems, shiftTerminalWriteItem, type TerminalWriteItem } from "./xtermWriteQueue";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 
@@ -59,6 +56,7 @@ type Session = {
   exit_code?: number;
   preview: string;
   preview_text?: string;
+  preview_ansi?: string | null;
 };
 
 const SESSION_GROUPS = [
@@ -104,8 +102,9 @@ const API_ORIGIN = VITE_ENV.VITE_LCC_API_ORIGIN || window.location.origin;
 const WS_ORIGIN =
   VITE_ENV.VITE_LCC_WS_ORIGIN ||
   API_ORIGIN.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
-const TERMINAL_SCROLLBACK_LINES = 500;
-const TERMINAL_VIEW_REPLAY_BYTES = 32 * 1024;
+const TERMINAL_SCROLLBACK_LINES = 120;
+const TERMINAL_PREVIEW_SCROLLBACK_LINES = 512;
+const HIDDEN_TERMINAL_TEAMS = new Set(["verification"]);
 const activeTerminalComposerKeys = new Set<string>();
 const terminalComposerSubscribers = new Set<() => void>();
 function apiUrl(path: string) {
@@ -117,7 +116,8 @@ function terminalWsUrl() {
   return `${WS_ORIGIN}/ws/terminal`;
 }
 
-function closeWebSocket(socket: WebSocket) {
+function closeWebSocket(socket: WebSocket | null) {
+  if (!socket) return;
   if (socket.readyState === WebSocket.CONNECTING) {
     socket.addEventListener("open", () => socket.close(), { once: true });
     return;
@@ -441,7 +441,23 @@ function sendTerminalProtocol(sessionId: string, payload: Record<string, unknown
   return new Promise<void>((resolve, reject) => {
     const socket = new WebSocket(terminalWsUrl());
     const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const payloadData = typeof payload.data === "string" ? payload.data : "";
+    const payloadData = typeof payload.prompt === "string" ? payload.prompt : typeof payload.data === "string" ? payload.data : "";
+    const expectedAckType =
+      payload.type === "promptText" ? "promptTextAck" :
+      payload.type === "promptSubmit" ? "promptSubmitAck" :
+      null;
+    let settled = false;
+    function settle(error?: Error) {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      closeWebSocket(socket);
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    }
     writeTerminalDiagnostic("terminal_input_protocol_start", {
       requestId,
       sessionId,
@@ -451,13 +467,12 @@ function sendTerminalProtocol(sessionId: string, payload: Record<string, unknown
       dataPreview: payloadData.slice(0, 180)
     });
     const timeout = window.setTimeout(() => {
-      closeWebSocket(socket);
       writeTerminalDiagnostic("terminal_input_protocol_timeout", {
         requestId,
         sessionId,
         readyState: socket.readyState
       });
-      reject(new Error("terminal input timed out"));
+      settle(new Error("terminal input timed out"));
     }, 5000);
 
     socket.addEventListener("open", () => {
@@ -473,20 +488,37 @@ function sendTerminalProtocol(sessionId: string, payload: Record<string, unknown
         payloadType: payload.type,
         dataBytes: payloadData.length
       });
-      window.setTimeout(() => {
-        window.clearTimeout(timeout);
-        closeWebSocket(socket);
-        resolve();
-      }, 150);
+      if (!expectedAckType) settle();
+    });
+    socket.addEventListener("message", (event) => {
+      if (!expectedAckType) return;
+      let message: Record<string, unknown>;
+      try {
+        message = JSON.parse(String(event.data));
+      } catch {
+        return;
+      }
+      if (message.sessionId !== sessionId || message.type !== expectedAckType) {
+        if (message.sessionId === sessionId && message.type === "error") {
+          settle(new Error(typeof message.message === "string" ? message.message : "terminal input failed"));
+        }
+        return;
+      }
+      writeTerminalDiagnostic("terminal_input_protocol_ack", {
+        requestId,
+        sessionId,
+        payloadType: payload.type,
+        ackType: message.type
+      });
+      settle();
     });
     socket.addEventListener("error", () => {
-      window.clearTimeout(timeout);
       writeTerminalDiagnostic("terminal_input_protocol_error", {
         requestId,
         sessionId,
         readyState: socket.readyState
       });
-      reject(new Error("terminal input socket failed"));
+      settle(new Error("terminal input socket failed"));
     });
     socket.addEventListener("close", (event) => {
       writeTerminalDiagnostic("terminal_input_protocol_close", {
@@ -581,10 +613,11 @@ function terminalRectSnapshot(element: HTMLElement | null) {
 }
 
 function writeTerminalDiagnostic(type: string, details: Record<string, unknown> = {}) {
-  if (localStorage.getItem(TERMINAL_DIAGNOSTICS_STORAGE_KEY) !== "enabled") return;
+  const raw = localStorage.getItem(TERMINAL_DIAGNOSTICS_STORAGE_KEY);
+  if (raw !== "enabled" && !raw?.startsWith("[")) return;
   try {
-    const raw = localStorage.getItem(TERMINAL_DIAGNOSTICS_STORAGE_KEY);
-    const events = raw ? (JSON.parse(raw) as unknown[]) : [];
+    const parsed = raw && raw !== "enabled" ? JSON.parse(raw) : [];
+    const events = Array.isArray(parsed) ? parsed : [];
     const event = {
       at: new Date().toISOString(),
       type,
@@ -910,7 +943,7 @@ function TerminalPopoutPage({ sessionId }: { sessionId: string }) {
       {error ? (
         <div className="error">{error}</div>
       ) : session ? (
-        <HqTerminalPreview sessionId={session.id} status={session.status} ownsSessionResize={false} />
+        <HqTerminalPreview sessionId={session.id} variant="fullscreen" />
       ) : (
         <pre className="terminal-snapshot-preview fullscreen" aria-label="Loading terminal output">
           Loading terminal output...
@@ -1089,8 +1122,10 @@ function ShellApp() {
       selectedGroup
         ? sessions.filter((session) => selectedGroup.members.some((member) => member.session && member.id === session.id))
         : filter === "all"
-          ? sessions
-          : sessions.filter((session) => session.team === filter || session.status === filter);
+          ? sessions.filter((session) => !HIDDEN_TERMINAL_TEAMS.has(session.team))
+          : filter === "active"
+            ? sessions.filter((session) => session.status === "active" && !HIDDEN_TERMINAL_TEAMS.has(session.team))
+            : sessions.filter((session) => session.team === filter || session.status === filter);
     return [...filtered].sort((a, b) => agentRank(a.id) - agentRank(b.id) || a.name.localeCompare(b.name));
   }, [filter, sessions]);
   const deferredVisibleSessions = useDeferredValue(visibleSessions);
@@ -2347,7 +2382,7 @@ const TerminalCard = React.memo(function TerminalCard({
           </button>
         </div>
       </header>
-      <HqTerminalPreview sessionId={session.id} status={session.status} />
+      <HqTerminalPreview sessionId={session.id} />
       {attachments.length > 0 && (
         <div className="terminal-attachment-strip" onMouseDown={stopTerminalTileFooterMouseDown}>
           {attachments.map((attachment) => (
@@ -2523,7 +2558,7 @@ function FullscreenTerminalModal({
             <X size={16} />
           </button>
         </header>
-        <HqTerminalPreview sessionId={session.id} status={session.status} variant="fullscreen" />
+        <HqTerminalPreview sessionId={session.id} variant="fullscreen" />
         <footer onMouseDown={stopTerminalTileFooterMouseDown}>
           <select value={target} onChange={(event) => setTarget(event.target.value)} onMouseDown={stopTerminalTileFooterMouseDown}>
             {sessions.map((item) => (
@@ -2561,31 +2596,16 @@ function FullscreenTerminalModal({
 
 const HqTerminalPreview = React.memo(function HqTerminalPreview({
   sessionId,
-  status,
-  variant = "card",
-  isVisible = true,
-  ownsSessionResize = false
+  variant = "card"
 }: {
   sessionId: string;
-  status: SessionStatus;
   variant?: "card" | "fullscreen";
-  isVisible?: boolean;
-  ownsSessionResize?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const termRef = useRef<XTerm | null>(null);
+  const terminalRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
-  const attachedRef = useRef(false);
-  const inputQueueRef = useRef<string[]>([]);
-  const writeQueueRef = useRef<TerminalWriteItem[]>([]);
-  const queuedWriteBytesRef = useRef(0);
-  const writeDrainScheduledRef = useRef(false);
-  const writeDrainRafRef = useRef<number | null>(null);
-  const userScrolledUpRef = useRef(false);
-  const programmaticScrollRef = useRef(false);
-  const isVisibleRef = useRef(isVisible);
-  const lastDimsRef = useRef({ cols: 0, rows: 0 });
+  const seededSessionRef = useRef<string | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -2593,248 +2613,88 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
 
     const term = new XTerm({
       fontSize: variant === "fullscreen" ? 13 : 12,
-      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace",
-      fontWeight: 400,
-      fontWeightBold: 700,
-      drawBoldTextInBrightColors: false,
-      cursorBlink: status === "active",
-      scrollback: TERMINAL_SCROLLBACK_LINES,
+      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace",
+      scrollback: TERMINAL_PREVIEW_SCROLLBACK_LINES,
       convertEol: true,
-      allowProposedApi: true,
+      cursorBlink: false,
+      disableStdin: true,
       theme: {
         background: "#070c15",
-        foreground: "#e2e8f0",
+        foreground: "#d8e2f1",
         cursor: "#60a5fa",
-        selectionBackground: "#334155",
-        black: "#1e293b",
-        red: "#f87171",
-        green: "#4ade80",
-        yellow: "#facc15",
-        blue: "#60a5fa",
-        magenta: "#c084fc",
-        cyan: "#22d3ee",
-        white: "#f1f5f9",
-        brightBlack: "#475569",
-        brightRed: "#fca5a5",
-        brightGreen: "#86efac",
-        brightYellow: "#fde047",
-        brightBlue: "#93c5fd",
-        brightMagenta: "#d8b4fe",
-        brightCyan: "#67e8f9",
-        brightWhite: "#f8fafc"
+        selectionBackground: "#334155"
       }
     });
     const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.loadAddon(new WebLinksAddon());
-    const unicode11 = new Unicode11Addon();
-    term.loadAddon(unicode11);
-    term.unicode.activeVersion = "11";
-    term.open(container);
-    termRef.current = term;
+    terminalRef.current = term;
     fitRef.current = fit;
-
-    const scrollToBottom = () => {
-      if (userScrolledUpRef.current) return;
-      programmaticScrollRef.current = true;
-      requestAnimationFrame(() => {
-        term.scrollToBottom();
-        window.setTimeout(() => {
-          programmaticScrollRef.current = false;
-        }, 100);
-      });
-    };
-    const fitAndResize = () => {
-      if (!isVisibleRef.current) return;
+    term.loadAddon(fit);
+    term.open(container);
+    requestAnimationFrame(() => {
       try {
         fit.fit();
       } catch {}
-      const dims = { cols: term.cols, rows: term.rows };
-      const last = lastDimsRef.current;
-      if (dims.cols !== last.cols || dims.rows !== last.rows) {
-        lastDimsRef.current = dims;
-        const socket = socketRef.current;
-        if (ownsSessionResize && socket?.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: "resize", sessionId, cols: dims.cols, rows: dims.rows }));
-        }
-      }
+    });
+    return () => {
+      terminalRef.current = null;
+      fitRef.current = null;
+      closeWebSocket(socketRef.current);
+      socketRef.current = null;
+      seededSessionRef.current = null;
+      term.dispose();
     };
-    const scheduleFit = (delays = [0, 120, 360, 700]) => {
-      const timers = delays.map((delay) =>
-        window.setTimeout(() => {
-          requestAnimationFrame(fitAndResize);
-        }, delay)
-      );
-      return () => {
-        for (const timer of timers) window.clearTimeout(timer);
-      };
-    };
+  }, [variant]);
 
-    const viewport = container.querySelector(".xterm-viewport") as HTMLElement | null;
-    const handleViewportScroll = () => {
-      if (programmaticScrollRef.current || !viewport) return;
-      userScrolledUpRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight > 50;
-    };
-    viewport?.addEventListener("scroll", handleViewportScroll, { passive: true });
-
-    const sendSocket = (payload: unknown) => {
-      const socket = socketRef.current;
-      const text = JSON.stringify(payload);
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(text);
-      } else if (socket?.readyState === WebSocket.CONNECTING) {
-        socket.addEventListener("open", () => socket.send(text), { once: true });
-      }
-    };
-    const drainWriteQueue = () => {
-      writeDrainRafRef.current = null;
-      const shifted = shiftTerminalWriteItem(writeQueueRef.current, queuedWriteBytesRef.current);
-      writeQueueRef.current = shifted.queue;
-      queuedWriteBytesRef.current = shifted.queuedBytes;
-      const item = shifted.item;
-      if (!item) {
-        writeDrainScheduledRef.current = false;
-        return;
-      }
-      term.write(item.data, () => {
-        item.onDrained?.();
-        if (item.stickToBottom) scrollToBottom();
-        if (writeQueueRef.current.length > 0) {
-          writeDrainRafRef.current = window.requestAnimationFrame(drainWriteQueue);
-        } else {
-          writeDrainScheduledRef.current = false;
-        }
-      });
-    };
-    const enqueueWrite = (data: string, item: Omit<TerminalWriteItem, "data">) => {
-      if (!data) {
-        item.onDrained?.();
-        return;
-      }
-      const next = enqueueTerminalWriteItems(writeQueueRef.current, queuedWriteBytesRef.current, data, item);
-      writeQueueRef.current = next.queue;
-      queuedWriteBytesRef.current = next.queuedBytes;
-      if (!writeDrainScheduledRef.current) {
-        writeDrainScheduledRef.current = true;
-        writeDrainRafRef.current = window.requestAnimationFrame(drainWriteQueue);
-      }
-    };
-
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (!term) return;
+    seededSessionRef.current = null;
+    term.reset();
+    closeWebSocket(socketRef.current);
     const socket = new WebSocket(terminalWsUrl());
     socketRef.current = socket;
     socket.addEventListener("open", () => {
-      attachedRef.current = false;
-      inputQueueRef.current = [];
-      userScrolledUpRef.current = false;
-      term.reset();
-      fitAndResize();
-      const attachMessage: Record<string, unknown> = {
-        type: "attach",
-        sessionId,
-        requestReplay: true,
-        replayBytes: TERMINAL_VIEW_REPLAY_BYTES
-      };
-      if (ownsSessionResize) {
-        attachMessage.cols = term.cols;
-        attachMessage.rows = term.rows;
-      }
-      sendSocket(attachMessage);
-      scheduleFit([0, 120, 360, 700, 1200]);
-      window.setTimeout(scrollToBottom, 1000);
+      socket.send(JSON.stringify({ type: "attach", sessionId }));
     });
     socket.addEventListener("message", (event) => {
       let message: Record<string, unknown>;
       try {
-        message = JSON.parse(event.data);
+        message = JSON.parse(String(event.data));
       } catch {
         return;
       }
-      const messageSessionId = message.sessionId ?? message.session_id;
-      if (messageSessionId && messageSessionId !== sessionId) return;
-      if (message.type === "attached") {
-        attachedRef.current = true;
-        const queue = inputQueueRef.current.splice(0);
-        for (const data of queue) sendSocket({ type: "input", sessionId, data });
-        return;
-      }
-      if (message.type === "replay") {
+      const messageSessionId = typeof message.sessionId === "string"
+        ? message.sessionId
+        : typeof message.session_id === "string"
+          ? message.session_id
+          : "";
+      if (messageSessionId !== sessionId || (message.type !== "snapshot" && message.type !== "output")) return;
+      const data = typeof message.data === "string" ? message.data : "";
+      if (!data) return;
+      if (message.type === "snapshot" && seededSessionRef.current !== sessionId) {
+        seededSessionRef.current = sessionId;
         term.reset();
-        writeQueueRef.current = [];
-        queuedWriteBytesRef.current = 0;
-        enqueueWrite(String(message.data ?? ""), {
-          kind: "replay",
-          stickToBottom: true,
-          onDrained: () => {
-            scheduleFit([0, 120, 360]);
-            scrollToBottom();
-          }
-        });
-        return;
       }
-      if (message.type === "output") {
-        enqueueWrite(String(message.data ?? ""), { kind: "output", stickToBottom: true });
-        return;
-      }
-      if (message.type === "exit") {
-        enqueueWrite("\r\n\x1b[31m[Process exited]\x1b[0m\r\n", { kind: "system", stickToBottom: true });
-      }
+      const shouldFollowTail = message.type === "snapshot" || term.buffer.active.viewportY >= term.buffer.active.baseY - 1;
+      term.write(data, () => {
+        try {
+          fitRef.current?.fit();
+        } catch {}
+        if (shouldFollowTail) term.scrollToBottom();
+      });
     });
-    socket.addEventListener("error", () => undefined);
-
-    const dataDisposable = term.onData((data) => {
-      const processed = data.includes("\n") ? data.replace(/\n/g, "\r") : data;
-      if (!attachedRef.current) {
-        inputQueueRef.current.push(processed);
-        return;
-      }
-      sendSocket({ type: "input", sessionId, data: processed });
+    socket.addEventListener("close", () => {
+      if (socketRef.current === socket) socketRef.current = null;
     });
-    term.element?.addEventListener("mousedown", () => term.focus());
-
-    document.fonts.ready.then(() => {
-      term.options.fontFamily = "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, 'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace";
-      scheduleFit([0, 120, 360]);
-    }).catch(() => undefined);
-    const cancelInitialFit = scheduleFit();
-    const resizeObserver = new ResizeObserver(() => {
-      scheduleFit([0, 120]);
-    });
-    resizeObserver.observe(container);
-    window.addEventListener("resize", fitAndResize);
-
     return () => {
-      viewport?.removeEventListener("scroll", handleViewportScroll);
-      window.removeEventListener("resize", fitAndResize);
-      if (writeDrainRafRef.current !== null) window.cancelAnimationFrame(writeDrainRafRef.current);
-      cancelInitialFit();
-      resizeObserver.disconnect();
-      dataDisposable.dispose();
+      if (socketRef.current === socket) socketRef.current = null;
       closeWebSocket(socket);
-      term.dispose();
-      termRef.current = null;
-      fitRef.current = null;
-      socketRef.current = null;
-      attachedRef.current = false;
-      inputQueueRef.current = [];
-      writeQueueRef.current = [];
-      queuedWriteBytesRef.current = 0;
-      writeDrainScheduledRef.current = false;
-      writeDrainRafRef.current = null;
     };
-  }, [sessionId, status, variant, ownsSessionResize]);
+  }, [sessionId]);
 
-  useEffect(() => {
-    isVisibleRef.current = isVisible;
-    if (!isVisible) return;
-    requestAnimationFrame(() => {
-      try {
-        fitRef.current?.fit();
-      } catch {}
-      if (!userScrolledUpRef.current) termRef.current?.scrollToBottom();
-    });
-  }, [isVisible]);
-
-  return <div className={`xterm-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} ref={containerRef} />;
+  return (
+    <div className={`terminal-snapshot-preview ${variant === "fullscreen" ? "fullscreen" : ""}`} aria-label="Terminal output" role="log" ref={containerRef} />
+  );
 });
 
 function TerminalLogView({ text }: { text: string }) {
@@ -3038,9 +2898,9 @@ function sessionDisplayName(session: Pick<Session, "id" | "name">) {
 
 async function sendCodexStartupPolicy(agentId: string) {
   await sleep(2200);
-  await api.send(`/api/sessions/${agentId}/write`, "POST", { data: "\r" }).catch(() => undefined);
+  await sendTerminalPrompt(agentId, "").catch(() => undefined);
   await sleep(3200);
-  await api.send(`/api/sessions/${agentId}/write`, "POST", { data: `${codexStartupPolicyPrompt(agentId)}\r` }).catch(() => undefined);
+  await sendTerminalPrompt(agentId, codexStartupPolicyPrompt(agentId)).catch(() => undefined);
 }
 
 function standardDevAgents(cmd: string, model: string) {

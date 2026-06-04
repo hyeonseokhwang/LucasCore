@@ -433,13 +433,6 @@ async function writePrompt(sessionId, prompt, meta = {}) {
     body: JSON.stringify({ data: encoded.data })
   });
   if (!response.ok) throw new Error(`${sessionId} write failed: ${response.status} ${await response.text()}`);
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  const submitResponse = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(sessionId)}/write`, {
-    method: "POST",
-    headers: { "content-type": "application/json; charset=utf-8" },
-    body: JSON.stringify({ data: "" })
-  });
-  if (!submitResponse.ok) throw new Error(`${sessionId} fallback submit failed: ${submitResponse.status} ${await submitResponse.text()}`);
 }
 
 async function createSession(input) {

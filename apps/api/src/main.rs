@@ -51,11 +51,12 @@ struct TerminalSession {
     writer: Box<dyn Write + Send>,
 }
 
-const TERMINAL_SCREEN_BUFFER_BYTES: usize = 32 * 1024;
+const TERMINAL_SCREEN_BUFFER_BYTES: usize = 4 * 1024;
 const SESSION_PREVIEW_LIMIT_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
-const TERMINAL_VOLATILE_BUFFER_MAX_BYTES: usize = 64 * 1024;
-const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
-const SESSION_LOG_MAX_TAIL_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
+const TERMINAL_VOLATILE_BUFFER_MAX_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
+const TERMINAL_LOG_TAIL_BYTES: u64 = 32 * 1024;
+const SESSION_LOG_VIEW_LIMIT_BYTES: u64 = TERMINAL_LOG_TAIL_BYTES;
+const SESSION_LOG_MAX_TAIL_BYTES: u64 = TERMINAL_LOG_TAIL_BYTES;
 const TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
 const TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES: u64 = TERMINAL_SCREEN_BUFFER_BYTES as u64;
 const TERMINAL_LOG_ROTATE_BYTES: u64 = 512 * 1024;
@@ -102,21 +103,29 @@ impl TerminalRingBuffer {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+struct TerminalCell {
+    ch: char,
+    sgr: String,
+}
+
 #[derive(Debug, Clone)]
 struct TerminalDisplaySnapshot {
-    lines: Vec<String>,
+    lines: Vec<Vec<TerminalCell>>,
     cursor_row: usize,
     cursor_col: usize,
     max_rows: usize,
+    current_sgr: String,
 }
 
 impl TerminalDisplaySnapshot {
     fn new(max_rows: usize) -> Self {
         Self {
-            lines: vec![String::new()],
+            lines: vec![Vec::new()],
             cursor_row: 0,
             cursor_col: 0,
             max_rows,
+            current_sgr: String::new(),
         }
     }
 
@@ -163,11 +172,46 @@ impl TerminalDisplaySnapshot {
     fn text(&self) -> String {
         self.lines
             .iter()
-            .map(|line| line.trim_end())
+            .map(|line| line.iter().map(|cell| cell.ch).collect::<String>().trim_end().to_string())
             .collect::<Vec<_>>()
             .join("\r\n")
             .trim()
             .to_string()
+    }
+
+    fn ansi_text(&self) -> String {
+        let mut output_lines = Vec::new();
+        for line in &self.lines {
+            let end = line
+                .iter()
+                .rposition(|cell| !cell.ch.is_whitespace())
+                .map(|idx| idx + 1)
+                .unwrap_or(0);
+            let mut current_sgr = String::new();
+            let mut output = String::new();
+            for cell in line.iter().take(end) {
+                if cell.sgr != current_sgr {
+                    output.push_str("\x1b[0m");
+                    if !cell.sgr.is_empty() {
+                        output.push_str("\x1b[");
+                        output.push_str(&cell.sgr);
+                        output.push('m');
+                    }
+                    current_sgr = cell.sgr.clone();
+                }
+                output.push(cell.ch);
+            }
+            if !current_sgr.is_empty() {
+                output.push_str("\x1b[0m");
+            }
+            output_lines.push(output);
+        }
+        let mut output = output_lines.join("\r\n").trim().to_string();
+        if !output.is_empty() {
+            output.push_str("\x1b[0m");
+            output.push_str(&format!("\x1b[{};{}H", self.cursor_row + 1, self.cursor_col + 1));
+        }
+        output
     }
 
     fn consume_escape(&mut self, chars: &[char], start: usize) -> usize {
@@ -206,6 +250,7 @@ impl TerminalDisplaySnapshot {
     fn apply_csi(&mut self, params: &str, command: char) {
         let values = parse_csi_params(params);
         match command {
+            'm' => self.apply_sgr(params),
             'H' | 'f' => {
                 self.cursor_row = values.first().copied().unwrap_or(1).saturating_sub(1);
                 self.cursor_col = values.get(1).copied().unwrap_or(1).saturating_sub(1);
@@ -224,18 +269,43 @@ impl TerminalDisplaySnapshot {
         }
     }
 
+    fn apply_sgr(&mut self, params: &str) {
+        let mut parts = params.trim_start_matches('?').trim().to_string();
+        if parts.is_empty() {
+            parts = "0".to_string();
+        }
+        let codes = parts.split(';').filter(|part| !part.is_empty()).collect::<Vec<_>>();
+        if codes.iter().any(|code| *code == "0") {
+            let after_reset = codes
+                .iter()
+                .rev()
+                .take_while(|code| **code != "0")
+                .copied()
+                .collect::<Vec<_>>();
+            self.current_sgr = after_reset.into_iter().rev().collect::<Vec<_>>().join(";");
+            return;
+        }
+        if self.current_sgr.is_empty() {
+            self.current_sgr = codes.join(";");
+        } else if !codes.is_empty() {
+            self.current_sgr.push(';');
+            self.current_sgr.push_str(&codes.join(";"));
+        }
+    }
+
     fn erase_line(&mut self, mode: usize) {
         self.ensure_cursor_row();
         let line = &mut self.lines[self.cursor_row];
         match mode {
             1 => {
-                let suffix = line.chars().skip(self.cursor_col).collect::<String>();
-                *line = format!("{}{}", " ".repeat(self.cursor_col), suffix);
+                let suffix = line.iter().skip(self.cursor_col).cloned().collect::<Vec<_>>();
+                let mut next = vec![TerminalCell::default(); self.cursor_col];
+                next.extend(suffix);
+                *line = next;
             }
             2 => line.clear(),
             _ => {
-                let prefix = line.chars().take(self.cursor_col).collect::<String>();
-                *line = prefix;
+                line.truncate(self.cursor_col);
             }
         }
     }
@@ -244,7 +314,7 @@ impl TerminalDisplaySnapshot {
         match mode {
             2 => {
                 self.lines.clear();
-                self.lines.push(String::new());
+                self.lines.push(Vec::new());
                 self.cursor_row = 0;
                 self.cursor_col = 0;
             }
@@ -255,22 +325,24 @@ impl TerminalDisplaySnapshot {
     fn put_char(&mut self, ch: char) {
         self.ensure_cursor_row();
         let line = &mut self.lines[self.cursor_row];
-        let mut chars = line.chars().collect::<Vec<_>>();
-        while chars.len() < self.cursor_col {
-            chars.push(' ');
+        while line.len() < self.cursor_col {
+            line.push(TerminalCell::default());
         }
-        if self.cursor_col < chars.len() {
-            chars[self.cursor_col] = ch;
+        let cell = TerminalCell {
+            ch,
+            sgr: self.current_sgr.clone(),
+        };
+        if self.cursor_col < line.len() {
+            line[self.cursor_col] = cell;
         } else {
-            chars.push(ch);
+            line.push(cell);
         }
-        *line = chars.into_iter().collect();
         self.cursor_col += 1;
     }
 
     fn ensure_cursor_row(&mut self) {
         while self.lines.len() <= self.cursor_row {
-            self.lines.push(String::new());
+            self.lines.push(Vec::new());
         }
         if self.lines.len() > self.max_rows {
             let overflow = self.lines.len() - self.max_rows;
@@ -412,6 +484,10 @@ fn strip_ansi_for_ui(value: &str) -> String {
         }
     }
     output
+}
+
+fn terminal_preview_text_for_ui(preview: &str, max_bytes: usize) -> String {
+    tail_string_by_bytes(&strip_ansi_for_ui(preview), max_bytes)
 }
 
 fn clamp_log_tail_limit(limit: Option<u64>) -> u64 {
@@ -613,12 +689,35 @@ fn build_session_view(
     input_disabled_reason: Option<String>,
     log_path: PathBuf,
 ) -> SessionView {
-    let preview_text = strip_ansi_for_ui(&preview);
+    let preview_text = terminal_preview_text_for_ui(&preview, SESSION_PREVIEW_LIMIT_BYTES);
+    build_session_view_with_preview_text(
+        meta,
+        preview,
+        preview_text,
+        source,
+        attached,
+        interactive,
+        input_disabled_reason,
+        log_path,
+    )
+}
+
+fn build_session_view_with_preview_text(
+    meta: SessionMeta,
+    preview: String,
+    preview_text: String,
+    source: SessionSource,
+    attached: bool,
+    interactive: bool,
+    input_disabled_reason: Option<String>,
+    log_path: PathBuf,
+) -> SessionView {
     let preview_has_ansi = preview_text != preview;
     SessionView {
         meta,
         preview,
         preview_text,
+        preview_ansi: None,
         preview_has_ansi,
         source: source.clone(),
         attached,
@@ -676,6 +775,7 @@ struct SessionView {
     meta: SessionMeta,
     preview: String,
     preview_text: String,
+    preview_ansi: Option<String>,
     preview_has_ansi: bool,
     source: SessionSource,
     attached: bool,
@@ -1567,6 +1667,19 @@ async fn terminal_socket(mut socket: WebSocket, state: AppState) {
                             if let Some(session_id) = value.get("sessionId").or_else(|| value.get("session_id")).and_then(Value::as_str) {
                                 attach_session_id = Some(session_id.to_string());
                                 attached_sessions.insert(session_id.to_string());
+                                if value.get("requestReplay").or_else(|| value.get("request_replay")).and_then(Value::as_bool) != Some(true) {
+                                    let attached = json!({ "type": "attached", "sessionId": session_id });
+                                    if socket.send(Message::Text(attached.to_string())).await.is_err() {
+                                        break;
+                                    }
+                                    if let Some(snapshot) = terminal_current_display_for_attach(&state, session_id) {
+                                        let current = json!({ "type": "snapshot", "sessionId": session_id, "data": snapshot });
+                                        if socket.send(Message::Text(current.to_string())).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    continue;
+                                }
                             }
                         }
                     }
@@ -1598,6 +1711,13 @@ fn event_session_id(event: &ServerEvent) -> Option<&str> {
         ServerEvent::SessionCreated { .. } | ServerEvent::Error { session_id: None, .. } => None,
         ServerEvent::Error { session_id: Some(session_id), .. } => Some(session_id),
     }
+}
+
+fn terminal_current_display_for_attach(state: &AppState, id: &str) -> Option<String> {
+    terminal_display_snapshot_ansi_text(state, id)
+        .or_else(|| terminal_display_snapshot_text(state, id))
+        .or_else(|| terminal_buffer_tail(state, id, terminal_runtime_config().preview_bytes))
+        .filter(|text| !text.is_empty())
 }
 
 async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> {
@@ -1766,7 +1886,10 @@ mod tests {
     use axum::http::StatusCode;
     use std::{env, fs as stdfs, path::PathBuf};
 
-    use super::{normalize_prompt_body, normalize_work_event_kind, prompt_submit_key, read_tail_lossy, strip_ansi_for_ui, tail_string_by_bytes};
+    use super::{
+        normalize_prompt_body, normalize_work_event_kind, prompt_submit_key, read_tail_lossy, strip_ansi_for_ui,
+        tail_string_by_bytes, terminal_preview_text_for_ui,
+    };
 
     fn encode_prompt_submit_for_test(data: &str) -> String {
         format!("{}{}", normalize_prompt_body(data), prompt_submit_key())
@@ -1832,15 +1955,16 @@ mod tests {
 
     #[test]
     fn terminal_replay_limit_matches_hq_tail_policy() {
-        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 32 * 1024);
-        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 32 * 1024);
-        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 32 * 1024);
+        assert_eq!(super::TERMINAL_SCREEN_BUFFER_BYTES, 4 * 1024);
+        assert_eq!(super::TERMINAL_VOLATILE_BUFFER_MAX_BYTES, 4 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_CARD_LIMIT_BYTES, 4 * 1024);
+        assert_eq!(super::TERMINAL_WS_REPLAY_MAX_LIMIT_BYTES, 4 * 1024);
         assert_eq!(super::SESSION_LOG_VIEW_LIMIT_BYTES, 32 * 1024);
         assert_eq!(super::SESSION_LOG_MAX_TAIL_BYTES, 32 * 1024);
         assert_eq!(super::TERMINAL_LOG_ROTATE_BYTES, 512 * 1024);
         assert_eq!(super::TERMINAL_LOG_FLUSH_INTERVAL_MS, 50);
         assert_eq!(super::TERMINAL_LOG_FLUSH_CHUNK_BYTES, 50 * 1024);
-        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 32 * 1024);
+        assert_eq!(super::TERMINAL_RING_BUFFER_BYTES, 4 * 1024);
     }
 
     #[test]
@@ -1864,6 +1988,14 @@ mod tests {
     }
 
     #[test]
+    fn terminal_preview_text_for_ui_keeps_text_tail_within_byte_limit() {
+        let raw = format!("{}\u{1b}[35m{}", "가".repeat(2048), "끝".repeat(2048));
+        let text = terminal_preview_text_for_ui(&raw, super::SESSION_PREVIEW_LIMIT_BYTES);
+        assert!(text.len() <= super::SESSION_PREVIEW_LIMIT_BYTES);
+        assert!(text.ends_with("끝"));
+    }
+
+    #[test]
     fn terminal_display_snapshot_tracks_current_visible_text() {
         let mut snapshot = super::TerminalDisplaySnapshot::new(10);
         snapshot.push("ready\r\n");
@@ -1876,6 +2008,17 @@ mod tests {
         assert!(text.contains("Working"));
         assert!(!text.contains("\x1b[3;1H"));
         assert!(!text.contains("\r\nW\r\nWo"));
+    }
+
+    #[test]
+    fn terminal_display_snapshot_restores_cursor_for_live_followup() {
+        let mut snapshot = super::TerminalDisplaySnapshot::new(10);
+        snapshot.push("ready\r\n");
+        snapshot.push("\x1b[3;4HWorking");
+
+        let ansi = snapshot.ansi_text();
+
+        assert!(ansi.ends_with("\x1b[0m\x1b[3;11H"));
     }
 
     #[tokio::test]
@@ -1991,18 +2134,24 @@ async fn resolve_terminal_replay(state: &AppState, id: &str, limit_bytes: u64) -
 async fn build_internal_session_view(state: &AppState, meta: SessionMeta) -> Result<SessionView, ApiError> {
     let log_path = terminal_log_path(&meta.id);
     let runtime_config = terminal_runtime_config();
-    let preview = terminal_display_snapshot_text(state, &meta.id)
-        .or_else(|| terminal_buffer_tail(state, &meta.id, runtime_config.preview_bytes))
-        .unwrap_or_default();
-    Ok(build_session_view(
+    let preview = terminal_buffer_tail(state, &meta.id, runtime_config.preview_bytes).unwrap_or_default();
+    let preview_text = terminal_display_snapshot_text(state, &meta.id)
+        .map(|snapshot| tail_string_by_bytes(&snapshot, runtime_config.preview_bytes))
+        .unwrap_or_else(|| terminal_preview_text_for_ui(&preview, runtime_config.preview_bytes));
+    let preview_ansi = terminal_display_snapshot_ansi_text(state, &meta.id)
+        .map(|snapshot| tail_string_by_bytes(&snapshot, runtime_config.preview_bytes));
+    let mut view = build_session_view_with_preview_text(
         meta,
         tail_string_by_bytes(&preview, runtime_config.preview_bytes),
+        preview_text,
         SessionSource::Internal,
         true,
         true,
         None,
         log_path,
-    ))
+    );
+    view.preview_ansi = preview_ansi;
+    Ok(view)
 }
 
 fn terminal_buffer_tail(state: &AppState, id: &str, max_bytes: usize) -> Option<String> {
@@ -2019,6 +2168,15 @@ fn terminal_display_snapshot_text(state: &AppState, id: &str) -> Option<String> 
         .lock()
         .ok()
         .and_then(|snapshots| snapshots.get(id).map(TerminalDisplaySnapshot::text))
+        .filter(|text| !text.is_empty())
+}
+
+fn terminal_display_snapshot_ansi_text(state: &AppState, id: &str) -> Option<String> {
+    state
+        .terminal_display_snapshots
+        .lock()
+        .ok()
+        .and_then(|snapshots| snapshots.get(id).map(TerminalDisplaySnapshot::ansi_text))
         .filter(|text| !text.is_empty())
 }
 
@@ -2188,7 +2346,7 @@ fn os_agent_registry_path() -> Option<PathBuf> {
     match raw.as_deref().map(str::trim) {
         Some("") | Some("0") | Some("off") | Some("false") | Some("none") | Some("disabled") => None,
         Some(path) => Some(PathBuf::from(path)),
-        None => Some(PathBuf::from("data/os-agents/registry.json")),
+        None => None,
     }
 }
 
