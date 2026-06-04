@@ -39,6 +39,7 @@ struct AppState {
     sessions: Arc<RwLock<HashMap<String, Arc<Mutex<TerminalSession>>>>>,
     terminal_buffers: Arc<StdMutex<HashMap<String, TerminalRingBuffer>>>,
     terminal_display_snapshots: Arc<StdMutex<HashMap<String, TerminalDisplaySnapshot>>>,
+    terminal_last_nonempty_snapshots: Arc<StdMutex<HashMap<String, String>>>,
     tx: broadcast::Sender<ServerEvent>,
     canvas_store: CanvasStore,
     peer_store: PeerStore,
@@ -1075,6 +1076,7 @@ fn build_session_view_with_preview_text(
         preview_text,
         preview_ansi: None,
         preview_has_ansi,
+        display_snapshot_volatile: false,
         source: source.clone(),
         attached,
         interactive,
@@ -1133,6 +1135,7 @@ struct SessionView {
     preview_text: String,
     preview_ansi: Option<String>,
     preview_has_ansi: bool,
+    display_snapshot_volatile: bool,
     source: SessionSource,
     attached: bool,
     interactive: bool,
@@ -1523,6 +1526,7 @@ async fn main() -> anyhow::Result<()> {
         sessions: Arc::new(RwLock::new(HashMap::new())),
         terminal_buffers: Arc::new(StdMutex::new(HashMap::new())),
         terminal_display_snapshots: Arc::new(StdMutex::new(HashMap::new())),
+        terminal_last_nonempty_snapshots: Arc::new(StdMutex::new(HashMap::new())),
         tx,
         canvas_store,
         peer_store,
@@ -3125,11 +3129,22 @@ fn append_terminal_output(state: &AppState, id: &str, data: String) {
             .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
             .push(&data);
     }
-    if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
+    let snapshot_text_after_push = if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
         snapshots
             .entry(id.to_string())
             .or_insert_with(|| TerminalDisplaySnapshot::new(150))
             .push(&data);
+        snapshots.get(id).map(TerminalDisplaySnapshot::text)
+    } else {
+        None
+    };
+    // Cache last non-empty snapshot text for P1-G fallback (ESC[2J redraw window stability).
+    if let Some(text) = snapshot_text_after_push {
+        if !text.is_empty() {
+            if let Ok(mut last_nonempty) = state.terminal_last_nonempty_snapshots.lock() {
+                last_nonempty.insert(id.to_string(), text);
+            }
+        }
     }
     let _ = state.tx.send(ServerEvent::Output {
         session_id: id.to_string(),
@@ -3571,6 +3586,7 @@ async fn build_internal_session_view(
     // cursor-motion sequences (ESC[row;colH) are stripped but raw chars remain in stream order,
     // producing garbled text. Empty string is correct when no display snapshot exists —
     // the WS attach will deliver accurate content shortly.
+    let display_snapshot_volatile = terminal_display_snapshot_is_volatile(state, &meta.id);
     let preview_text = terminal_display_snapshot_text(state, &meta.id)
         .map(|snapshot| tail_string_by_bytes(&snapshot, runtime_config.preview_bytes))
         .unwrap_or_default();
@@ -3587,6 +3603,7 @@ async fn build_internal_session_view(
         log_path,
     );
     view.preview_ansi = preview_ansi;
+    view.display_snapshot_volatile = display_snapshot_volatile;
     Ok(view)
 }
 
@@ -3599,12 +3616,32 @@ fn terminal_buffer_tail(state: &AppState, id: &str, max_bytes: usize) -> Option<
 }
 
 fn terminal_display_snapshot_text(state: &AppState, id: &str) -> Option<String> {
+    let current = state
+        .terminal_display_snapshots
+        .lock()
+        .ok()
+        .and_then(|snapshots| snapshots.get(id).map(TerminalDisplaySnapshot::text))
+        .filter(|text| !text.is_empty());
+    current.or_else(|| {
+        // Fall back to last non-empty snapshot during ESC[2J redraw windows (P1-G).
+        state
+            .terminal_last_nonempty_snapshots
+            .lock()
+            .ok()
+            .and_then(|cache| cache.get(id).cloned())
+            .filter(|text| !text.is_empty())
+    })
+}
+
+fn terminal_display_snapshot_is_volatile(state: &AppState, id: &str) -> bool {
+    // Returns true when current display snapshot is empty (inside ESC[2J redraw window).
     state
         .terminal_display_snapshots
         .lock()
         .ok()
         .and_then(|snapshots| snapshots.get(id).map(TerminalDisplaySnapshot::text))
-        .filter(|text| !text.is_empty())
+        .map(|t| t.is_empty())
+        .unwrap_or(true)
 }
 
 fn terminal_display_snapshot_ansi_text(state: &AppState, id: &str) -> Option<String> {
