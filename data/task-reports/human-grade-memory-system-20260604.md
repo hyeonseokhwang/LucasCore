@@ -476,3 +476,21 @@ Verification:
 
 - `npm --prefix apps/web test -- --runInBand`: pass, 48 tests.
 - `rg` confirmed the live boot prompt, Caesar/Max boot prompts, and restart-safe memory contract all name recover/daily-memory paths.
+
+## Phase 5 Live 9001 Compatibility Fallback
+
+Gap found after Phase 4:
+
+- Live 9001 may not have the newly compiled `recovered_context.daily_memory` field until a controlled restart/deploy.
+- Because 9001 must be preserved, boot instructions must not assume the new field exists just because 9001 is reachable.
+
+Change:
+
+- `data/agent-boot-prompts.json`
+- `apps/web/src/main.tsx`
+- Caesar/Max/live boot instructions now say: if 9001 is unavailable or `recovered_context.daily_memory` is missing, read `data/daily-memory/YYYY-MM-DD.md` and `data/memory-ledger.jsonl` directly.
+
+Verification:
+
+- `node` JSON parse confirms Caesar/Max prompts include `recovered_context.daily_memory is missing`.
+- `npm --prefix apps/web test -- --runInBand`: pass, 48 tests.
