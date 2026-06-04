@@ -2747,6 +2747,9 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       const data = typeof message.data === "string" ? message.data : "";
       if (!data) return;
       if (message.type === "snapshot" && seededSessionRef.current !== sessionId) {
+        // Skip blank snapshots (CLEAR_PREFIX only or all whitespace) so initialPreviewText seed remains usable
+        const visibleContent = data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").replace(/\s/g, "");
+        if (visibleContent.length === 0) return;
         seededSessionRef.current = sessionId;
         term.reset();
       }
