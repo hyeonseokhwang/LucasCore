@@ -118,9 +118,13 @@ Do not edit protected newline/submit source from anecdotal evidence alone. First
 - 2026-06-04: Dedicated `terminal-normalization-verify` session produced semantic ACK after split `prompt-text` and `prompt-submit`.
 - 2026-06-04: Max `dev-lead` was confirmed stale/read-only OS-attached from 2026-05-31 and was recreated as an internal interactive 9001 session without restarting 9001.
 - 2026-06-04: Lucas assigned ongoing newline monitoring to an external GPT-5.4 lane; Caesar will handle root-cause fix when concrete external evidence arrives.
+- 2026-06-04: External monitor evidence identified injected-command-visible-without-required-reply cases on `areum` and `dev-lead`.
+- 2026-06-04: Caesar patched `apps/api/src/main.rs` so `prompt-text` waits `420ms` before ACK, preventing callers from submitting before text injection has settled. `prompt-submit` remains plain `\r`.
+- 2026-06-04: Verification passed: `cargo check --manifest-path apps/api/Cargo.toml --bin lcc-core-api`; `cargo test --manifest-path apps/api/Cargo.toml --bin lcc-core-api prompt_text_ack_waits_before_submit_can_follow`.
+- 2026-06-04: Live 9001 still needs a controlled restart/deploy before this API fix affects runtime behavior. Do not restart 9001 without Lucas approval.
 
 ## Open Decisions / Blockers
 
-- Need external newline evidence before changing protected newline/submit code.
+- Need Lucas approval for controlled 9001 restart/deploy before runtime fix is live.
 - Need Lux audit of protected-contract boundaries after any newline source fix.
 - Need Areum to keep ledger/9100 readable while terminal and memory evidence is collected.

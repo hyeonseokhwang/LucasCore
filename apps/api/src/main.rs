@@ -62,6 +62,7 @@ const TERMINAL_LOG_ROTATE_BYTES: u64 = 512 * 1024;
 const TERMINAL_LOG_FLUSH_INTERVAL_MS: u64 = 50;
 const TERMINAL_LOG_FLUSH_CHUNK_BYTES: usize = 50 * 1024;
 const TERMINAL_RING_BUFFER_BYTES: usize = TERMINAL_SCREEN_BUFFER_BYTES;
+const PROMPT_TEXT_FLUSH_DELAY_MS: u64 = 420;
 const TERMINAL_PERSIST_LOGS_ENV: &str = "LCC_TERMINAL_PERSIST_LOGS";
 const TERMINAL_RUNTIME_CONFIG_PATH_ENV: &str = "LCC_TERMINAL_RUNTIME_CONFIG";
 const TERMINAL_RUNTIME_CONFIG_DEFAULT_PATH: &str = "data/terminal-runtime-config.json";
@@ -1725,7 +1726,9 @@ async fn write_prompt_text_to_session(state: &AppState, id: &str, body: String) 
     if body.is_empty() {
         return resolve_session_view(state, id).await;
     }
-    write_session_bytes(state, id, body, true).await
+    let session = write_session_bytes(state, id, body, true).await?;
+    sleep(Duration::from_millis(PROMPT_TEXT_FLUSH_DELAY_MS)).await;
+    Ok(session)
 }
 
 async fn write_prompt_submit_to_session(state: &AppState, id: &str, repeat: u8) -> Result<SessionView, ApiError> {
@@ -1819,6 +1822,12 @@ mod tests {
     #[test]
     fn prompt_submit_key_is_plain_carriage_return_for_delayed_write() {
         assert_eq!(prompt_submit_key(), "\r");
+    }
+
+    #[test]
+    fn prompt_text_ack_waits_before_submit_can_follow() {
+        assert!(super::PROMPT_TEXT_FLUSH_DELAY_MS >= 300);
+        assert!(super::PROMPT_TEXT_FLUSH_DELAY_MS <= 1000);
     }
 
     #[test]

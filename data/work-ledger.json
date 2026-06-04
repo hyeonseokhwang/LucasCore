@@ -10,8 +10,8 @@
       "last_reminded_at": null,
       "owner": "Caesar",
       "lead": "Caesar",
-      "notes": "Lucas priority 1. Split prompt-text/prompt-submit semantic ACK is proven on a dedicated session. Max was restored as an internal interactive session. Ongoing newline RCA awaits external GPT-5.4 evidence before protected source changes. 9001 must not be restarted without explicit Lucas order.",
-      "updated_at": "2026-06-04T09:41:16.251Z"
+      "notes": "Fix ready: prompt-text ACK now waits 420ms after text write so immediate prompt-submit cannot outrun injection. Split prompt-text/prompt-submit and plain CR submit preserved. Live 9001 deploy requires explicit Lucas restart approval.",
+      "updated_at": "2026-06-04T09:46:15.708Z"
     },
     {
       "id": "human-grade-memory-completion-20260604",
@@ -1529,6 +1529,13 @@
       "at": "2026-06-04T09:41:16.251Z",
       "kind": "decision",
       "body": "Terminal newline RCA intake criteria added to data/directives/terminal-normalization-20260604.md. External GPT-5.4 report must classify exact failure mode before protected source edits. Max source-root correction prompt remained visible after initial submit, so submit-only retry was sent; this remains part of terminal follow-up evidence."
+    },
+    {
+      "id": "work-event-1780566375711",
+      "task_id": "terminal-normalization-20260604",
+      "at": "2026-06-04T09:46:15.708Z",
+      "kind": "fix_ready",
+      "body": "Root-cause patch prepared for injected-command-visible-without-required-reply newline issue. apps/api/src/main.rs now delays prompt-text ACK by 420ms after text write, preserving split prompt-text/prompt-submit and plain CR submit. cargo check passed; targeted cargo test prompt_text_ack_waits_before_submit_can_follow passed. Runtime application requires controlled 9001 restart/deploy approval."
     }
   ]
 }
