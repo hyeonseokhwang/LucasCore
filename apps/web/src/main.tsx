@@ -1140,8 +1140,19 @@ function ShellApp() {
           : filter === "active"
             ? sessions.filter((session) => session.status === "active" && !HIDDEN_TERMINAL_TEAMS.has(session.team))
             : sessions.filter((session) => session.team === filter || session.status === filter);
-    return [...filtered].sort((a, b) => agentRank(a.id) - agentRank(b.id) || a.name.localeCompare(b.name));
-  }, [filter, sessions]);
+    // Selected session floats to top so focus/stack layout shows it without scrolling.
+    const sorted = [...filtered].sort((a, b) => {
+      if (a.id === selectedSessionId) return -1;
+      if (b.id === selectedSessionId) return 1;
+      return agentRank(a.id) - agentRank(b.id) || a.name.localeCompare(b.name);
+    });
+    // Include selected session even if outside current filter (e.g. executive filter + QA probe URL).
+    if (selectedSessionId && !filtered.some((s) => s.id === selectedSessionId)) {
+      const target = sessions.find((s) => s.id === selectedSessionId);
+      if (target) sorted.unshift(target);
+    }
+    return sorted;
+  }, [filter, sessions, selectedSessionId]);
   const deferredVisibleSessions = useDeferredValue(visibleSessions);
 
   const teams = useMemo(() => [...new Set(sessions.map((session) => session.team).filter(Boolean))], [sessions]);
@@ -1164,10 +1175,11 @@ function ShellApp() {
 
   useEffect(() => {
     if (view !== "terminals") return;
-    if (selectedSessionId && deferredVisibleSessions.some((session) => session.id === selectedSessionId)) return;
+    // Check sessions (not just visible) so URL-specified targets aren't overridden by filter exclusion.
+    if (selectedSessionId && sessions.some((session) => session.id === selectedSessionId)) return;
     const fallback = deferredVisibleSessions.find((session) => session.status === "active") ?? deferredVisibleSessions[0];
     if (fallback && fallback.id !== selectedSessionId) setSelectedSessionId(fallback.id);
-  }, [deferredVisibleSessions, selectedSessionId, view]);
+  }, [deferredVisibleSessions, selectedSessionId, sessions, view]);
 
   useEffect(() => {
     if (view === "terminals") setTerminalsLayerMounted(true);
@@ -2053,6 +2065,15 @@ const TerminalGrid = React.memo(function TerminalGrid({
   onSelectSession: (sessionId: string) => void;
   onOpenFullscreen: (sessionId: string) => void;
 }) {
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (layout !== "stack") return;
+    const grid = gridRef.current;
+    if (!grid) return;
+    const selectedCard = grid.querySelector<HTMLElement>(".terminal-card.selected");
+    if (selectedCard) selectedCard.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [layout, selectedSessionId]);
+
   const fitColumns =
     sessions.length <= 1 ? 1 : sessions.length <= 4 ? 2 : sessions.length <= 9 ? 3 : sessions.length <= 16 ? 5 : 6;
   const columns =
@@ -2074,7 +2095,7 @@ const TerminalGrid = React.memo(function TerminalGrid({
   } as React.CSSProperties;
 
   return (
-    <div className={`terminal-grid ${layout}`} style={gridStyle}>
+    <div ref={gridRef} className={`terminal-grid ${layout}`} style={gridStyle}>
       {sessions.map((session) => (
         <TerminalCard
           key={session.id}
