@@ -2689,27 +2689,13 @@ const HqTerminalPreview = React.memo(function HqTerminalPreview({
       } catch {}
     };
     const fitTimers = [0, 120, 360].map((delay) => window.setTimeout(runFit, delay));
-    let prevCols = 0;
-    let zeroToNFired = false;
-    let zeroToNTimer: ReturnType<typeof setTimeout> | null = null;
     const resizeObserver = typeof ResizeObserver !== "undefined"
-      ? new ResizeObserver(() => {
-          runFit();
-          // 0→N guard: cols 0→N 전환 감지 시 WS 재연결 (1회, 500ms debounce)
-          const curCols = terminalRef.current?.cols ?? 0;
-          if (!zeroToNFired && prevCols === 0 && curCols > 0) {
-            zeroToNFired = true;
-            if (zeroToNTimer) clearTimeout(zeroToNTimer);
-            zeroToNTimer = setTimeout(() => setWsKey(k => k + 1), 500);
-          }
-          prevCols = curCols;
-        })
+      ? new ResizeObserver(() => runFit())
       : null;
     resizeObserver?.observe(container);
     document.fonts?.ready.then(runFit).catch(() => undefined);
     return () => {
       if (resizeDebounce) clearTimeout(resizeDebounce);
-      if (zeroToNTimer) clearTimeout(zeroToNTimer);
       fitTimers.forEach((timer) => window.clearTimeout(timer));
       resizeObserver?.disconnect();
       terminalRef.current = null;
