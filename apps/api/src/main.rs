@@ -3,6 +3,7 @@ mod shared;
 mod domain;
 mod infra;
 mod app;
+mod api;
 
 use axum::{
     extract::{
