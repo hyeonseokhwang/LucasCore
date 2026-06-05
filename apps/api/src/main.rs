@@ -1,5 +1,6 @@
 // CA Phase 1: module scaffold (no logic changes)
 mod shared;
+mod domain;
 
 use axum::{
     extract::{
