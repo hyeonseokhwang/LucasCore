@@ -1,3 +1,4 @@
-// CA Phase 1 scaffold — domain/terminal
-// entities: session.rs, buffer.rs, display.rs, config.rs (Phase 2)
-// ports: port.rs (Phase 2)
+// CA Phase 2 — domain/terminal
+pub mod display;
+pub mod context;
+pub mod port;
