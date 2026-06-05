@@ -1,6 +1,7 @@
 // CA Phase 1 scaffold — api layer (HTTP handlers)
-pub mod terminal;
+pub mod branch;
 pub mod canvas;
 pub mod memory;
-pub mod branch;
 pub mod router;
+pub mod terminal;
+pub mod work_ledger;

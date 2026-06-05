@@ -1,10 +1,17 @@
 // CA Phase 1: module scaffold (no logic changes)
-mod shared;
+mod api;
+mod app;
 mod domain;
 mod infra;
-mod app;
-mod api;
+mod shared;
 
+use crate::app::canvas::CreateCanvasCommand;
+use crate::domain::canvas::canvas::{
+    Canvas as DomainCanvas, CanvasMessage as DomainCanvasMessage,
+    CanvasSection as DomainCanvasSection,
+};
+use crate::domain::work_ledger::work_ledger::{WorkTask, WorkTaskStatus};
+use crate::infra::persistence::work_ledger::WorkLedgerStore;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -1281,36 +1288,9 @@ enum ServerEvent {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Canvas {
-    id: String,
-    title: String,
-    owner: String,
-    status: String,
-    canvas_type: String,
-    members: Vec<String>,
-    linked_issues: Vec<String>,
-    linked_meetings: Vec<String>,
-    content: Vec<CanvasSection>,
-    messages: Vec<CanvasMessage>,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CanvasSection {
-    id: String,
-    title: String,
-    body: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CanvasMessage {
-    id: String,
-    author: String,
-    body: String,
-    created_at: DateTime<Utc>,
-}
+type Canvas = DomainCanvas;
+type CanvasSection = DomainCanvasSection;
+type CanvasMessage = DomainCanvasMessage;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PeerMessage {
@@ -1319,43 +1299,6 @@ struct PeerMessage {
     #[serde(rename = "from")]
     from_peer: String,
     to: String,
-    kind: String,
-    body: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct WorkLedger {
-    tasks: Vec<WorkTask>,
-    events: Vec<WorkTaskEvent>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct WorkTask {
-    id: String,
-    title: String,
-    status: WorkTaskStatus,
-    priority: i32,
-    due_at: Option<DateTime<Utc>>,
-    reminder_minutes: Option<u32>,
-    last_reminded_at: Option<DateTime<Utc>>,
-    notes: Option<String>,
-    updated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum WorkTaskStatus {
-    Todo,
-    Doing,
-    Done,
-    Blocked,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct WorkTaskEvent {
-    id: String,
-    task_id: String,
-    at: DateTime<Utc>,
     kind: String,
     body: String,
 }
@@ -1392,25 +1335,6 @@ struct CreatePeerMessage {
     #[serde(rename = "from")]
     from_peer: Option<String>,
     to: Option<String>,
-    kind: Option<String>,
-    body: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct UpsertWorkTask {
-    title: Option<String>,
-    status: Option<WorkTaskStatus>,
-    priority: Option<i32>,
-    due_at: Option<DateTime<Utc>>,
-    reminder_minutes: Option<u32>,
-    last_reminded_at: Option<DateTime<Utc>>,
-    notes: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct AddWorkTaskEvent {
-    id: Option<String>,
-    at: Option<DateTime<Utc>>,
     kind: Option<String>,
     body: Option<String>,
 }
@@ -1480,12 +1404,6 @@ struct CanvasStore {
 struct PeerStore {
     path: Arc<PathBuf>,
     messages: Arc<RwLock<Vec<PeerMessage>>>,
-}
-
-#[derive(Clone)]
-struct WorkLedgerStore {
-    path: Arc<PathBuf>,
-    ledger: Arc<RwLock<WorkLedger>>,
 }
 
 #[derive(Clone)]
@@ -1591,11 +1509,14 @@ async fn main() -> anyhow::Result<()> {
                 "/api/peer/messages",
                 get(list_peer_messages).post(add_peer_message),
             )
-            .route("/api/work-ledger", get(get_work_ledger))
-            .route("/api/work-ledger/tasks/:id", put(upsert_work_task))
+            .route("/api/work-ledger", get(api::work_ledger::get_work_ledger))
+            .route(
+                "/api/work-ledger/tasks/:id",
+                put(api::work_ledger::upsert_work_task),
+            )
             .route(
                 "/api/work-ledger/tasks/:id/events",
-                post(add_work_task_event),
+                post(api::work_ledger::add_work_task_event),
             )
             .route("/api/memory", get(list_memory).post(add_memory))
             .route("/api/memory/recover/:agent_id", get(recover_agent_context))
@@ -1694,7 +1615,7 @@ async fn branch_status(
         "ok": true,
         "service": "lcc-core-branch-inbound",
         "time": Utc::now(),
-        "work_ledger_tasks": state.work_ledger.ledger.read().await.tasks.len(),
+        "work_ledger_tasks": state.work_ledger.get().await.tasks.len(),
         "peer_messages": state.peer_store.messages.read().await.len(),
         "agent_total": census.total_agents,
         "agent_active": census.active_agents,
@@ -1717,9 +1638,9 @@ async fn branch_agents(
 async fn branch_work_ledger(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<Json<WorkLedger>, ApiError> {
+) -> Result<Json<crate::domain::work_ledger::work_ledger::WorkLedger>, ApiError> {
     require_branch_token(&headers)?;
-    Ok(Json(state.work_ledger.ledger.read().await.clone()))
+    Ok(Json(state.work_ledger.get().await))
 }
 
 async fn branch_list_messages(
@@ -2218,7 +2139,10 @@ fn branch_agent_census_from_snapshot(
                 team: session.team.unwrap_or_else(|| "-".to_string()),
                 status: session.status.unwrap_or_else(|| "active".to_string()),
                 pid: None,
-                source: snapshot.source.clone().unwrap_or_else(|| "snapshot-file".to_string()),
+                source: snapshot
+                    .source
+                    .clone()
+                    .unwrap_or_else(|| "snapshot-file".to_string()),
                 attached: None,
                 interactive: None,
                 last_activity_at,
@@ -2233,7 +2157,12 @@ fn branch_agent_census_from_snapshot(
         .collect::<Vec<_>>();
     let active_agents = agents
         .iter()
-        .filter(|agent| !matches!(agent.status.as_str(), "exited" | "error" | "stopped" | "inactive"))
+        .filter(|agent| {
+            !matches!(
+                agent.status.as_str(),
+                "exited" | "error" | "stopped" | "inactive"
+            )
+        })
         .count();
 
     BranchAgentCensus {
@@ -2841,7 +2770,10 @@ fn terminal_current_display_for_attach(state: &AppState, id: &str) -> Option<Str
             } else {
                 // ESC[2J 없음 → CLEAR_PREFIX + 마지막 2048바이트 전송.
                 // CLEAR_PREFIX가 화면을 먼저 클리어하므로 ghost 재발 없이 최신 출력 표시.
-                Some(format!("{TERMINAL_ATTACH_CLEAR_PREFIX}{}", &tail[tail.len().saturating_sub(2048)..]))
+                Some(format!(
+                    "{TERMINAL_ATTACH_CLEAR_PREFIX}{}",
+                    &tail[tail.len().saturating_sub(2048)..]
+                ))
             }
         })
         .filter(|text| !text.is_empty())
@@ -2874,7 +2806,9 @@ async fn apply_attach_terminal_dims(
     if !is_internal_session {
         return Ok(());
     }
-    resize_to_session(state, session_id, cols, rows).await.map(|_| ())
+    resize_to_session(state, session_id, cols, rows)
+        .await
+        .map(|_| ())
 }
 
 async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> {
@@ -3144,15 +3078,16 @@ fn append_terminal_output(state: &AppState, id: &str, data: String) {
             .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
             .push(&data);
     }
-    let snapshot_text_after_push = if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
-        snapshots
-            .entry(id.to_string())
-            .or_insert_with(|| TerminalDisplaySnapshot::new(150))
-            .push(&data);
-        snapshots.get(id).map(TerminalDisplaySnapshot::text)
-    } else {
-        None
-    };
+    let snapshot_text_after_push =
+        if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
+            snapshots
+                .entry(id.to_string())
+                .or_insert_with(|| TerminalDisplaySnapshot::new(150))
+                .push(&data);
+            snapshots.get(id).map(TerminalDisplaySnapshot::text)
+        } else {
+            None
+        };
     // Cache last non-empty snapshot text for P1-G fallback (ESC[2J redraw window stability).
     if let Some(text) = snapshot_text_after_push {
         if !text.is_empty() {
@@ -3179,11 +3114,11 @@ mod tests {
     };
 
     use super::{
-        normalize_prompt_body, normalize_pty_output, normalize_work_event_kind,
-        prompt_body_from_write_session, prompt_body_from_ws_value, prompt_submit_key,
-        read_tail_lossy, strip_ansi_for_ui, tail_string_by_bytes, terminal_preview_text_for_ui,
-        PtyOutputProcessor, WriteSession,
+        normalize_prompt_body, normalize_pty_output, prompt_body_from_write_session,
+        prompt_body_from_ws_value, prompt_submit_key, read_tail_lossy, strip_ansi_for_ui,
+        tail_string_by_bytes, terminal_preview_text_for_ui, PtyOutputProcessor, WriteSession,
     };
+    use crate::app::work_ledger::normalize_work_event_kind;
 
     fn encode_prompt_submit_for_test(data: &str) -> String {
         format!("{}{}", normalize_prompt_body(data), prompt_submit_key())
@@ -3298,7 +3233,7 @@ mod tests {
     fn ring_buffer_standalone_cr_clears_current_line() {
         let mut buf = super::TerminalRingBuffer::new(1024);
         buf.push("line1\r\n");
-        buf.push("status_old\r");  // standalone CR — clears "status_old"
+        buf.push("status_old\r"); // standalone CR — clears "status_old"
         buf.push("\x1b[Kstatus_new");
         assert_eq!(buf.data, "line1\r\n\r\x1b[Kstatus_new");
 
@@ -4103,26 +4038,47 @@ async fn active_session_count(state: &AppState) -> usize {
 // P1-C auto-guard: standard sessions to respawn when pool is empty.
 const P1C_GUARD_SESSIONS: &[(&str, &str, &str)] = &[
     ("branch-ceo", "codex.cmd", "workspaces/ceo/repo"),
-    ("dev-lead",   "codex.cmd", "workspaces/dev-lead/repo"),
-    ("lux",        "codex.cmd", "workspaces/lux/repo"),
-    ("arum",       "codex.cmd", "workspaces/arum/repo"),
+    ("dev-lead", "codex.cmd", "workspaces/dev-lead/repo"),
+    ("lux", "codex.cmd", "workspaces/lux/repo"),
+    ("arum", "codex.cmd", "workspaces/arum/repo"),
 ];
 const P1C_LOW_WATERMARK: usize = 4;
 
-async fn spawn_standard_session(state: &AppState, id: &str, cmd: &str, cwd: &str) -> Result<(), String> {
+async fn spawn_standard_session(
+    state: &AppState,
+    id: &str,
+    cmd: &str,
+    cwd: &str,
+) -> Result<(), String> {
     if state.sessions.read().await.contains_key(id) {
         return Ok(());
     }
-    fs::create_dir_all(cwd).await.map_err(|e| format!("workspace create failed: {e}"))?;
+    fs::create_dir_all(cwd)
+        .await
+        .map_err(|e| format!("workspace create failed: {e}"))?;
     let pty_system = native_pty_system();
     let pair = pty_system
-        .openpty(PtySize { rows: 36, cols: 140, pixel_width: 0, pixel_height: 0 })
+        .openpty(PtySize {
+            rows: 36,
+            cols: 140,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
         .map_err(|e| format!("pty open failed: {e}"))?;
     let mut command = CommandBuilder::new(cmd);
     command.cwd(cwd);
-    let mut child = pair.slave.spawn_command(command).map_err(|e| format!("spawn failed: {e}"))?;
-    let reader = pair.master.try_clone_reader().map_err(|e| format!("pty reader failed: {e}"))?;
-    let writer = pair.master.take_writer().map_err(|e| format!("pty writer failed: {e}"))?;
+    let mut child = pair
+        .slave
+        .spawn_command(command)
+        .map_err(|e| format!("spawn failed: {e}"))?;
+    let reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("pty reader failed: {e}"))?;
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| format!("pty writer failed: {e}"))?;
     let meta = SessionMeta {
         id: id.to_string(),
         name: id.to_string(),
@@ -4137,7 +4093,11 @@ async fn spawn_standard_session(state: &AppState, id: &str, cmd: &str, cwd: &str
         updated_at: Utc::now(),
         exit_code: None,
     };
-    let session = Arc::new(Mutex::new(TerminalSession { meta, _master: pair.master, writer }));
+    let session = Arc::new(Mutex::new(TerminalSession {
+        meta,
+        _master: pair.master,
+        writer,
+    }));
     state.sessions.write().await.insert(id.to_string(), session);
     spawn_pty_reader(state.clone(), id.to_string(), reader);
     spawn_pty_waiter(state.clone(), id.to_string(), move || {
@@ -4212,37 +4172,6 @@ fn require_field(value: Option<String>, field: &str) -> Result<String, ApiError>
     Ok(value)
 }
 
-async fn get_work_ledger(State(state): State<AppState>) -> Json<WorkLedger> {
-    Json(state.work_ledger.ledger.read().await.clone())
-}
-
-async fn upsert_work_task(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<UpsertWorkTask>,
-) -> Result<Json<WorkTask>, ApiError> {
-    state.work_ledger.upsert_task(&id, input).await.map(Json)
-}
-
-async fn add_work_task_event(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<AddWorkTaskEvent>,
-) -> Result<(StatusCode, Json<WorkTaskEvent>), ApiError> {
-    let kind = normalize_work_event_kind(input.kind)?;
-    let event = WorkTaskEvent {
-        id: input
-            .id
-            .unwrap_or_else(|| format!("work-event-{}", Utc::now().timestamp_millis())),
-        task_id: id.clone(),
-        at: input.at.unwrap_or_else(Utc::now),
-        kind,
-        body: require_field(input.body, "body")?,
-    };
-    state.work_ledger.add_event(&id, event.clone()).await?;
-    Ok((StatusCode::CREATED, Json(event)))
-}
-
 async fn list_memory(
     State(state): State<AppState>,
     Query(query): Query<MemoryQuery>,
@@ -4315,7 +4244,7 @@ async fn recover_agent_context(
         limit: Some(limit),
     };
     let shared = state.memory_store.search(&shared_query).await;
-    let ledger = state.work_ledger.ledger.read().await.clone();
+    let ledger = state.work_ledger.get().await;
     let active_tasks: Vec<WorkTask> = ledger
         .tasks
         .iter()
@@ -4448,74 +4377,29 @@ fn normalize_memory_scope(scope: Option<String>) -> Result<String, ApiError> {
     }
 }
 
-fn normalize_work_event_kind(kind: Option<String>) -> Result<String, ApiError> {
-    let kind = kind
-        .unwrap_or_else(|| "note".to_string())
-        .trim()
-        .to_ascii_lowercase();
-    if allowed_work_event_kinds().contains(&kind.as_str()) {
-        return Ok(kind);
-    }
-    Err(ApiError::bad_request(format!(
-        "unsupported work event kind '{kind}'; allowed: {}",
-        allowed_work_event_kinds().join(", ")
-    )))
-}
-
-fn allowed_work_event_kinds() -> &'static [&'static str] {
-    &[
-        "assigned",
-        "acknowledged",
-        "doing",
-        "heartbeat",
-        "reported",
-        "blocked",
-        "stopped",
-        "completed",
-        "qa",
-        "qa-pass",
-        "qa-fail",
-        "evidence",
-        "handoff",
-        "decision",
-        "risk",
-        "note",
-        "ledger-update",
-        "execution-board-update",
-        "communication-policy",
-        "enterprise-p0-order",
-        "organization",
-        "dev-request",
-        "risk-check",
-    ]
-}
-
 async fn list_canvases(State(state): State<AppState>) -> Json<Vec<Canvas>> {
-    Json(state.canvas_store.canvases.read().await.clone())
+    Json(app::canvas::list_usecase(&state.canvas_store).await)
 }
 
 async fn create_canvas(
     State(state): State<AppState>,
     Json(input): Json<CreateCanvas>,
 ) -> Result<(StatusCode, Json<Canvas>), ApiError> {
-    let now = Utc::now();
-    let canvas = Canvas {
-        id: input
-            .id
-            .unwrap_or_else(|| format!("canvas-{}", now.timestamp_millis())),
-        title: input.title.unwrap_or_else(|| "Untitled Canvas".to_string()),
-        owner: input.owner.unwrap_or_else(|| "Lucas".to_string()),
-        status: "active".to_string(),
-        canvas_type: input.canvas_type.unwrap_or_else(|| "issue".to_string()),
-        members: input.members.unwrap_or_default(),
-        linked_issues: input.linked_issues.unwrap_or_default(),
-        linked_meetings: input.linked_meetings.unwrap_or_default(),
-        content: input.content.unwrap_or_else(default_sections),
-        messages: Vec::new(),
-        created_at: now,
-        updated_at: now,
-    };
-    state.canvas_store.insert(canvas.clone()).await?;
+    let canvas = app::canvas::create_usecase(
+        &state.canvas_store,
+        CreateCanvasCommand {
+            id: input.id,
+            title: input.title,
+            owner: input.owner,
+            canvas_type: input.canvas_type,
+            members: input.members,
+            linked_issues: input.linked_issues,
+            linked_meetings: input.linked_meetings,
+            content: input.content,
+        },
+    )
+    .await
+    .map_err(ApiError::internal)?;
     Ok((StatusCode::CREATED, Json(canvas)))
 }
 
@@ -4705,91 +4589,6 @@ impl PeerStore {
         file.flush().await.map_err(ApiError::internal)?;
         self.messages.write().await.push(message);
         Ok(())
-    }
-}
-
-impl WorkLedgerStore {
-    async fn new(path: PathBuf) -> anyhow::Result<Self> {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-        let ledger = match fs::read_to_string(&path).await {
-            Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|_| default_work_ledger()),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                let ledger = default_work_ledger();
-                let raw = serde_json::to_string_pretty(&ledger)?;
-                fs::write(&path, raw).await?;
-                ledger
-            }
-            Err(err) => return Err(err.into()),
-        };
-        Ok(Self {
-            path: Arc::new(path),
-            ledger: Arc::new(RwLock::new(ledger)),
-        })
-    }
-
-    async fn persist(&self, ledger: &WorkLedger) -> Result<(), ApiError> {
-        let raw = serde_json::to_string_pretty(ledger).map_err(ApiError::internal)?;
-        fs::write(&*self.path, raw)
-            .await
-            .map_err(ApiError::internal)
-    }
-
-    async fn upsert_task(&self, id: &str, input: UpsertWorkTask) -> Result<WorkTask, ApiError> {
-        let mut ledger = self.ledger.write().await;
-        let now = Utc::now();
-        let result = if let Some(task) = ledger.tasks.iter_mut().find(|task| task.id == id) {
-            if let Some(title) = input.title {
-                task.title = title;
-            }
-            if let Some(status) = input.status {
-                task.status = status;
-            }
-            if let Some(priority) = input.priority {
-                task.priority = priority;
-            }
-            if input.due_at.is_some() {
-                task.due_at = input.due_at;
-            }
-            if input.reminder_minutes.is_some() {
-                task.reminder_minutes = input.reminder_minutes;
-            }
-            if input.last_reminded_at.is_some() {
-                task.last_reminded_at = input.last_reminded_at;
-            }
-            if input.notes.is_some() {
-                task.notes = input.notes;
-            }
-            task.updated_at = now;
-            task.clone()
-        } else {
-            let task = WorkTask {
-                id: id.to_string(),
-                title: input.title.unwrap_or_else(|| id.to_string()),
-                status: input.status.unwrap_or(WorkTaskStatus::Todo),
-                priority: input.priority.unwrap_or(100),
-                due_at: input.due_at,
-                reminder_minutes: input.reminder_minutes,
-                last_reminded_at: input.last_reminded_at,
-                notes: input.notes,
-                updated_at: now,
-            };
-            ledger.tasks.push(task.clone());
-            task
-        };
-        self.persist(&ledger).await?;
-        Ok(result)
-    }
-
-    async fn add_event(&self, task_id: &str, event: WorkTaskEvent) -> Result<(), ApiError> {
-        let mut ledger = self.ledger.write().await;
-        let Some(task) = ledger.tasks.iter_mut().find(|task| task.id == task_id) else {
-            return Err(ApiError::not_found("work task not found"));
-        };
-        task.updated_at = Utc::now();
-        ledger.events.push(event);
-        self.persist(&ledger).await
     }
 }
 
@@ -5014,73 +4813,6 @@ impl DailyMemoryStore {
             "tags": tags,
         }))
     }
-}
-
-fn default_sections() -> Vec<CanvasSection> {
-    [
-        "Problem",
-        "Decision",
-        "Tasks",
-        "Evidence",
-        "Terminal Agents",
-    ]
-    .into_iter()
-    .map(|title| CanvasSection {
-        id: title.to_lowercase().replace(' ', "-"),
-        title: title.to_string(),
-        body: String::new(),
-    })
-    .collect()
-}
-
-fn default_work_ledger() -> WorkLedger {
-    let now = Utc::now();
-    WorkLedger {
-        tasks: vec![
-            WorkTask {
-                id: "year-end-tax-hourly-reminder".to_string(),
-                title: "Year-end tax hourly reminder".to_string(),
-                status: WorkTaskStatus::Todo,
-                priority: 1,
-                due_at: None,
-                reminder_minutes: Some(60),
-                last_reminded_at: None,
-                notes: Some("Daily objective seed.".to_string()),
-                updated_at: now,
-            },
-            WorkTask {
-                id: "spring-msa-study-2000".to_string(),
-                title: "Spring MSA study 20:00".to_string(),
-                status: WorkTaskStatus::Todo,
-                priority: 2,
-                due_at: Some(today_at_utc(11, 0)),
-                reminder_minutes: None,
-                last_reminded_at: None,
-                notes: Some("20:00 KST stored as 11:00 UTC.".to_string()),
-                updated_at: now,
-            },
-            WorkTask {
-                id: "heungkuk-android-final-package".to_string(),
-                title: "Heungkuk Android final package".to_string(),
-                status: WorkTaskStatus::Todo,
-                priority: 3,
-                due_at: None,
-                reminder_minutes: None,
-                last_reminded_at: None,
-                notes: Some("Daily objective seed.".to_string()),
-                updated_at: now,
-            },
-        ],
-        events: Vec::new(),
-    }
-}
-
-fn today_at_utc(hour: u32, minute: u32) -> DateTime<Utc> {
-    let date = Utc::now().date_naive();
-    let naive = date
-        .and_hms_opt(hour, minute, 0)
-        .expect("seed time must be valid");
-    DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc)
 }
 
 #[cfg(windows)]

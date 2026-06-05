@@ -3,3 +3,5 @@
 // work_ledger.rs: FileWorkLedgerRepository (Phase 3)
 // memory.rs: FileMemoryRepository (Phase 3)
 // peer.rs: FilePeerRepository (Phase 3)
+pub mod canvas;
+pub mod work_ledger;
