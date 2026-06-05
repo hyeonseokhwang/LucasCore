@@ -1,14 +1,21 @@
 {
   "sessions": {},
-  "updatedAt": "2026-06-04T12:25:41.325Z",
+  "updatedAt": "2026-06-04T16:12:23.052Z",
   "lastRuntime": {
-    "at": "2026-06-04T12:25:41.325Z",
+    "at": "2026-06-04T16:12:23.052Z",
     "ok": true,
+    "apiBaseRequested": null,
+    "apiBaseResolved": "http://127.0.0.1:9000",
+    "apiBaseCandidates": [
+      "http://127.0.0.1:9000",
+      "http://127.0.0.1:20086",
+      "http://127.0.0.1:9001"
+    ],
     "intervalMs": 5000,
     "detectThresholdMs": 8000,
     "repeatAlertMs": 120000,
-    "endAtMs": 1780585200000,
-    "activeSessionCount": 5,
+    "endAtMs": 0,
+    "activeSessionCount": 73,
     "trackedIssueCount": 0,
     "detections": []
   }
