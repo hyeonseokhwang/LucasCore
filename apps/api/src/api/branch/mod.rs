@@ -4,8 +4,9 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::{
-    app, domain::work_ledger::work_ledger::WorkLedger, require_branch_token, require_field,
-    ApiError, AppState, PeerMessage,
+    app, collect_branch_agent_census, domain::work_ledger::work_ledger::WorkLedger,
+    ensure_minimum_sessions, require_branch_token, require_field, ApiError, AppState,
+    BranchAgentCensus, PeerMessage, P1C_LOW_WATERMARK,
 };
 
 #[derive(Debug, Deserialize)]
@@ -25,6 +26,39 @@ pub(crate) async fn branch_health() -> Json<Value> {
         "service": "lcc-core-branch-inbound",
         "time": Utc::now()
     }))
+}
+
+pub(crate) async fn branch_status(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
+    require_branch_token(&headers)?;
+    ensure_minimum_sessions(&state).await;
+    let census = collect_branch_agent_census(&state).await;
+    let session_count = state.sessions.read().await.len();
+    let peer_message_count = app::peer::list_usecase(&state.peer_store).await.len();
+    Ok(Json(json!({
+        "ok": true,
+        "service": "lcc-core-branch-inbound",
+        "time": Utc::now(),
+        "work_ledger_tasks": app::work_ledger::get_usecase(&state.work_ledger).await.tasks.len(),
+        "peer_messages": peer_message_count,
+        "agent_total": census.total_agents,
+        "agent_active": census.active_agents,
+        "agent_session_source": census.session_source,
+        "agent_session_api_ok": census.session_api.ok,
+        "agent_session_api_note": census.session_api.note,
+        "degraded": session_count < P1C_LOW_WATERMARK,
+    })))
+}
+
+pub(crate) async fn branch_agents(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<BranchAgentCensus>, ApiError> {
+    require_branch_token(&headers)?;
+    ensure_minimum_sessions(&state).await;
+    Ok(Json(collect_branch_agent_census(&state).await))
 }
 
 pub(crate) async fn branch_work_ledger(

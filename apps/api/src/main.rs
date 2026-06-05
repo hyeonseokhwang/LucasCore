@@ -1394,8 +1394,8 @@ async fn main() -> anyhow::Result<()> {
     let route = if inbound_only {
         Router::new()
             .route("/api/branch/health", get(api::branch::branch_health))
-            .route("/api/branch/status", get(branch_status))
-            .route("/api/branch/agents", get(branch_agents))
+            .route("/api/branch/status", get(api::branch::branch_status))
+            .route("/api/branch/agents", get(api::branch::branch_agents))
             .route(
                 "/api/branch/work-ledger",
                 get(api::branch::branch_work_ledger),
@@ -1496,8 +1496,8 @@ async fn main() -> anyhow::Result<()> {
             )
             .route("/api/canvases/:id/invite", post(api::canvas::invite_member))
             .route("/api/branch/health", get(api::branch::branch_health))
-            .route("/api/branch/status", get(branch_status))
-            .route("/api/branch/agents", get(branch_agents))
+            .route("/api/branch/status", get(api::branch::branch_status))
+            .route("/api/branch/agents", get(api::branch::branch_agents))
             .route(
                 "/api/branch/work-ledger",
                 get(api::branch::branch_work_ledger),
@@ -1556,75 +1556,42 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn branch_status(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<Value>, ApiError> {
-    require_branch_token(&headers)?;
-    ensure_minimum_sessions(&state).await;
-    let census = collect_branch_agent_census(&state).await;
-    let session_count = state.sessions.read().await.len();
-    let peer_message_count = app::peer::list_usecase(&state.peer_store).await.len();
-    Ok(Json(json!({
-        "ok": true,
-        "service": "lcc-core-branch-inbound",
-        "time": Utc::now(),
-        "work_ledger_tasks": app::work_ledger::get_usecase(&state.work_ledger).await.tasks.len(),
-        "peer_messages": peer_message_count,
-        "agent_total": census.total_agents,
-        "agent_active": census.active_agents,
-        "agent_session_source": census.session_source,
-        "agent_session_api_ok": census.session_api.ok,
-        "agent_session_api_note": census.session_api.note,
-        "degraded": session_count < P1C_LOW_WATERMARK,
-    })))
-}
-
-async fn branch_agents(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<BranchAgentCensus>, ApiError> {
-    require_branch_token(&headers)?;
-    ensure_minimum_sessions(&state).await;
-    Ok(Json(collect_branch_agent_census(&state).await))
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct BranchAgentView {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) team: String,
+    pub(crate) status: String,
+    pub(crate) pid: Option<u32>,
+    pub(crate) source: String,
+    pub(crate) attached: Option<bool>,
+    pub(crate) interactive: Option<bool>,
+    pub(crate) last_activity_at: Option<DateTime<Utc>>,
+    pub(crate) last_activity_age_seconds: i64,
+    pub(crate) log_updated_at: Option<DateTime<Utc>>,
+    pub(crate) preview: String,
+    pub(crate) input_disabled_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct BranchAgentView {
-    id: String,
-    name: String,
-    team: String,
-    status: String,
-    pid: Option<u32>,
-    source: String,
-    attached: Option<bool>,
-    interactive: Option<bool>,
-    last_activity_at: Option<DateTime<Utc>>,
-    last_activity_age_seconds: i64,
-    log_updated_at: Option<DateTime<Utc>>,
-    preview: String,
-    input_disabled_reason: Option<String>,
+pub(crate) struct BranchSessionApiState {
+    pub(crate) ok: bool,
+    pub(crate) source: String,
+    pub(crate) note: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct BranchSessionApiState {
-    ok: bool,
-    source: String,
-    note: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct BranchAgentCensus {
-    ok: bool,
-    service: String,
-    time: DateTime<Utc>,
-    total_agents: usize,
-    active_agents: usize,
-    attached_agents: usize,
-    interactive_agents: usize,
-    session_source: String,
-    session_api: BranchSessionApiState,
-    agents: Vec<BranchAgentView>,
+pub(crate) struct BranchAgentCensus {
+    pub(crate) ok: bool,
+    pub(crate) service: String,
+    pub(crate) time: DateTime<Utc>,
+    pub(crate) total_agents: usize,
+    pub(crate) active_agents: usize,
+    pub(crate) attached_agents: usize,
+    pub(crate) interactive_agents: usize,
+    pub(crate) session_source: String,
+    pub(crate) session_api: BranchSessionApiState,
+    pub(crate) agents: Vec<BranchAgentView>,
 }
 
 fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
@@ -1668,7 +1635,7 @@ struct BranchAgentSnapshot {
     sessions: Vec<BranchAgentSnapshotSession>,
 }
 
-async fn collect_branch_agent_census(state: &AppState) -> BranchAgentCensus {
+pub(crate) async fn collect_branch_agent_census(state: &AppState) -> BranchAgentCensus {
     let inbound_only = env::var("LCC_INBOUND_ONLY")
         .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
@@ -3693,7 +3660,7 @@ const P1C_GUARD_SESSIONS: &[(&str, &str, &str)] = &[
     ("lux", "codex.cmd", "workspaces/lux/repo"),
     ("arum", "codex.cmd", "workspaces/arum/repo"),
 ];
-const P1C_LOW_WATERMARK: usize = 4;
+pub(crate) const P1C_LOW_WATERMARK: usize = 4;
 
 async fn spawn_standard_session(
     state: &AppState,
@@ -3758,7 +3725,7 @@ async fn spawn_standard_session(
 }
 
 // Respawns standard sessions when the pool is empty (P1-C guard — SOP §9 BE internalization).
-async fn ensure_minimum_sessions(state: &AppState) {
+pub(crate) async fn ensure_minimum_sessions(state: &AppState) {
     let session_count = state.sessions.read().await.len();
     if session_count > 0 {
         return;
