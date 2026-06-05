@@ -1199,7 +1199,7 @@ struct TailChunk {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct OsAgentRecord {
+pub(crate) struct OsAgentRecord {
     id: String,
     name: String,
     team: String,
@@ -1221,7 +1221,7 @@ struct OsAgentRecord {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-struct OsAgentAttachmentRecord {
+pub(crate) struct OsAgentAttachmentRecord {
     attached: bool,
     updated_at: Option<DateTime<Utc>>,
 }
@@ -1238,17 +1238,17 @@ struct CreateSession {
 }
 
 #[derive(Debug, Deserialize)]
-struct WriteSession {
-    input: Option<String>,
-    data: Option<String>,
-    prompt: Option<String>,
-    repeat: Option<u8>,
+pub(crate) struct WriteSession {
+    pub(crate) input: Option<String>,
+    pub(crate) data: Option<String>,
+    pub(crate) prompt: Option<String>,
+    pub(crate) repeat: Option<u8>,
 }
 
 #[derive(Debug, Deserialize)]
-struct ResizeSession {
-    cols: Option<u16>,
-    rows: Option<u16>,
+pub(crate) struct ResizeSession {
+    pub(crate) cols: Option<u16>,
+    pub(crate) rows: Option<u16>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1429,19 +1429,25 @@ async fn main() -> anyhow::Result<()> {
             )
             .route("/api/sessions/active", get(api::session::list_sessions))
             .route("/api/sessions/pty-stats", get(api::session::pty_stats))
-            .route("/api/sessions/:id", get(get_session).delete(delete_session))
+            .route(
+                "/api/sessions/:id",
+                get(api::session::get_session).delete(api::session::delete_session),
+            )
             .route("/api/sessions/:id/log", get(get_session_log))
-            .route("/api/sessions/:id/write", post(write_session))
+            .route("/api/sessions/:id/write", post(api::session::write_session))
             .route(
                 "/api/sessions/:id/prompt-text",
-                post(write_session_prompt_text),
+                post(api::session::write_session_prompt_text),
             )
             .route(
                 "/api/sessions/:id/prompt-submit",
-                post(write_session_prompt_submit),
+                post(api::session::write_session_prompt_submit),
             )
-            .route("/api/sessions/:id/resize", post(resize_session))
-            .route("/api/os-agents", get(list_os_agents))
+            .route(
+                "/api/sessions/:id/resize",
+                post(api::session::resize_session),
+            )
+            .route("/api/os-agents", get(api::os_agent::list_os_agents))
             .route("/api/os-agents/:id/attach", post(attach_os_agent))
             .route("/api/os-agents/:id/detach", post(detach_os_agent))
             .route("/ws/terminal", get(terminal_ws))
@@ -1997,39 +2003,6 @@ async fn create_session(
     Ok((StatusCode::CREATED, Json(view)))
 }
 
-async fn delete_session(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<Value>, ApiError> {
-    let Some(session) = state.sessions.write().await.remove(&id) else {
-        if read_os_agent_record(&id).await.is_some() {
-            set_os_agent_attached(&id, false).await?;
-            return Ok(Json(
-                json!({ "ok": true, "detached": true, "session_id": id }),
-            ));
-        }
-        return Err(ApiError::not_found("session not found"));
-    };
-    let mut session = session.lock().await;
-    session.meta.status = SessionStatus::Stopped;
-    let _ = session.writer.write_all(b"\x03exit\r\n");
-    let _ = state
-        .tx
-        .send(ServerEvent::SessionDeleted { session_id: id });
-    Ok(Json(json!({ "ok": true })))
-}
-
-async fn list_os_agents() -> Json<Vec<SessionView>> {
-    let attachment_states = read_os_agent_attachment_states().await;
-    let mut views = Vec::new();
-    for record in read_os_agent_records().await {
-        let attached = os_agent_attached_by_default(&record, &attachment_states);
-        let preview = read_os_agent_preview(&record).await.unwrap_or_default();
-        views.push(os_agent_view(record, preview, attached));
-    }
-    Json(views)
-}
-
 async fn attach_os_agent(Path(id): Path<String>) -> Result<Json<SessionView>, ApiError> {
     let Some(record) = read_os_agent_record(&id).await else {
         return Err(ApiError::not_found("OS agent not found"));
@@ -2037,13 +2010,6 @@ async fn attach_os_agent(Path(id): Path<String>) -> Result<Json<SessionView>, Ap
     set_os_agent_attached(&id, true).await?;
     let preview = read_os_agent_preview(&record).await.unwrap_or_default();
     Ok(Json(os_agent_view(record, preview, true)))
-}
-
-async fn get_session(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<SessionView>, ApiError> {
-    Ok(Json(resolve_session_view(&state, &id).await?))
 }
 
 async fn detach_os_agent(Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
@@ -2054,54 +2020,6 @@ async fn detach_os_agent(Path(id): Path<String>) -> Result<Json<Value>, ApiError
     Ok(Json(
         json!({ "ok": true, "detached": true, "session_id": id }),
     ))
-}
-
-async fn write_session(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<WriteSession>,
-) -> Result<Json<SessionView>, ApiError> {
-    let data = input
-        .input
-        .or(input.data)
-        .or(input.prompt)
-        .unwrap_or_default();
-    let session = write_to_session(&state, &id, data).await?;
-    Ok(Json(session))
-}
-
-async fn write_session_prompt_text(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<WriteSession>,
-) -> Result<Json<Value>, ApiError> {
-    let body = prompt_body_from_write_session(&input);
-    let session = write_prompt_text_to_session(&state, &id, body.clone()).await?;
-    Ok(Json(json!({
-        "ok": true,
-        "type": "promptTextAck",
-        "sessionId": id,
-        "textBytes": body.as_bytes().len(),
-        "lineCount": prompt_line_count(&body),
-        "session": session
-    })))
-}
-
-async fn write_session_prompt_submit(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<WriteSession>,
-) -> Result<Json<Value>, ApiError> {
-    let repeat = input.repeat.unwrap_or(1).clamp(1, 2);
-    let session = write_prompt_submit_to_session(&state, &id, repeat).await?;
-    Ok(Json(json!({
-        "ok": true,
-        "type": "promptSubmitAck",
-        "sessionId": id,
-        "submitKey": "\\r",
-        "repeat": repeat,
-        "session": session
-    })))
 }
 
 async fn get_session_log(
@@ -2211,17 +2129,6 @@ async fn read_tail_chunk(path: PathBuf, max_bytes: u64) -> std::io::Result<TailC
         end: len,
         file_len: len,
     })
-}
-
-async fn resize_session(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<ResizeSession>,
-) -> Result<Json<Value>, ApiError> {
-    let cols = input.cols.unwrap_or(120).clamp(20, 300);
-    let rows = input.rows.unwrap_or(30).clamp(5, 120);
-    resize_to_session(&state, &id, cols, rows).await?;
-    Ok(Json(json!({ "ok": true, "cols": cols, "rows": rows })))
 }
 
 async fn terminal_ws(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
@@ -2516,7 +2423,7 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
     }
 }
 
-async fn resize_to_session(
+pub(crate) async fn resize_to_session(
     state: &AppState,
     id: &str,
     cols: u16,
@@ -2550,7 +2457,7 @@ async fn resize_to_session(
     build_internal_session_view(state, meta).await
 }
 
-async fn write_to_session(
+pub(crate) async fn write_to_session(
     state: &AppState,
     id: &str,
     data: String,
@@ -2564,7 +2471,7 @@ async fn write_to_session(
     write_prompt_submit_to_session(state, id, 1).await
 }
 
-fn prompt_body_from_write_session(input: &WriteSession) -> String {
+pub(crate) fn prompt_body_from_write_session(input: &WriteSession) -> String {
     let data = input
         .input
         .clone()
@@ -2584,7 +2491,7 @@ fn prompt_body_from_ws_value(value: &Value) -> String {
     normalize_prompt_body(&prompt)
 }
 
-async fn write_prompt_text_to_session(
+pub(crate) async fn write_prompt_text_to_session(
     state: &AppState,
     id: &str,
     body: String,
@@ -2597,7 +2504,7 @@ async fn write_prompt_text_to_session(
     Ok(session)
 }
 
-async fn write_prompt_submit_to_session(
+pub(crate) async fn write_prompt_submit_to_session(
     state: &AppState,
     id: &str,
     repeat: u8,
@@ -2619,7 +2526,7 @@ fn normalize_prompt_body(data: &str) -> String {
     normalized
 }
 
-fn prompt_line_count(data: &str) -> usize {
+pub(crate) fn prompt_line_count(data: &str) -> usize {
     if data.is_empty() {
         0
     } else {
@@ -3283,7 +3190,10 @@ pub(crate) fn terminal_log_path(id: &str) -> PathBuf {
         .join(format!("{safe_id}.ansi.log"))
 }
 
-async fn resolve_session_view(state: &AppState, id: &str) -> Result<SessionView, ApiError> {
+pub(crate) async fn resolve_session_view(
+    state: &AppState,
+    id: &str,
+) -> Result<SessionView, ApiError> {
     if let Some(session) = state.sessions.read().await.get(id).cloned() {
         let meta = session.lock().await.meta.clone();
         return build_internal_session_view(state, meta).await;
@@ -3363,7 +3273,7 @@ pub(crate) async fn read_os_agent_views(internal_ids: &HashSet<String>) -> Vec<S
     views
 }
 
-async fn read_os_agent_record(id: &str) -> Option<OsAgentRecord> {
+pub(crate) async fn read_os_agent_record(id: &str) -> Option<OsAgentRecord> {
     read_os_agent_records()
         .await
         .into_iter()
@@ -3381,7 +3291,7 @@ fn os_agent_registry_path() -> Option<PathBuf> {
     }
 }
 
-async fn read_os_agent_records() -> Vec<OsAgentRecord> {
+pub(crate) async fn read_os_agent_records() -> Vec<OsAgentRecord> {
     let Some(path) = os_agent_registry_path() else {
         return Vec::new();
     };
@@ -3407,7 +3317,7 @@ fn os_agent_attachment_path() -> PathBuf {
     PathBuf::from("data/os-agents/attachments.json")
 }
 
-async fn read_os_agent_attachment_states() -> HashMap<String, OsAgentAttachmentRecord> {
+pub(crate) async fn read_os_agent_attachment_states() -> HashMap<String, OsAgentAttachmentRecord> {
     let path = os_agent_attachment_path();
     let Ok(text) = fs::read_to_string(path).await else {
         return HashMap::new();
@@ -3429,7 +3339,7 @@ async fn write_os_agent_attachment_states(
     fs::write(path, text).await.map_err(ApiError::internal)
 }
 
-async fn set_os_agent_attached(id: &str, attached: bool) -> Result<(), ApiError> {
+pub(crate) async fn set_os_agent_attached(id: &str, attached: bool) -> Result<(), ApiError> {
     let mut states = read_os_agent_attachment_states().await;
     states.insert(
         id.to_string(),
@@ -3441,7 +3351,7 @@ async fn set_os_agent_attached(id: &str, attached: bool) -> Result<(), ApiError>
     write_os_agent_attachment_states(&states).await
 }
 
-fn os_agent_attached_by_default(
+pub(crate) fn os_agent_attached_by_default(
     record: &OsAgentRecord,
     states: &HashMap<String, OsAgentAttachmentRecord>,
 ) -> bool {
@@ -3459,7 +3369,7 @@ async fn os_agent_is_attached(record: &OsAgentRecord) -> bool {
     os_agent_attached_by_default(record, &states)
 }
 
-async fn read_os_agent_preview(record: &OsAgentRecord) -> std::io::Result<String> {
+pub(crate) async fn read_os_agent_preview(record: &OsAgentRecord) -> std::io::Result<String> {
     let Some(path) = record.log_path.as_ref() else {
         return Ok(String::new());
     };
@@ -3559,7 +3469,7 @@ fn http_response_body_preview(response: &[u8]) -> String {
     }
 }
 
-fn os_agent_view(record: OsAgentRecord, preview: String, attached: bool) -> SessionView {
+pub(crate) fn os_agent_view(record: OsAgentRecord, preview: String, attached: bool) -> SessionView {
     let now = Utc::now();
     let interactive = os_agent_write_url(&record).is_some();
     let log_path = record

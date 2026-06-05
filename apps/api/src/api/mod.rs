@@ -5,6 +5,7 @@ pub mod canvas;
 pub mod daily_memory;
 pub mod health;
 pub mod memory;
+pub mod os_agent;
 pub mod peer;
 pub mod router;
 pub mod session;
