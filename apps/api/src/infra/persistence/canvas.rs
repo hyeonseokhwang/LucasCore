@@ -23,7 +23,16 @@ impl CanvasRepository for CanvasStore {
     }
 
     async fn save(&self, canvas: Canvas) -> Result<(), String> {
-        self.insert(canvas).await.map_err(|err| err.message)
+        let mut canvases = self.canvases.write().await;
+        if let Some(existing) = canvases
+            .iter_mut()
+            .find(|existing| existing.id == canvas.id)
+        {
+            *existing = canvas;
+        } else {
+            canvases.insert(0, canvas);
+        }
+        self.persist(&canvases).await.map_err(|err| err.message)
     }
 
     async fn upsert_sections(&self, id: &str, sections: Vec<CanvasSection>) -> Result<(), String> {

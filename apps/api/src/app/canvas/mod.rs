@@ -1,7 +1,7 @@
 use chrono::Utc;
 
 use crate::domain::canvas::{
-    canvas::{Canvas, CanvasSection},
+    canvas::{Canvas, CanvasMessage, CanvasSection},
     port::CanvasRepository,
 };
 
@@ -15,6 +15,25 @@ pub struct CreateCanvasCommand {
     pub linked_issues: Option<Vec<String>>,
     pub linked_meetings: Option<Vec<String>>,
     pub content: Option<Vec<CanvasSection>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UpdateCanvasCommand {
+    pub title: Option<String>,
+    pub owner: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AddCanvasMessageCommand {
+    pub author: Option<String>,
+    pub body: Option<String>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct InviteCanvasMemberCommand {
+    pub member: Option<String>,
+    pub agent: Option<String>,
 }
 
 pub async fn list_usecase(repo: &impl CanvasRepository) -> Vec<Canvas> {
@@ -48,6 +67,94 @@ pub async fn create_usecase(
 
 pub async fn get_usecase(repo: &impl CanvasRepository, id: &str) -> Option<Canvas> {
     repo.find_by_id(id).await
+}
+
+pub async fn update_usecase(
+    repo: &impl CanvasRepository,
+    id: &str,
+    input: UpdateCanvasCommand,
+) -> Result<Canvas, String> {
+    let mut canvas = repo
+        .find_by_id(id)
+        .await
+        .ok_or_else(|| "canvas not found".to_string())?;
+    if let Some(title) = input.title {
+        canvas.title = title;
+    }
+    if let Some(owner) = input.owner {
+        canvas.owner = owner;
+    }
+    canvas.updated_at = Utc::now();
+    repo.save(canvas.clone()).await?;
+    Ok(canvas)
+}
+
+pub async fn get_content_usecase(
+    repo: &impl CanvasRepository,
+    id: &str,
+) -> Result<Vec<CanvasSection>, String> {
+    repo.find_by_id(id)
+        .await
+        .map(|canvas| canvas.content)
+        .ok_or_else(|| "canvas not found".to_string())
+}
+
+pub async fn put_content_usecase(
+    repo: &impl CanvasRepository,
+    id: &str,
+    content: Vec<CanvasSection>,
+) -> Result<Vec<CanvasSection>, String> {
+    repo.upsert_sections(id, content).await?;
+    get_content_usecase(repo, id).await
+}
+
+pub async fn get_messages_usecase(
+    repo: &impl CanvasRepository,
+    id: &str,
+) -> Result<Vec<CanvasMessage>, String> {
+    repo.find_by_id(id)
+        .await
+        .map(|canvas| canvas.messages)
+        .ok_or_else(|| "canvas not found".to_string())
+}
+
+pub async fn add_message_usecase(
+    repo: &impl CanvasRepository,
+    id: &str,
+    input: AddCanvasMessageCommand,
+) -> Result<CanvasMessage, String> {
+    let mut canvas = repo
+        .find_by_id(id)
+        .await
+        .ok_or_else(|| "canvas not found".to_string())?;
+    let message = CanvasMessage {
+        id: format!("msg-{}", Utc::now().timestamp_millis()),
+        author: input.author.unwrap_or_else(|| "Lucas".to_string()),
+        body: input.body.or(input.message).unwrap_or_default(),
+        created_at: Utc::now(),
+    };
+    canvas.messages.push(message.clone());
+    canvas.updated_at = Utc::now();
+    repo.save(canvas).await?;
+    Ok(message)
+}
+
+pub async fn invite_member_usecase(
+    repo: &impl CanvasRepository,
+    id: &str,
+    input: InviteCanvasMemberCommand,
+) -> Result<Canvas, String> {
+    let mut canvas = repo
+        .find_by_id(id)
+        .await
+        .ok_or_else(|| "canvas not found".to_string())?;
+    let member = input.member.or(input.agent).unwrap_or_default();
+    if !member.is_empty() && !canvas.members.contains(&member) {
+        canvas.members.push(member);
+    }
+    canvas.updated_at = Utc::now();
+    repo.save(canvas.clone()).await?;
+    Ok(canvas)
 }
 
 fn default_sections() -> Vec<CanvasSection> {

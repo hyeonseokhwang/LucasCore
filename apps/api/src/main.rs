@@ -5,7 +5,9 @@ mod domain;
 mod infra;
 mod shared;
 
-use crate::app::canvas::CreateCanvasCommand;
+use crate::app::canvas::{
+    AddCanvasMessageCommand, CreateCanvasCommand, InviteCanvasMemberCommand, UpdateCanvasCommand,
+};
 use crate::domain::canvas::canvas::{
     Canvas as DomainCanvas, CanvasMessage as DomainCanvasMessage,
     CanvasSection as DomainCanvasSection,
@@ -4418,18 +4420,22 @@ async fn update_canvas(
     Path(id): Path<String>,
     Json(patch): Json<Value>,
 ) -> Result<Json<Canvas>, ApiError> {
-    let canvas = state
-        .canvas_store
-        .update(&id, |canvas| {
-            if let Some(title) = patch.get("title").and_then(Value::as_str) {
-                canvas.title = title.to_string();
-            }
-            if let Some(owner) = patch.get("owner").and_then(Value::as_str) {
-                canvas.owner = owner.to_string();
-            }
-            canvas.updated_at = Utc::now();
-        })
-        .await?;
+    let canvas = app::canvas::update_usecase(
+        &state.canvas_store,
+        &id,
+        UpdateCanvasCommand {
+            title: patch
+                .get("title")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            owner: patch
+                .get("owner")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+        },
+    )
+    .await
+    .map_err(ApiError::internal)?;
     Ok(Json(canvas))
 }
 
@@ -4437,7 +4443,10 @@ async fn get_content(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<CanvasSection>>, ApiError> {
-    Ok(Json(state.canvas_store.get(&id).await?.content))
+    app::canvas::get_content_usecase(&state.canvas_store, &id)
+        .await
+        .map(Json)
+        .map_err(ApiError::internal)
 }
 
 async fn put_content(
@@ -4445,21 +4454,20 @@ async fn put_content(
     Path(id): Path<String>,
     Json(content): Json<Vec<CanvasSection>>,
 ) -> Result<Json<Vec<CanvasSection>>, ApiError> {
-    let canvas = state
-        .canvas_store
-        .update(&id, |canvas| {
-            canvas.content = content;
-            canvas.updated_at = Utc::now();
-        })
-        .await?;
-    Ok(Json(canvas.content))
+    app::canvas::put_content_usecase(&state.canvas_store, &id, content)
+        .await
+        .map(Json)
+        .map_err(ApiError::internal)
 }
 
 async fn get_messages(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<CanvasMessage>>, ApiError> {
-    Ok(Json(state.canvas_store.get(&id).await?.messages))
+    app::canvas::get_messages_usecase(&state.canvas_store, &id)
+        .await
+        .map(Json)
+        .map_err(ApiError::internal)
 }
 
 async fn add_message(
@@ -4467,19 +4475,17 @@ async fn add_message(
     Path(id): Path<String>,
     Json(input): Json<AddMessage>,
 ) -> Result<(StatusCode, Json<CanvasMessage>), ApiError> {
-    let message = CanvasMessage {
-        id: format!("msg-{}", Utc::now().timestamp_millis()),
-        author: input.author.unwrap_or_else(|| "Lucas".to_string()),
-        body: input.body.or(input.message).unwrap_or_default(),
-        created_at: Utc::now(),
-    };
-    state
-        .canvas_store
-        .update(&id, |canvas| {
-            canvas.messages.push(message.clone());
-            canvas.updated_at = Utc::now();
-        })
-        .await?;
+    let message = app::canvas::add_message_usecase(
+        &state.canvas_store,
+        &id,
+        AddCanvasMessageCommand {
+            author: input.author,
+            body: input.body,
+            message: input.message,
+        },
+    )
+    .await
+    .map_err(ApiError::internal)?;
     Ok((StatusCode::CREATED, Json(message)))
 }
 
@@ -4488,17 +4494,17 @@ async fn invite_member(
     Path(id): Path<String>,
     Json(input): Json<InviteMember>,
 ) -> Result<Json<Canvas>, ApiError> {
-    let member = input.member.or(input.agent).unwrap_or_default();
-    let canvas = state
-        .canvas_store
-        .update(&id, |canvas| {
-            if !member.is_empty() && !canvas.members.contains(&member) {
-                canvas.members.push(member.clone());
-            }
-            canvas.updated_at = Utc::now();
-        })
-        .await?;
-    Ok(Json(canvas))
+    app::canvas::invite_member_usecase(
+        &state.canvas_store,
+        &id,
+        InviteCanvasMemberCommand {
+            member: input.member,
+            agent: input.agent,
+        },
+    )
+    .await
+    .map(Json)
+    .map_err(ApiError::internal)
 }
 
 impl CanvasStore {
@@ -4521,22 +4527,6 @@ impl CanvasStore {
         fs::write(&*self.path, raw)
             .await
             .map_err(ApiError::internal)
-    }
-
-    async fn insert(&self, canvas: Canvas) -> Result<(), ApiError> {
-        let mut canvases = self.canvases.write().await;
-        canvases.insert(0, canvas);
-        self.persist(&canvases).await
-    }
-
-    async fn get(&self, id: &str) -> Result<Canvas, ApiError> {
-        self.canvases
-            .read()
-            .await
-            .iter()
-            .find(|canvas| canvas.id == id)
-            .cloned()
-            .ok_or_else(|| ApiError::not_found("canvas not found"))
     }
 
     async fn update(&self, id: &str, f: impl FnOnce(&mut Canvas)) -> Result<Canvas, ApiError> {
