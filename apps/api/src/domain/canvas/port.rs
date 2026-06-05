@@ -2,9 +2,9 @@
 use super::canvas::{Canvas, CanvasSection};
 
 pub trait CanvasRepository: Send + Sync {
-    fn find_by_id(&self, id: &str) -> Option<Canvas>;
-    fn list_all(&self) -> Vec<Canvas>;
-    fn save(&self, canvas: Canvas) -> Result<(), String>;
-    fn upsert_sections(&self, id: &str, sections: Vec<CanvasSection>) -> Result<(), String>;
-    fn delete(&self, id: &str) -> Result<(), String>;
+    async fn find_by_id(&self, id: &str) -> Option<Canvas>;
+    async fn list_all(&self) -> Vec<Canvas>;
+    async fn save(&self, canvas: Canvas) -> Result<(), String>;
+    async fn upsert_sections(&self, id: &str, sections: Vec<CanvasSection>) -> Result<(), String>;
+    async fn delete(&self, id: &str) -> Result<(), String>;
 }

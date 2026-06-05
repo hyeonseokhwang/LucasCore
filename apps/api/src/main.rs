@@ -1,21 +1,25 @@
 // CA Phase 1: module scaffold (no logic changes)
-mod shared;
+mod api;
+mod app;
 mod domain;
 mod infra;
-mod app;
-mod api;
+mod shared;
 
+use crate::domain::canvas::canvas::{
+    Canvas as DomainCanvas, CanvasMessage as DomainCanvasMessage,
+    CanvasSection as DomainCanvasSection,
+};
+use crate::domain::memory::memory::MemoryEntry as DomainMemoryEntry;
+use crate::domain::peer::peer::PeerMessage as DomainPeerMessage;
+use crate::infra::persistence::work_ledger::WorkLedgerStore;
 use axum::{
-    extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
-        Path, Query, State,
-    },
-    http::{header, HeaderMap, StatusCode},
+    extract::State,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post, put},
     Json, Router,
 };
-use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use chrono::{DateTime, Utc};
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -24,8 +28,7 @@ use std::{
     env,
     io::{Read, SeekFrom, Write},
     net::{SocketAddr, ToSocketAddrs},
-    path::{Component, Path as FsPath, PathBuf},
-    process::Stdio,
+    path::PathBuf,
     sync::{Arc, Mutex as StdMutex},
     thread,
     time::{Duration as StdDuration, Instant},
@@ -34,7 +37,6 @@ use tokio::{
     fs,
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
     net::TcpStream,
-    process::Command,
     runtime::Handle,
     sync::{broadcast, Mutex, RwLock},
     time::{sleep, Duration},
@@ -55,10 +57,10 @@ struct AppState {
     daily_memory_store: DailyMemoryStore,
 }
 
-struct TerminalSession {
-    meta: SessionMeta,
-    _master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
+pub(crate) struct TerminalSession {
+    pub(crate) meta: SessionMeta,
+    pub(crate) _master: Box<dyn MasterPty + Send>,
+    pub(crate) writer: Box<dyn Write + Send>,
 }
 
 const TERMINAL_SCREEN_BUFFER_BYTES: usize = 256 * 1024;
@@ -782,7 +784,7 @@ fn strip_leading_partial_csi(value: &str) -> &str {
     value
 }
 
-fn strip_ansi_for_ui(value: &str) -> String {
+pub(crate) fn strip_ansi_for_ui(value: &str) -> String {
     let mut output = String::with_capacity(value.len());
     let mut chars = strip_leading_partial_csi(value).chars();
     while let Some(ch) = chars.next() {
@@ -818,13 +820,13 @@ fn terminal_preview_text_for_ui(preview: &str, max_bytes: usize) -> String {
     tail_string_by_bytes(&strip_ansi_for_ui(preview), max_bytes)
 }
 
-fn clamp_log_tail_limit(limit: Option<u64>) -> u64 {
+pub(crate) fn clamp_log_tail_limit(limit: Option<u64>) -> u64 {
     limit
         .unwrap_or(SESSION_LOG_VIEW_LIMIT_BYTES)
         .clamp(1, SESSION_LOG_MAX_TAIL_BYTES)
 }
 
-fn session_log_info_for_path(path: &PathBuf, tail_bytes: u64) -> SessionLogInfo {
+pub(crate) fn session_log_info_for_path(path: &PathBuf, tail_bytes: u64) -> SessionLogInfo {
     match std::fs::metadata(path) {
         Ok(metadata) => SessionLogInfo {
             path: path.display().to_string(),
@@ -851,7 +853,7 @@ fn terminal_context_ledger_path() -> PathBuf {
     PathBuf::from("data").join("terminal-context-ledger.jsonl")
 }
 
-fn terminal_persistent_logs_enabled() -> bool {
+pub(crate) fn terminal_persistent_logs_enabled() -> bool {
     matches!(
         env::var(TERMINAL_PERSIST_LOGS_ENV)
             .ok()
@@ -1044,7 +1046,7 @@ impl TerminalLogWriter {
     }
 }
 
-fn build_session_view(
+pub(crate) fn build_session_view(
     meta: SessionMeta,
     preview: String,
     source: SessionSource,
@@ -1104,30 +1106,30 @@ fn build_session_view_with_preview_text(
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum SessionSource {
+pub(crate) enum SessionSource {
     Internal,
     Os,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SessionMeta {
-    id: String,
-    name: String,
-    team: String,
-    cwd: String,
-    cmd: String,
-    args: Vec<String>,
-    model: Option<String>,
-    status: SessionStatus,
-    pid: Option<u32>,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    exit_code: Option<i32>,
+pub(crate) struct SessionMeta {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) team: String,
+    pub(crate) cwd: String,
+    pub(crate) cmd: String,
+    pub(crate) args: Vec<String>,
+    pub(crate) model: Option<String>,
+    pub(crate) status: SessionStatus,
+    pub(crate) pid: Option<u32>,
+    pub(crate) created_at: DateTime<Utc>,
+    pub(crate) updated_at: DateTime<Utc>,
+    pub(crate) exit_code: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum SessionStatus {
+pub(crate) enum SessionStatus {
     Active,
     Exited,
     Error,
@@ -1135,66 +1137,66 @@ enum SessionStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SessionView {
+pub(crate) struct SessionView {
     #[serde(flatten)]
-    meta: SessionMeta,
-    preview: String,
-    preview_text: String,
-    preview_ansi: Option<String>,
-    preview_has_ansi: bool,
-    display_snapshot_volatile: bool,
-    source: SessionSource,
-    attached: bool,
-    interactive: bool,
-    input_disabled_reason: Option<String>,
-    log: SessionLogInfo,
+    pub(crate) meta: SessionMeta,
+    pub(crate) preview: String,
+    pub(crate) preview_text: String,
+    pub(crate) preview_ansi: Option<String>,
+    pub(crate) preview_has_ansi: bool,
+    pub(crate) display_snapshot_volatile: bool,
+    pub(crate) source: SessionSource,
+    pub(crate) attached: bool,
+    pub(crate) interactive: bool,
+    pub(crate) input_disabled_reason: Option<String>,
+    pub(crate) log: SessionLogInfo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SessionLogInfo {
-    path: String,
-    available: bool,
-    bytes: u64,
-    tail_bytes: u64,
-    updated_at: Option<DateTime<Utc>>,
+pub(crate) struct SessionLogInfo {
+    pub(crate) path: String,
+    pub(crate) available: bool,
+    pub(crate) bytes: u64,
+    pub(crate) tail_bytes: u64,
+    pub(crate) updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize, Default)]
-struct SessionLogQuery {
-    format: Option<String>,
-    limit: Option<u64>,
+pub(crate) struct SessionLogQuery {
+    pub(crate) format: Option<String>,
+    pub(crate) limit: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct SessionLogTailResponse {
-    session_id: String,
-    source: SessionSource,
-    log: SessionLogInfo,
-    tail: SessionLogTail,
+pub(crate) struct SessionLogTailResponse {
+    pub(crate) session_id: String,
+    pub(crate) source: SessionSource,
+    pub(crate) log: SessionLogInfo,
+    pub(crate) tail: SessionLogTail,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct SessionLogTail {
-    ansi: String,
-    text: String,
-    has_ansi: bool,
-    truncated: bool,
-    bytes: usize,
-    text_bytes: usize,
-    start_offset: u64,
-    end_offset: u64,
+pub(crate) struct SessionLogTail {
+    pub(crate) ansi: String,
+    pub(crate) text: String,
+    pub(crate) has_ansi: bool,
+    pub(crate) truncated: bool,
+    pub(crate) bytes: usize,
+    pub(crate) text_bytes: usize,
+    pub(crate) start_offset: u64,
+    pub(crate) end_offset: u64,
 }
 
 #[derive(Debug, Clone)]
-struct TailChunk {
-    text: String,
-    start: u64,
-    end: u64,
-    file_len: u64,
+pub(crate) struct TailChunk {
+    pub(crate) text: String,
+    pub(crate) start: u64,
+    pub(crate) end: u64,
+    pub(crate) file_len: u64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct OsAgentRecord {
+pub(crate) struct OsAgentRecord {
     id: String,
     name: String,
     team: String,
@@ -1216,39 +1218,39 @@ struct OsAgentRecord {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-struct OsAgentAttachmentRecord {
+pub(crate) struct OsAgentAttachmentRecord {
     attached: bool,
     updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
-struct CreateSession {
-    id: Option<String>,
-    name: Option<String>,
-    team: Option<String>,
-    cwd: Option<String>,
-    cmd: Option<String>,
-    args: Option<Vec<String>>,
-    model: Option<String>,
+pub(crate) struct CreateSession {
+    pub(crate) id: Option<String>,
+    pub(crate) name: Option<String>,
+    pub(crate) team: Option<String>,
+    pub(crate) cwd: Option<String>,
+    pub(crate) cmd: Option<String>,
+    pub(crate) args: Option<Vec<String>>,
+    pub(crate) model: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-struct WriteSession {
-    input: Option<String>,
-    data: Option<String>,
-    prompt: Option<String>,
-    repeat: Option<u8>,
+pub(crate) struct WriteSession {
+    pub(crate) input: Option<String>,
+    pub(crate) data: Option<String>,
+    pub(crate) prompt: Option<String>,
+    pub(crate) repeat: Option<u8>,
 }
 
 #[derive(Debug, Deserialize)]
-struct ResizeSession {
-    cols: Option<u16>,
-    rows: Option<u16>,
+pub(crate) struct ResizeSession {
+    pub(crate) cols: Option<u16>,
+    pub(crate) rows: Option<u16>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
-enum ServerEvent {
+pub(crate) enum ServerEvent {
     Attached {
         session_id: String,
     },
@@ -1281,84 +1283,11 @@ enum ServerEvent {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Canvas {
-    id: String,
-    title: String,
-    owner: String,
-    status: String,
-    canvas_type: String,
-    members: Vec<String>,
-    linked_issues: Vec<String>,
-    linked_meetings: Vec<String>,
-    content: Vec<CanvasSection>,
-    messages: Vec<CanvasMessage>,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CanvasSection {
-    id: String,
-    title: String,
-    body: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CanvasMessage {
-    id: String,
-    author: String,
-    body: String,
-    created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct PeerMessage {
-    id: String,
-    at: DateTime<Utc>,
-    #[serde(rename = "from")]
-    from_peer: String,
-    to: String,
-    kind: String,
-    body: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct WorkLedger {
-    tasks: Vec<WorkTask>,
-    events: Vec<WorkTaskEvent>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct WorkTask {
-    id: String,
-    title: String,
-    status: WorkTaskStatus,
-    priority: i32,
-    due_at: Option<DateTime<Utc>>,
-    reminder_minutes: Option<u32>,
-    last_reminded_at: Option<DateTime<Utc>>,
-    notes: Option<String>,
-    updated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum WorkTaskStatus {
-    Todo,
-    Doing,
-    Done,
-    Blocked,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct WorkTaskEvent {
-    id: String,
-    task_id: String,
-    at: DateTime<Utc>,
-    kind: String,
-    body: String,
-}
+type Canvas = DomainCanvas;
+type CanvasSection = DomainCanvasSection;
+type CanvasMessage = DomainCanvasMessage;
+type PeerMessage = DomainPeerMessage;
+type MemoryEntry = DomainMemoryEntry;
 
 #[derive(Debug, Deserialize)]
 struct CreateCanvas {
@@ -1385,91 +1314,6 @@ struct InviteMember {
     agent: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct CreatePeerMessage {
-    id: Option<String>,
-    at: Option<DateTime<Utc>>,
-    #[serde(rename = "from")]
-    from_peer: Option<String>,
-    to: Option<String>,
-    kind: Option<String>,
-    body: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct UpsertWorkTask {
-    title: Option<String>,
-    status: Option<WorkTaskStatus>,
-    priority: Option<i32>,
-    due_at: Option<DateTime<Utc>>,
-    reminder_minutes: Option<u32>,
-    last_reminded_at: Option<DateTime<Utc>>,
-    notes: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct AddWorkTaskEvent {
-    id: Option<String>,
-    at: Option<DateTime<Utc>>,
-    kind: Option<String>,
-    body: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct MemoryEntry {
-    id: String,
-    at: DateTime<Utc>,
-    agent_id: String,
-    layer: String,
-    scope: String,
-    kind: String,
-    topic: Option<String>,
-    content: String,
-    importance: i32,
-    source: String,
-    source_id: Option<String>,
-    ledger_item: Option<String>,
-    evidence_path: Option<String>,
-    tags: Vec<String>,
-    archived_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CreateMemoryEntry {
-    id: Option<String>,
-    at: Option<DateTime<Utc>>,
-    agent_id: Option<String>,
-    layer: Option<String>,
-    scope: Option<String>,
-    kind: Option<String>,
-    topic: Option<String>,
-    content: Option<String>,
-    importance: Option<i32>,
-    source: Option<String>,
-    source_id: Option<String>,
-    ledger_item: Option<String>,
-    evidence_path: Option<String>,
-    tags: Option<Vec<String>>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct MemoryQuery {
-    agent_id: Option<String>,
-    scope: Option<String>,
-    layer: Option<String>,
-    kind: Option<String>,
-    topic: Option<String>,
-    search: Option<String>,
-    include_archived: Option<bool>,
-    limit: Option<usize>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct RecoveryQuery {
-    search: Option<String>,
-    limit: Option<usize>,
-}
-
 #[derive(Clone)]
 struct CanvasStore {
     path: Arc<PathBuf>,
@@ -1480,12 +1324,6 @@ struct CanvasStore {
 struct PeerStore {
     path: Arc<PathBuf>,
     messages: Arc<RwLock<Vec<PeerMessage>>>,
-}
-
-#[derive(Clone)]
-struct WorkLedgerStore {
-    path: Arc<PathBuf>,
-    ledger: Arc<RwLock<WorkLedger>>,
 }
 
 #[derive(Clone)]
@@ -1552,82 +1390,150 @@ async fn main() -> anyhow::Result<()> {
 
     let route = if inbound_only {
         Router::new()
-            .route("/api/branch/health", get(branch_health))
-            .route("/api/branch/status", get(branch_status))
-            .route("/api/branch/agents", get(branch_agents))
-            .route("/api/branch/work-ledger", get(branch_work_ledger))
+            .route("/api/branch/health", get(api::branch::branch_health))
+            .route("/api/branch/status", get(api::branch::branch_status))
+            .route("/api/branch/agents", get(api::branch::branch_agents))
+            .route(
+                "/api/branch/work-ledger",
+                get(api::branch::branch_work_ledger),
+            )
             .route(
                 "/api/branch/messages",
-                get(branch_list_messages).post(branch_add_message),
+                get(api::branch::branch_list_messages).post(api::branch::branch_add_message),
             )
-            .route("/api/branch/files/read", get(branch_file_read))
-            .route("/api/branch/files/list", get(branch_file_list))
-            .route("/api/branch/files/diff", get(branch_file_diff))
-            .route("/api/branch/git/log", get(branch_git_log))
+            .route(
+                "/api/branch/files/read",
+                get(api::branch_files::branch_file_read),
+            )
+            .route(
+                "/api/branch/files/list",
+                get(api::branch_files::branch_file_list),
+            )
+            .route(
+                "/api/branch/files/diff",
+                get(api::branch_files::branch_file_diff),
+            )
+            .route(
+                "/api/branch/git/log",
+                get(api::branch_files::branch_git_log),
+            )
     } else {
         let api_route = Router::new()
-            .route("/api/health", get(health))
-            .route("/api/sessions", get(list_sessions).post(create_session))
-            .route("/api/sessions/active", get(list_sessions))
-            .route("/api/sessions/pty-stats", get(pty_stats))
-            .route("/api/sessions/:id", get(get_session).delete(delete_session))
-            .route("/api/sessions/:id/log", get(get_session_log))
-            .route("/api/sessions/:id/write", post(write_session))
+            .route("/api/health", get(api::health::health))
+            .route(
+                "/api/sessions",
+                get(api::session::list_sessions).post(api::session::create_session),
+            )
+            .route("/api/sessions/active", get(api::session::list_sessions))
+            .route("/api/sessions/pty-stats", get(api::session::pty_stats))
+            .route(
+                "/api/sessions/:id",
+                get(api::session::get_session).delete(api::session::delete_session),
+            )
+            .route("/api/sessions/:id/log", get(api::session::get_session_log))
+            .route("/api/sessions/:id/write", post(api::session::write_session))
             .route(
                 "/api/sessions/:id/prompt-text",
-                post(write_session_prompt_text),
+                post(api::session::write_session_prompt_text),
             )
             .route(
                 "/api/sessions/:id/prompt-submit",
-                post(write_session_prompt_submit),
+                post(api::session::write_session_prompt_submit),
             )
-            .route("/api/sessions/:id/resize", post(resize_session))
-            .route("/api/os-agents", get(list_os_agents))
-            .route("/api/os-agents/:id/attach", post(attach_os_agent))
-            .route("/api/os-agents/:id/detach", post(detach_os_agent))
-            .route("/ws/terminal", get(terminal_ws))
-            .route("/api/peer/status", get(peer_status))
+            .route(
+                "/api/sessions/:id/resize",
+                post(api::session::resize_session),
+            )
+            .route("/api/os-agents", get(api::os_agent::list_os_agents))
+            .route(
+                "/api/os-agents/:id/attach",
+                post(api::os_agent::attach_os_agent),
+            )
+            .route(
+                "/api/os-agents/:id/detach",
+                post(api::os_agent::detach_os_agent),
+            )
+            .route("/ws/terminal", get(api::terminal::terminal_ws))
+            .route("/api/peer/status", get(api::peer::peer_status))
             .route(
                 "/api/peer/messages",
-                get(list_peer_messages).post(add_peer_message),
+                get(api::peer::list_peer_messages).post(api::peer::add_peer_message),
             )
-            .route("/api/work-ledger", get(get_work_ledger))
-            .route("/api/work-ledger/tasks/:id", put(upsert_work_task))
+            .route("/api/work-ledger", get(api::work_ledger::get_work_ledger))
+            .route(
+                "/api/work-ledger/tasks/:id",
+                put(api::work_ledger::upsert_work_task),
+            )
             .route(
                 "/api/work-ledger/tasks/:id/events",
-                post(add_work_task_event),
+                post(api::work_ledger::add_work_task_event),
             )
-            .route("/api/memory", get(list_memory).post(add_memory))
-            .route("/api/memory/recover/:agent_id", get(recover_agent_context))
-            .route("/api/daily-memory/today", get(get_today_daily_memory))
-            .route("/api/daily-memory/:date", get(get_daily_memory))
+            .route(
+                "/api/memory",
+                get(api::memory::list_memory).post(api::memory::add_memory),
+            )
+            .route(
+                "/api/memory/recover/:agent_id",
+                get(api::memory::recover_agent_context),
+            )
+            .route(
+                "/api/daily-memory/today",
+                get(api::daily_memory::get_today_daily_memory),
+            )
+            .route(
+                "/api/daily-memory/:date",
+                get(api::daily_memory::get_daily_memory),
+            )
             .route(
                 "/api/daily-memory/:date/checkpoints",
-                post(append_daily_memory_checkpoint),
+                post(api::daily_memory::append_daily_memory_checkpoint),
             )
-            .route("/api/canvases", get(list_canvases).post(create_canvas))
-            .route("/api/canvases/:id", get(get_canvas).patch(update_canvas))
+            .route(
+                "/api/canvases",
+                get(api::canvas::list_canvases).post(api::canvas::create_canvas),
+            )
+            .route(
+                "/api/canvases/:id",
+                get(api::canvas::get_canvas).patch(api::canvas::update_canvas),
+            )
             .route(
                 "/api/canvases/:id/content",
-                get(get_content).put(put_content).patch(put_content),
+                get(api::canvas::get_content)
+                    .put(api::canvas::put_content)
+                    .patch(api::canvas::put_content),
             )
             .route(
                 "/api/canvases/:id/messages",
-                get(get_messages).post(add_message),
+                get(api::canvas::get_messages).post(api::canvas::add_message),
             )
-            .route("/api/canvases/:id/invite", post(invite_member))
-            .route("/api/branch/health", get(branch_health))
-            .route("/api/branch/status", get(branch_status))
-            .route("/api/branch/agents", get(branch_agents))
-            .route("/api/branch/work-ledger", get(branch_work_ledger))
+            .route("/api/canvases/:id/invite", post(api::canvas::invite_member))
+            .route("/api/branch/health", get(api::branch::branch_health))
+            .route("/api/branch/status", get(api::branch::branch_status))
+            .route("/api/branch/agents", get(api::branch::branch_agents))
+            .route(
+                "/api/branch/work-ledger",
+                get(api::branch::branch_work_ledger),
+            )
             .route(
                 "/api/branch/messages",
-                get(branch_list_messages).post(branch_add_message),
+                get(api::branch::branch_list_messages).post(api::branch::branch_add_message),
             )
-            .route("/api/branch/files/read", get(branch_file_read))
-            .route("/api/branch/files/list", get(branch_file_list))
-            .route("/api/branch/files/diff", get(branch_file_diff))
-            .route("/api/branch/git/log", get(branch_git_log));
+            .route(
+                "/api/branch/files/read",
+                get(api::branch_files::branch_file_read),
+            )
+            .route(
+                "/api/branch/files/list",
+                get(api::branch_files::branch_file_list),
+            )
+            .route(
+                "/api/branch/files/diff",
+                get(api::branch_files::branch_file_diff),
+            )
+            .route(
+                "/api/branch/git/log",
+                get(api::branch_files::branch_git_log),
+            );
 
         if serve_web {
             api_route.nest_service(
@@ -1662,397 +1568,42 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn health(State(state): State<AppState>) -> Json<Value> {
-    ensure_minimum_sessions(&state).await;
-    let session_count = state.sessions.read().await.len();
-    Json(json!({
-        "ok": true,
-        "service": "lcc-core-api",
-        "time": Utc::now(),
-        "sessions": session_count,
-        "degraded": session_count < P1C_LOW_WATERMARK,
-    }))
-}
-
-async fn branch_health() -> Json<Value> {
-    Json(json!({
-        "ok": true,
-        "service": "lcc-core-branch-inbound",
-        "time": Utc::now()
-    }))
-}
-
-async fn branch_status(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<Value>, ApiError> {
-    require_branch_token(&headers)?;
-    ensure_minimum_sessions(&state).await;
-    let census = collect_branch_agent_census(&state).await;
-    let session_count = state.sessions.read().await.len();
-    Ok(Json(json!({
-        "ok": true,
-        "service": "lcc-core-branch-inbound",
-        "time": Utc::now(),
-        "work_ledger_tasks": state.work_ledger.ledger.read().await.tasks.len(),
-        "peer_messages": state.peer_store.messages.read().await.len(),
-        "agent_total": census.total_agents,
-        "agent_active": census.active_agents,
-        "agent_session_source": census.session_source,
-        "agent_session_api_ok": census.session_api.ok,
-        "agent_session_api_note": census.session_api.note,
-        "degraded": session_count < P1C_LOW_WATERMARK,
-    })))
-}
-
-async fn branch_agents(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<BranchAgentCensus>, ApiError> {
-    require_branch_token(&headers)?;
-    ensure_minimum_sessions(&state).await;
-    Ok(Json(collect_branch_agent_census(&state).await))
-}
-
-async fn branch_work_ledger(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<WorkLedger>, ApiError> {
-    require_branch_token(&headers)?;
-    Ok(Json(state.work_ledger.ledger.read().await.clone()))
-}
-
-async fn branch_list_messages(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<Vec<PeerMessage>>, ApiError> {
-    require_branch_token(&headers)?;
-    Ok(Json(state.peer_store.messages.read().await.clone()))
-}
-
-async fn branch_add_message(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(input): Json<CreatePeerMessage>,
-) -> Result<(StatusCode, Json<PeerMessage>), ApiError> {
-    require_branch_token(&headers)?;
-    let message = PeerMessage {
-        id: input
-            .id
-            .unwrap_or_else(|| format!("peer-msg-{}", Utc::now().timestamp_millis())),
-        at: input.at.unwrap_or_else(Utc::now),
-        from_peer: require_field(input.from_peer, "from")?,
-        to: input.to.unwrap_or_else(|| "branch".to_string()),
-        kind: input.kind.unwrap_or_else(|| "hq-inbound".to_string()),
-        body: require_field(input.body, "body")?,
-    };
-    state.peer_store.insert(message.clone()).await?;
-    Ok((StatusCode::CREATED, Json(message)))
-}
-
-#[derive(Debug, Deserialize)]
-struct BranchFileReadQuery {
-    path: Option<String>,
-    max_lines: Option<usize>,
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct BranchAgentView {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) team: String,
+    pub(crate) status: String,
+    pub(crate) pid: Option<u32>,
+    pub(crate) source: String,
+    pub(crate) attached: Option<bool>,
+    pub(crate) interactive: Option<bool>,
+    pub(crate) last_activity_at: Option<DateTime<Utc>>,
+    pub(crate) last_activity_age_seconds: i64,
+    pub(crate) log_updated_at: Option<DateTime<Utc>>,
+    pub(crate) preview: String,
+    pub(crate) input_disabled_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct BranchAgentView {
-    id: String,
-    name: String,
-    team: String,
-    status: String,
-    pid: Option<u32>,
-    source: String,
-    attached: Option<bool>,
-    interactive: Option<bool>,
-    last_activity_at: Option<DateTime<Utc>>,
-    last_activity_age_seconds: i64,
-    log_updated_at: Option<DateTime<Utc>>,
-    preview: String,
-    input_disabled_reason: Option<String>,
+pub(crate) struct BranchSessionApiState {
+    pub(crate) ok: bool,
+    pub(crate) source: String,
+    pub(crate) note: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct BranchSessionApiState {
-    ok: bool,
-    source: String,
-    note: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct BranchAgentCensus {
-    ok: bool,
-    service: String,
-    time: DateTime<Utc>,
-    total_agents: usize,
-    active_agents: usize,
-    attached_agents: usize,
-    interactive_agents: usize,
-    session_source: String,
-    session_api: BranchSessionApiState,
-    agents: Vec<BranchAgentView>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BranchFileListQuery {
-    path: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BranchFileDiffQuery {
-    commit1: String,
-    commit2: String,
-    path: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BranchGitLogQuery {
-    limit: Option<usize>,
-    path: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct BranchFileEntry {
-    name: String,
-    #[serde(rename = "type")]
-    entry_type: String,
-    size: u64,
-    modified: Option<String>,
-}
-
-async fn branch_file_read(
-    headers: HeaderMap,
-    Query(query): Query<BranchFileReadQuery>,
-) -> Result<Json<Value>, ApiError> {
-    require_branch_token(&headers)?;
-    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
-    let metadata = fs::metadata(&resolved.absolute)
-        .await
-        .map_err(ApiError::internal)?;
-    if !metadata.is_file() {
-        return Err(ApiError::bad_request("path must point to a file"));
-    }
-    let max_lines = query.max_lines.unwrap_or(200).clamp(1, 5000);
-    let content = fs::read_to_string(&resolved.absolute)
-        .await
-        .map_err(ApiError::internal)?;
-    let total_lines = content.lines().count();
-    let selected: Vec<&str> = content.lines().take(max_lines).collect();
-    let truncated = total_lines > selected.len();
-    Ok(Json(json!({
-        "ok": true,
-        "path": resolved.relative,
-        "content": selected.join("\n"),
-        "total_lines": total_lines,
-        "truncated": truncated
-    })))
-}
-
-async fn branch_file_list(
-    headers: HeaderMap,
-    Query(query): Query<BranchFileListQuery>,
-) -> Result<Json<Value>, ApiError> {
-    require_branch_token(&headers)?;
-    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
-    let metadata = fs::metadata(&resolved.absolute)
-        .await
-        .map_err(ApiError::internal)?;
-    if !metadata.is_dir() {
-        return Err(ApiError::bad_request("path must point to a directory"));
-    }
-    let mut entries = Vec::new();
-    let mut dir = fs::read_dir(&resolved.absolute)
-        .await
-        .map_err(ApiError::internal)?;
-    while let Some(entry) = dir.next_entry().await.map_err(ApiError::internal)? {
-        let name = entry.file_name().to_string_lossy().to_string();
-        if is_denied_branch_path_segment(&name) {
-            continue;
-        }
-        let metadata = entry.metadata().await.map_err(ApiError::internal)?;
-        let modified = metadata
-            .modified()
-            .ok()
-            .map(|time| DateTime::<Utc>::from(time).to_rfc3339());
-        entries.push(BranchFileEntry {
-            name,
-            entry_type: if metadata.is_dir() { "dir" } else { "file" }.to_string(),
-            size: metadata.len(),
-            modified,
-        });
-    }
-    entries.sort_by(|left, right| left.name.to_lowercase().cmp(&right.name.to_lowercase()));
-    Ok(Json(json!({
-        "ok": true,
-        "path": resolved.relative,
-        "entries": entries
-    })))
-}
-
-async fn branch_file_diff(
-    headers: HeaderMap,
-    Query(query): Query<BranchFileDiffQuery>,
-) -> Result<Json<Value>, ApiError> {
-    require_branch_token(&headers)?;
-    validate_git_hashish(&query.commit1)?;
-    validate_git_hashish(&query.commit2)?;
-    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
-    let output = run_git_readonly(&[
-        "diff",
-        "--no-ext-diff",
-        query.commit1.as_str(),
-        query.commit2.as_str(),
-        "--",
-        resolved.relative.as_str(),
-    ])
-    .await?;
-    Ok(Json(json!({
-        "ok": true,
-        "path": resolved.relative,
-        "commit1": query.commit1,
-        "commit2": query.commit2,
-        "diff": output
-    })))
-}
-
-async fn branch_git_log(
-    headers: HeaderMap,
-    Query(query): Query<BranchGitLogQuery>,
-) -> Result<Json<Value>, ApiError> {
-    require_branch_token(&headers)?;
-    let resolved = resolve_branch_relative_path(query.path.as_deref())?;
-    let limit = query.limit.unwrap_or(20).clamp(1, 100).to_string();
-    let output = run_git_readonly(&[
-        "log",
-        "--date=iso-strict",
-        "--format=%H%x1f%h%x1f%an%x1f%aI%x1f%s%x1e",
-        "-n",
-        &limit,
-        "--",
-        resolved.relative.as_str(),
-    ])
-    .await?;
-    let commits: Vec<Value> = output
-        .split('\x1e')
-        .filter_map(|record| {
-            let record = record.trim_matches('\n');
-            if record.is_empty() {
-                return None;
-            }
-            let parts: Vec<&str> = record.split('\x1f').collect();
-            if parts.len() < 5 {
-                return None;
-            }
-            Some(json!({
-                "hash": parts[0],
-                "short_hash": parts[1],
-                "author": parts[2],
-                "date": parts[3],
-                "subject": parts[4]
-            }))
-        })
-        .collect();
-    Ok(Json(json!({
-        "ok": true,
-        "path": resolved.relative,
-        "commits": commits
-    })))
-}
-
-struct BranchResolvedPath {
-    relative: String,
-    absolute: PathBuf,
-}
-
-fn resolve_branch_relative_path(raw_path: Option<&str>) -> Result<BranchResolvedPath, ApiError> {
-    let raw_path = raw_path.unwrap_or(".").trim();
-    let raw_path = if raw_path.is_empty() { "." } else { raw_path };
-    let input = FsPath::new(raw_path);
-    if input.is_absolute() {
-        return Err(ApiError::bad_request("absolute paths are not allowed"));
-    }
-    let mut parts = Vec::new();
-    for component in input.components() {
-        match component {
-            Component::CurDir => {}
-            Component::Normal(value) => {
-                let segment = value
-                    .to_str()
-                    .ok_or_else(|| ApiError::bad_request("path must be valid UTF-8"))?;
-                if is_denied_branch_path_segment(segment) {
-                    return Err(ApiError::bad_request(
-                        "path is outside the allowed branch file scope",
-                    ));
-                }
-                parts.push(segment.to_string());
-            }
-            Component::ParentDir => {
-                return Err(ApiError::bad_request("path traversal is not allowed"))
-            }
-            _ => return Err(ApiError::bad_request("unsupported path component")),
-        }
-    }
-    let mut relative = PathBuf::new();
-    for part in &parts {
-        relative.push(part);
-    }
-    let relative_display = if parts.is_empty() {
-        ".".to_string()
-    } else {
-        parts.join("/")
-    };
-    let root = env::current_dir().map_err(ApiError::internal)?;
-    let absolute = root.join(&relative);
-    if !absolute.starts_with(&root) {
-        return Err(ApiError::bad_request("path is outside the repository root"));
-    }
-    Ok(BranchResolvedPath {
-        relative: relative_display,
-        absolute,
-    })
-}
-
-fn is_denied_branch_path_segment(segment: &str) -> bool {
-    let lowered = segment.to_ascii_lowercase();
-    lowered == ".git"
-        || lowered == ".env"
-        || lowered.ends_with(".env")
-        || lowered.contains("secret")
-        || lowered.contains("token")
-        || lowered.contains("credential")
-        || lowered.contains("private")
-}
-
-fn validate_git_hashish(value: &str) -> Result<(), ApiError> {
-    let valid = (7..=64).contains(&value.len()) && value.chars().all(|ch| ch.is_ascii_hexdigit());
-    if valid {
-        Ok(())
-    } else {
-        Err(ApiError::bad_request(
-            "commit hash must be a 7-64 character hex value",
-        ))
-    }
-}
-
-async fn run_git_readonly(args: &[&str]) -> Result<String, ApiError> {
-    let output = Command::new("git")
-        .args(args)
-        .stdin(Stdio::null())
-        .stderr(Stdio::piped())
-        .stdout(Stdio::piped())
-        .output()
-        .await
-        .map_err(ApiError::internal)?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(ApiError::bad_request(if stderr.is_empty() {
-            "git command failed".to_string()
-        } else {
-            stderr
-        }));
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+pub(crate) struct BranchAgentCensus {
+    pub(crate) ok: bool,
+    pub(crate) service: String,
+    pub(crate) time: DateTime<Utc>,
+    pub(crate) total_agents: usize,
+    pub(crate) active_agents: usize,
+    pub(crate) attached_agents: usize,
+    pub(crate) interactive_agents: usize,
+    pub(crate) session_source: String,
+    pub(crate) session_api: BranchSessionApiState,
+    pub(crate) agents: Vec<BranchAgentView>,
 }
 
 fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
@@ -2096,13 +1647,13 @@ struct BranchAgentSnapshot {
     sessions: Vec<BranchAgentSnapshotSession>,
 }
 
-async fn collect_branch_agent_census(state: &AppState) -> BranchAgentCensus {
+pub(crate) async fn collect_branch_agent_census(state: &AppState) -> BranchAgentCensus {
     let inbound_only = env::var("LCC_INBOUND_ONLY")
         .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
 
     if !inbound_only {
-        let sessions = list_sessions(State(state.clone())).await.0;
+        let sessions = api::session::list_sessions(State(state.clone())).await.0;
         return branch_agent_census_from_sessions(
             "local-state".to_string(),
             BranchSessionApiState {
@@ -2218,7 +1769,10 @@ fn branch_agent_census_from_snapshot(
                 team: session.team.unwrap_or_else(|| "-".to_string()),
                 status: session.status.unwrap_or_else(|| "active".to_string()),
                 pid: None,
-                source: snapshot.source.clone().unwrap_or_else(|| "snapshot-file".to_string()),
+                source: snapshot
+                    .source
+                    .clone()
+                    .unwrap_or_else(|| "snapshot-file".to_string()),
                 attached: None,
                 interactive: None,
                 last_activity_at,
@@ -2233,7 +1787,12 @@ fn branch_agent_census_from_snapshot(
         .collect::<Vec<_>>();
     let active_agents = agents
         .iter()
-        .filter(|agent| !matches!(agent.status.as_str(), "exited" | "error" | "stopped" | "inactive"))
+        .filter(|agent| {
+            !matches!(
+                agent.status.as_str(),
+                "exited" | "error" | "stopped" | "inactive"
+            )
+        })
         .count();
 
     BranchAgentCensus {
@@ -2361,323 +1920,6 @@ async fn read_branch_agent_snapshot_file() -> Result<BranchAgentSnapshot, String
         .map_err(|err| format!("snapshot decode failed: {err}"))
 }
 
-async fn list_sessions(State(state): State<AppState>) -> Json<Vec<SessionView>> {
-    ensure_minimum_sessions(&state).await;
-    let sessions = state.sessions.read().await;
-    let mut internal_meta = Vec::with_capacity(sessions.len());
-    for session in sessions.values() {
-        internal_meta.push(session.lock().await.meta.clone());
-    }
-    drop(sessions);
-    let mut views = Vec::new();
-    let mut internal_ids = HashSet::new();
-    for meta in internal_meta {
-        internal_ids.insert(meta.id.clone());
-        let log_path = terminal_log_path(&meta.id);
-        let view = match build_internal_session_view(&state, meta.clone()).await {
-            Ok(view) => view,
-            Err(_) => build_session_view(
-                meta,
-                String::new(),
-                SessionSource::Internal,
-                true,
-                true,
-                None,
-                log_path,
-            ),
-        };
-        views.push(view);
-    }
-    views.extend(read_os_agent_views(&internal_ids).await);
-    Json(views)
-}
-
-async fn pty_stats(State(state): State<AppState>) -> Json<Value> {
-    let sessions = list_sessions(State(state)).await.0;
-    let active = sessions
-        .iter()
-        .filter(|session| matches!(session.meta.status, SessionStatus::Active))
-        .count();
-    Json(
-        json!({ "total": sessions.len(), "active": active, "max_active": active_session_limit(), "sessions": sessions }),
-    )
-}
-
-async fn create_session(
-    State(state): State<AppState>,
-    Json(input): Json<CreateSession>,
-) -> Result<(StatusCode, Json<SessionView>), ApiError> {
-    let id = input
-        .id
-        .unwrap_or_else(|| format!("lcc-agent-{}", Utc::now().timestamp_millis()));
-    if state.sessions.read().await.contains_key(&id) {
-        return Err(ApiError::conflict("session already exists"));
-    }
-    if let Some(max_active) = active_session_limit() {
-        let active = active_session_count(&state).await;
-        if active >= max_active {
-            return Err(ApiError::service_unavailable(format!(
-                "active session limit reached ({active}/{max_active}); stop a session before creating another"
-            )));
-        }
-    }
-
-    let cmd = input.cmd.unwrap_or_else(default_shell);
-    let args = input.args.unwrap_or_default();
-    let cwd = input.cwd.unwrap_or_else(|| ".".to_string());
-    fs::create_dir_all(&cwd)
-        .await
-        .map_err(|err| ApiError::bad_request(format!("workspace create failed: {err}")))?;
-    let pty_system = native_pty_system();
-    let pair = pty_system
-        .openpty(PtySize {
-            rows: 36,
-            cols: 140,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|err| ApiError::bad_request(format!("pty open failed: {err}")))?;
-    let mut command = CommandBuilder::new(&cmd);
-    command.args(args.iter().map(String::as_str));
-    command.cwd(&cwd);
-    let mut child = pair
-        .slave
-        .spawn_command(command)
-        .map_err(|err| ApiError::bad_request(format!("spawn failed: {err}")))?;
-    let reader = pair
-        .master
-        .try_clone_reader()
-        .map_err(|err| ApiError::bad_request(format!("pty reader failed: {err}")))?;
-    let writer = pair
-        .master
-        .take_writer()
-        .map_err(|err| ApiError::bad_request(format!("pty writer failed: {err}")))?;
-    let meta = SessionMeta {
-        id: id.clone(),
-        name: input.name.unwrap_or_else(|| id.clone()),
-        team: input.team.unwrap_or_else(|| "lcc".to_string()),
-        cwd,
-        cmd,
-        args,
-        model: input.model,
-        status: SessionStatus::Active,
-        pid: None,
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
-        exit_code: None,
-    };
-    let session = Arc::new(Mutex::new(TerminalSession {
-        meta,
-        _master: pair.master,
-        writer,
-    }));
-
-    state
-        .sessions
-        .write()
-        .await
-        .insert(id.clone(), session.clone());
-    spawn_pty_reader(state.clone(), id.clone(), reader);
-    spawn_pty_waiter(state.clone(), id.clone(), move || {
-        child.wait().ok().map(|status| status.exit_code() as i32)
-    });
-    let meta = session.lock().await.meta.clone();
-    let view = build_internal_session_view(&state, meta).await?;
-    let _ = state.tx.send(ServerEvent::SessionCreated {
-        session: view.clone(),
-    });
-    Ok((StatusCode::CREATED, Json(view)))
-}
-
-async fn delete_session(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<Value>, ApiError> {
-    let Some(session) = state.sessions.write().await.remove(&id) else {
-        if read_os_agent_record(&id).await.is_some() {
-            set_os_agent_attached(&id, false).await?;
-            return Ok(Json(
-                json!({ "ok": true, "detached": true, "session_id": id }),
-            ));
-        }
-        return Err(ApiError::not_found("session not found"));
-    };
-    let mut session = session.lock().await;
-    session.meta.status = SessionStatus::Stopped;
-    let _ = session.writer.write_all(b"\x03exit\r\n");
-    let _ = state
-        .tx
-        .send(ServerEvent::SessionDeleted { session_id: id });
-    Ok(Json(json!({ "ok": true })))
-}
-
-async fn list_os_agents() -> Json<Vec<SessionView>> {
-    let attachment_states = read_os_agent_attachment_states().await;
-    let mut views = Vec::new();
-    for record in read_os_agent_records().await {
-        let attached = os_agent_attached_by_default(&record, &attachment_states);
-        let preview = read_os_agent_preview(&record).await.unwrap_or_default();
-        views.push(os_agent_view(record, preview, attached));
-    }
-    Json(views)
-}
-
-async fn attach_os_agent(Path(id): Path<String>) -> Result<Json<SessionView>, ApiError> {
-    let Some(record) = read_os_agent_record(&id).await else {
-        return Err(ApiError::not_found("OS agent not found"));
-    };
-    set_os_agent_attached(&id, true).await?;
-    let preview = read_os_agent_preview(&record).await.unwrap_or_default();
-    Ok(Json(os_agent_view(record, preview, true)))
-}
-
-async fn get_session(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<SessionView>, ApiError> {
-    Ok(Json(resolve_session_view(&state, &id).await?))
-}
-
-async fn detach_os_agent(Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
-    if read_os_agent_record(&id).await.is_none() {
-        return Err(ApiError::not_found("OS agent not found"));
-    }
-    set_os_agent_attached(&id, false).await?;
-    Ok(Json(
-        json!({ "ok": true, "detached": true, "session_id": id }),
-    ))
-}
-
-async fn write_session(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<WriteSession>,
-) -> Result<Json<SessionView>, ApiError> {
-    let data = input
-        .input
-        .or(input.data)
-        .or(input.prompt)
-        .unwrap_or_default();
-    let session = write_to_session(&state, &id, data).await?;
-    Ok(Json(session))
-}
-
-async fn write_session_prompt_text(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<WriteSession>,
-) -> Result<Json<Value>, ApiError> {
-    let body = prompt_body_from_write_session(&input);
-    let session = write_prompt_text_to_session(&state, &id, body.clone()).await?;
-    Ok(Json(json!({
-        "ok": true,
-        "type": "promptTextAck",
-        "sessionId": id,
-        "textBytes": body.as_bytes().len(),
-        "lineCount": prompt_line_count(&body),
-        "session": session
-    })))
-}
-
-async fn write_session_prompt_submit(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<WriteSession>,
-) -> Result<Json<Value>, ApiError> {
-    let repeat = input.repeat.unwrap_or(1).clamp(1, 2);
-    let session = write_prompt_submit_to_session(&state, &id, repeat).await?;
-    Ok(Json(json!({
-        "ok": true,
-        "type": "promptSubmitAck",
-        "sessionId": id,
-        "submitKey": "\\r",
-        "repeat": repeat,
-        "session": session
-    })))
-}
-
-async fn get_session_log(
-    Path(id): Path<String>,
-    Query(query): Query<SessionLogQuery>,
-) -> Result<axum::response::Response, ApiError> {
-    let (source, path) = resolve_session_log_path(&id).await?;
-    let limit = clamp_log_tail_limit(query.limit);
-    if matches!(source, SessionSource::Internal) && !terminal_persistent_logs_enabled() {
-        let text = String::new();
-        let log = SessionLogInfo {
-            path: path.display().to_string(),
-            available: false,
-            bytes: 0,
-            tail_bytes: 0,
-            updated_at: None,
-        };
-        return match query.format.as_deref().unwrap_or("ansi") {
-            "ansi" | "text" => {
-                Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text).into_response())
-            }
-            "json" => Ok(Json(SessionLogTailResponse {
-                session_id: id,
-                source,
-                log,
-                tail: SessionLogTail {
-                    ansi: String::new(),
-                    text: String::new(),
-                    has_ansi: false,
-                    truncated: false,
-                    bytes: 0,
-                    text_bytes: 0,
-                    start_offset: 0,
-                    end_offset: 0,
-                },
-            })
-            .into_response()),
-            other => Err(ApiError::bad_request(format!(
-                "unsupported log format '{other}'; expected ansi, text, or json"
-            ))),
-        };
-    }
-    let chunk = match read_tail_chunk(path.clone(), limit).await {
-        Ok(chunk) => chunk,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => TailChunk {
-            text: String::new(),
-            start: 0,
-            end: 0,
-            file_len: 0,
-        },
-        Err(err) => return Err(ApiError::internal(err)),
-    };
-    let text = strip_ansi_for_ui(&chunk.text);
-    let has_ansi = text != chunk.text;
-    let log = session_log_info_for_path(&path, limit);
-    match query.format.as_deref().unwrap_or("ansi") {
-        "ansi" => Ok((
-            [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-            chunk.text,
-        )
-            .into_response()),
-        "text" => Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text).into_response()),
-        "json" => Ok(Json(SessionLogTailResponse {
-            session_id: id,
-            source,
-            log,
-            tail: SessionLogTail {
-                ansi: chunk.text.clone(),
-                text,
-                has_ansi,
-                truncated: chunk.start > 0,
-                bytes: chunk.text.len(),
-                text_bytes: strip_ansi_for_ui(&chunk.text).len(),
-                start_offset: chunk.start,
-                end_offset: chunk.end.max(chunk.file_len),
-            },
-        })
-        .into_response()),
-        other => Err(ApiError::bad_request(format!(
-            "unsupported log format '{other}'; expected ansi, text, or json"
-        ))),
-    }
-}
-
 async fn read_tail_lossy(path: PathBuf, max_bytes: u64) -> std::io::Result<String> {
     Ok(read_tail_chunk(path, max_bytes).await?.text)
 }
@@ -2690,7 +1932,7 @@ async fn read_tail_lossy_or_empty(path: PathBuf, max_bytes: u64) -> std::io::Res
     }
 }
 
-async fn read_tail_chunk(path: PathBuf, max_bytes: u64) -> std::io::Result<TailChunk> {
+pub(crate) async fn read_tail_chunk(path: PathBuf, max_bytes: u64) -> std::io::Result<TailChunk> {
     let mut file = fs::File::open(path).await?;
     let len = file.metadata().await?.len();
     let start = len.saturating_sub(max_bytes);
@@ -2705,108 +1947,7 @@ async fn read_tail_chunk(path: PathBuf, max_bytes: u64) -> std::io::Result<TailC
     })
 }
 
-async fn resize_session(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<ResizeSession>,
-) -> Result<Json<Value>, ApiError> {
-    let cols = input.cols.unwrap_or(120).clamp(20, 300);
-    let rows = input.rows.unwrap_or(30).clamp(5, 120);
-    resize_to_session(&state, &id, cols, rows).await?;
-    Ok(Json(json!({ "ok": true, "cols": cols, "rows": rows })))
-}
-
-async fn terminal_ws(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| terminal_socket(socket, state))
-}
-
-async fn terminal_socket(mut socket: WebSocket, state: AppState) {
-    let mut rx = state.tx.subscribe();
-    let mut attached_sessions = HashSet::<String>::new();
-    loop {
-        tokio::select! {
-            event = rx.recv() => {
-                let Ok(event) = event else {
-                    break;
-                };
-                if let Some(session_id) = event_session_id(&event) {
-                    if !attached_sessions.contains(session_id) && !matches!(event, ServerEvent::SessionDeleted { .. } | ServerEvent::Exit { .. }) {
-                        continue;
-                    }
-                }
-                let Ok(text) = serde_json::to_string(&event) else {
-                    continue;
-                };
-                if socket.send(Message::Text(text)).await.is_err() {
-                    break;
-                }
-            }
-            inbound = socket.recv() => {
-                let Some(Ok(message)) = inbound else {
-                    break;
-                };
-                if let Message::Text(text) = message {
-                    let mut attach_session_id: Option<String> = None;
-                    let mut attach_error: Option<Value> = None;
-                    if let Ok(value) = serde_json::from_str::<Value>(&text) {
-                        if value.get("type").and_then(Value::as_str) == Some("attach") {
-                            if let Some(session_id) = value.get("sessionId").or_else(|| value.get("session_id")).and_then(Value::as_str) {
-                                attach_session_id = Some(session_id.to_string());
-                                attached_sessions.insert(session_id.to_string());
-                                // Snapshot captured BEFORE resize to avoid SIGWINCH race:
-                                // resize → Codex ESC[2J (async) → snapshot empty if read after resize.
-                                let pre_resize_snapshot = terminal_current_display_for_attach(&state, session_id);
-                                if let Err(err) = apply_attach_terminal_dims(&state, session_id, &value).await {
-                                    attach_error = Some(
-                                        json!({ "type": "error", "sessionId": session_id, "message": err.message }),
-                                    );
-                                }
-                                if value.get("requestReplay").or_else(|| value.get("request_replay")).and_then(Value::as_bool) != Some(true) {
-                                    if let Some(error) = attach_error {
-                                        if socket.send(Message::Text(error.to_string())).await.is_err() {
-                                            break;
-                                        }
-                                        continue;
-                                    }
-                                    let attached = json!({ "type": "attached", "sessionId": session_id });
-                                    if socket.send(Message::Text(attached.to_string())).await.is_err() {
-                                        break;
-                                    }
-                                    if let Some(snapshot) = pre_resize_snapshot {
-                                        let current = json!({ "type": "snapshot", "sessionId": session_id, "data": snapshot });
-                                        if socket.send(Message::Text(current.to_string())).await.is_err() {
-                                            break;
-                                        }
-                                    }
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-                    if let Some(error) = attach_error {
-                        if socket.send(Message::Text(error.to_string())).await.is_err() {
-                            break;
-                        }
-                        continue;
-                    }
-                    if let Some(response) = handle_terminal_protocol(&state, &text).await {
-                        if socket.send(Message::Text(response.to_string())).await.is_err() {
-                            break;
-                        }
-                        if let Some(session_id) = attach_session_id {
-                            let attached = json!({ "type": "attached", "sessionId": session_id });
-                            if socket.send(Message::Text(attached.to_string())).await.is_err() {
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-fn event_session_id(event: &ServerEvent) -> Option<&str> {
+pub(crate) fn event_session_id(event: &ServerEvent) -> Option<&str> {
     match event {
         ServerEvent::Attached { session_id }
         | ServerEvent::Replay { session_id, .. }
@@ -2825,7 +1966,7 @@ fn event_session_id(event: &ServerEvent) -> Option<&str> {
     }
 }
 
-fn terminal_current_display_for_attach(state: &AppState, id: &str) -> Option<String> {
+pub(crate) fn terminal_current_display_for_attach(state: &AppState, id: &str) -> Option<String> {
     terminal_display_snapshot_ansi_text(state, id)
         .filter(|s| !s.trim().is_empty())
         .map(|snapshot| format!("{TERMINAL_ATTACH_CLEAR_PREFIX}{snapshot}"))
@@ -2841,7 +1982,10 @@ fn terminal_current_display_for_attach(state: &AppState, id: &str) -> Option<Str
             } else {
                 // ESC[2J 없음 → CLEAR_PREFIX + 마지막 2048바이트 전송.
                 // CLEAR_PREFIX가 화면을 먼저 클리어하므로 ghost 재발 없이 최신 출력 표시.
-                Some(format!("{TERMINAL_ATTACH_CLEAR_PREFIX}{}", &tail[tail.len().saturating_sub(2048)..]))
+                Some(format!(
+                    "{TERMINAL_ATTACH_CLEAR_PREFIX}{}",
+                    &tail[tail.len().saturating_sub(2048)..]
+                ))
             }
         })
         .filter(|text| !text.is_empty())
@@ -2862,7 +2006,7 @@ fn parse_attach_terminal_dims(value: &Value) -> Option<(u16, u16)> {
     }
 }
 
-async fn apply_attach_terminal_dims(
+pub(crate) async fn apply_attach_terminal_dims(
     state: &AppState,
     session_id: &str,
     value: &Value,
@@ -2874,10 +2018,12 @@ async fn apply_attach_terminal_dims(
     if !is_internal_session {
         return Ok(());
     }
-    resize_to_session(state, session_id, cols, rows).await.map(|_| ())
+    resize_to_session(state, session_id, cols, rows)
+        .await
+        .map(|_| ())
 }
 
-async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> {
+pub(crate) async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> {
     let value = serde_json::from_str::<Value>(raw).ok()?;
     let kind = value.get("type")?.as_str()?;
     let session_id = value
@@ -3003,7 +2149,7 @@ async fn handle_terminal_protocol(state: &AppState, raw: &str) -> Option<Value> 
     }
 }
 
-async fn resize_to_session(
+pub(crate) async fn resize_to_session(
     state: &AppState,
     id: &str,
     cols: u16,
@@ -3037,7 +2183,7 @@ async fn resize_to_session(
     build_internal_session_view(state, meta).await
 }
 
-async fn write_to_session(
+pub(crate) async fn write_to_session(
     state: &AppState,
     id: &str,
     data: String,
@@ -3051,7 +2197,7 @@ async fn write_to_session(
     write_prompt_submit_to_session(state, id, 1).await
 }
 
-fn prompt_body_from_write_session(input: &WriteSession) -> String {
+pub(crate) fn prompt_body_from_write_session(input: &WriteSession) -> String {
     let data = input
         .input
         .clone()
@@ -3071,7 +2217,7 @@ fn prompt_body_from_ws_value(value: &Value) -> String {
     normalize_prompt_body(&prompt)
 }
 
-async fn write_prompt_text_to_session(
+pub(crate) async fn write_prompt_text_to_session(
     state: &AppState,
     id: &str,
     body: String,
@@ -3084,7 +2230,7 @@ async fn write_prompt_text_to_session(
     Ok(session)
 }
 
-async fn write_prompt_submit_to_session(
+pub(crate) async fn write_prompt_submit_to_session(
     state: &AppState,
     id: &str,
     repeat: u8,
@@ -3106,7 +2252,7 @@ fn normalize_prompt_body(data: &str) -> String {
     normalized
 }
 
-fn prompt_line_count(data: &str) -> usize {
+pub(crate) fn prompt_line_count(data: &str) -> usize {
     if data.is_empty() {
         0
     } else {
@@ -3144,15 +2290,16 @@ fn append_terminal_output(state: &AppState, id: &str, data: String) {
             .or_insert_with(|| TerminalRingBuffer::new(ring_buffer_bytes))
             .push(&data);
     }
-    let snapshot_text_after_push = if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
-        snapshots
-            .entry(id.to_string())
-            .or_insert_with(|| TerminalDisplaySnapshot::new(150))
-            .push(&data);
-        snapshots.get(id).map(TerminalDisplaySnapshot::text)
-    } else {
-        None
-    };
+    let snapshot_text_after_push =
+        if let Ok(mut snapshots) = state.terminal_display_snapshots.lock() {
+            snapshots
+                .entry(id.to_string())
+                .or_insert_with(|| TerminalDisplaySnapshot::new(150))
+                .push(&data);
+            snapshots.get(id).map(TerminalDisplaySnapshot::text)
+        } else {
+            None
+        };
     // Cache last non-empty snapshot text for P1-G fallback (ESC[2J redraw window stability).
     if let Some(text) = snapshot_text_after_push {
         if !text.is_empty() {
@@ -3179,11 +2326,11 @@ mod tests {
     };
 
     use super::{
-        normalize_prompt_body, normalize_pty_output, normalize_work_event_kind,
-        prompt_body_from_write_session, prompt_body_from_ws_value, prompt_submit_key,
-        read_tail_lossy, strip_ansi_for_ui, tail_string_by_bytes, terminal_preview_text_for_ui,
-        PtyOutputProcessor, WriteSession,
+        normalize_prompt_body, normalize_pty_output, prompt_body_from_write_session,
+        prompt_body_from_ws_value, prompt_submit_key, read_tail_lossy, strip_ansi_for_ui,
+        tail_string_by_bytes, terminal_preview_text_for_ui, PtyOutputProcessor, WriteSession,
     };
+    use crate::app::work_ledger::normalize_work_event_kind;
 
     fn encode_prompt_submit_for_test(data: &str) -> String {
         format!("{}{}", normalize_prompt_body(data), prompt_submit_key())
@@ -3298,7 +2445,7 @@ mod tests {
     fn ring_buffer_standalone_cr_clears_current_line() {
         let mut buf = super::TerminalRingBuffer::new(1024);
         buf.push("line1\r\n");
-        buf.push("status_old\r");  // standalone CR — clears "status_old"
+        buf.push("status_old\r"); // standalone CR — clears "status_old"
         buf.push("\x1b[Kstatus_new");
         assert_eq!(buf.data, "line1\r\n\r\x1b[Kstatus_new");
 
@@ -3588,7 +2735,7 @@ async fn resolve_terminal_replay(
         .map_err(ApiError::internal)
 }
 
-async fn build_internal_session_view(
+pub(crate) async fn build_internal_session_view(
     state: &AppState,
     meta: SessionMeta,
 ) -> Result<SessionView, ApiError> {
@@ -3718,7 +2865,7 @@ async fn write_session_bytes(
     build_internal_session_view(state, meta).await
 }
 
-fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send>) {
+pub(crate) fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send>) {
     let log_path = terminal_log_path(&id);
     thread::spawn(move || {
         if let Ok(mut buffers) = state.terminal_buffers.lock() {
@@ -3753,7 +2900,7 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
     });
 }
 
-fn terminal_log_path(id: &str) -> PathBuf {
+pub(crate) fn terminal_log_path(id: &str) -> PathBuf {
     let safe_id: String = id
         .chars()
         .map(|ch| {
@@ -3769,7 +2916,10 @@ fn terminal_log_path(id: &str) -> PathBuf {
         .join(format!("{safe_id}.ansi.log"))
 }
 
-async fn resolve_session_view(state: &AppState, id: &str) -> Result<SessionView, ApiError> {
+pub(crate) async fn resolve_session_view(
+    state: &AppState,
+    id: &str,
+) -> Result<SessionView, ApiError> {
     if let Some(session) = state.sessions.read().await.get(id).cloned() {
         let meta = session.lock().await.meta.clone();
         return build_internal_session_view(state, meta).await;
@@ -3782,7 +2932,9 @@ async fn resolve_session_view(state: &AppState, id: &str) -> Result<SessionView,
     Ok(os_agent_view(record, preview, attached))
 }
 
-async fn resolve_session_log_path(id: &str) -> Result<(SessionSource, PathBuf), ApiError> {
+pub(crate) async fn resolve_session_log_path(
+    id: &str,
+) -> Result<(SessionSource, PathBuf), ApiError> {
     if let Some(record) = read_os_agent_record(id).await {
         if !os_agent_is_attached(&record).await {
             return Err(ApiError::not_found("OS agent is detached from this API"));
@@ -3796,7 +2948,7 @@ async fn resolve_session_log_path(id: &str) -> Result<(SessionSource, PathBuf), 
     Ok((SessionSource::Internal, terminal_log_path(id)))
 }
 
-fn spawn_pty_waiter<F>(state: AppState, id: String, wait: F)
+pub(crate) fn spawn_pty_waiter<F>(state: AppState, id: String, wait: F)
 where
     F: FnOnce() -> Option<i32> + Send + 'static,
 {
@@ -3832,7 +2984,7 @@ impl TerminalSession {
     }
 }
 
-async fn read_os_agent_views(internal_ids: &HashSet<String>) -> Vec<SessionView> {
+pub(crate) async fn read_os_agent_views(internal_ids: &HashSet<String>) -> Vec<SessionView> {
     let attachment_states = read_os_agent_attachment_states().await;
     let mut views = Vec::new();
     for record in read_os_agent_records().await {
@@ -3849,7 +3001,7 @@ async fn read_os_agent_views(internal_ids: &HashSet<String>) -> Vec<SessionView>
     views
 }
 
-async fn read_os_agent_record(id: &str) -> Option<OsAgentRecord> {
+pub(crate) async fn read_os_agent_record(id: &str) -> Option<OsAgentRecord> {
     read_os_agent_records()
         .await
         .into_iter()
@@ -3867,7 +3019,7 @@ fn os_agent_registry_path() -> Option<PathBuf> {
     }
 }
 
-async fn read_os_agent_records() -> Vec<OsAgentRecord> {
+pub(crate) async fn read_os_agent_records() -> Vec<OsAgentRecord> {
     let Some(path) = os_agent_registry_path() else {
         return Vec::new();
     };
@@ -3893,7 +3045,7 @@ fn os_agent_attachment_path() -> PathBuf {
     PathBuf::from("data/os-agents/attachments.json")
 }
 
-async fn read_os_agent_attachment_states() -> HashMap<String, OsAgentAttachmentRecord> {
+pub(crate) async fn read_os_agent_attachment_states() -> HashMap<String, OsAgentAttachmentRecord> {
     let path = os_agent_attachment_path();
     let Ok(text) = fs::read_to_string(path).await else {
         return HashMap::new();
@@ -3915,7 +3067,7 @@ async fn write_os_agent_attachment_states(
     fs::write(path, text).await.map_err(ApiError::internal)
 }
 
-async fn set_os_agent_attached(id: &str, attached: bool) -> Result<(), ApiError> {
+pub(crate) async fn set_os_agent_attached(id: &str, attached: bool) -> Result<(), ApiError> {
     let mut states = read_os_agent_attachment_states().await;
     states.insert(
         id.to_string(),
@@ -3927,7 +3079,7 @@ async fn set_os_agent_attached(id: &str, attached: bool) -> Result<(), ApiError>
     write_os_agent_attachment_states(&states).await
 }
 
-fn os_agent_attached_by_default(
+pub(crate) fn os_agent_attached_by_default(
     record: &OsAgentRecord,
     states: &HashMap<String, OsAgentAttachmentRecord>,
 ) -> bool {
@@ -3945,7 +3097,7 @@ async fn os_agent_is_attached(record: &OsAgentRecord) -> bool {
     os_agent_attached_by_default(record, &states)
 }
 
-async fn read_os_agent_preview(record: &OsAgentRecord) -> std::io::Result<String> {
+pub(crate) async fn read_os_agent_preview(record: &OsAgentRecord) -> std::io::Result<String> {
     let Some(path) = record.log_path.as_ref() else {
         return Ok(String::new());
     };
@@ -4045,7 +3197,7 @@ fn http_response_body_preview(response: &[u8]) -> String {
     }
 }
 
-fn os_agent_view(record: OsAgentRecord, preview: String, attached: bool) -> SessionView {
+pub(crate) fn os_agent_view(record: OsAgentRecord, preview: String, attached: bool) -> SessionView {
     let now = Utc::now();
     let interactive = os_agent_write_url(&record).is_some();
     let log_path = record
@@ -4089,7 +3241,7 @@ fn os_agent_view(record: OsAgentRecord, preview: String, attached: bool) -> Sess
     )
 }
 
-async fn active_session_count(state: &AppState) -> usize {
+pub(crate) async fn active_session_count(state: &AppState) -> usize {
     let sessions = state.sessions.read().await;
     let mut active = 0;
     for session in sessions.values() {
@@ -4103,26 +3255,47 @@ async fn active_session_count(state: &AppState) -> usize {
 // P1-C auto-guard: standard sessions to respawn when pool is empty.
 const P1C_GUARD_SESSIONS: &[(&str, &str, &str)] = &[
     ("branch-ceo", "codex.cmd", "workspaces/ceo/repo"),
-    ("dev-lead",   "codex.cmd", "workspaces/dev-lead/repo"),
-    ("lux",        "codex.cmd", "workspaces/lux/repo"),
-    ("arum",       "codex.cmd", "workspaces/arum/repo"),
+    ("dev-lead", "codex.cmd", "workspaces/dev-lead/repo"),
+    ("lux", "codex.cmd", "workspaces/lux/repo"),
+    ("arum", "codex.cmd", "workspaces/arum/repo"),
 ];
-const P1C_LOW_WATERMARK: usize = 4;
+pub(crate) const P1C_LOW_WATERMARK: usize = 4;
 
-async fn spawn_standard_session(state: &AppState, id: &str, cmd: &str, cwd: &str) -> Result<(), String> {
+async fn spawn_standard_session(
+    state: &AppState,
+    id: &str,
+    cmd: &str,
+    cwd: &str,
+) -> Result<(), String> {
     if state.sessions.read().await.contains_key(id) {
         return Ok(());
     }
-    fs::create_dir_all(cwd).await.map_err(|e| format!("workspace create failed: {e}"))?;
+    fs::create_dir_all(cwd)
+        .await
+        .map_err(|e| format!("workspace create failed: {e}"))?;
     let pty_system = native_pty_system();
     let pair = pty_system
-        .openpty(PtySize { rows: 36, cols: 140, pixel_width: 0, pixel_height: 0 })
+        .openpty(PtySize {
+            rows: 36,
+            cols: 140,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
         .map_err(|e| format!("pty open failed: {e}"))?;
     let mut command = CommandBuilder::new(cmd);
     command.cwd(cwd);
-    let mut child = pair.slave.spawn_command(command).map_err(|e| format!("spawn failed: {e}"))?;
-    let reader = pair.master.try_clone_reader().map_err(|e| format!("pty reader failed: {e}"))?;
-    let writer = pair.master.take_writer().map_err(|e| format!("pty writer failed: {e}"))?;
+    let mut child = pair
+        .slave
+        .spawn_command(command)
+        .map_err(|e| format!("spawn failed: {e}"))?;
+    let reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("pty reader failed: {e}"))?;
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| format!("pty writer failed: {e}"))?;
     let meta = SessionMeta {
         id: id.to_string(),
         name: id.to_string(),
@@ -4137,7 +3310,11 @@ async fn spawn_standard_session(state: &AppState, id: &str, cmd: &str, cwd: &str
         updated_at: Utc::now(),
         exit_code: None,
     };
-    let session = Arc::new(Mutex::new(TerminalSession { meta, _master: pair.master, writer }));
+    let session = Arc::new(Mutex::new(TerminalSession {
+        meta,
+        _master: pair.master,
+        writer,
+    }));
     state.sessions.write().await.insert(id.to_string(), session);
     spawn_pty_reader(state.clone(), id.to_string(), reader);
     spawn_pty_waiter(state.clone(), id.to_string(), move || {
@@ -4147,7 +3324,7 @@ async fn spawn_standard_session(state: &AppState, id: &str, cmd: &str, cwd: &str
 }
 
 // Respawns standard sessions when the pool is empty (P1-C guard — SOP §9 BE internalization).
-async fn ensure_minimum_sessions(state: &AppState) {
+pub(crate) async fn ensure_minimum_sessions(state: &AppState) {
     let session_count = state.sessions.read().await.len();
     if session_count > 0 {
         return;
@@ -4164,42 +3341,11 @@ async fn ensure_minimum_sessions(state: &AppState) {
     }
 }
 
-fn active_session_limit() -> Option<usize> {
+pub(crate) fn active_session_limit() -> Option<usize> {
     match env::var("LCC_MAX_ACTIVE_SESSIONS") {
         Ok(value) => value.parse::<usize>().ok().filter(|value| *value > 0),
         Err(_) => Some(20),
     }
-}
-
-async fn peer_status(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({
-        "ok": true,
-        "service": "lcc-peer-bridge",
-        "messages": state.peer_store.messages.read().await.len(),
-        "path": state.peer_store.path.display().to_string()
-    }))
-}
-
-async fn list_peer_messages(State(state): State<AppState>) -> Json<Vec<PeerMessage>> {
-    Json(state.peer_store.messages.read().await.clone())
-}
-
-async fn add_peer_message(
-    State(state): State<AppState>,
-    Json(input): Json<CreatePeerMessage>,
-) -> Result<(StatusCode, Json<PeerMessage>), ApiError> {
-    let message = PeerMessage {
-        id: input
-            .id
-            .unwrap_or_else(|| format!("peer-msg-{}", Utc::now().timestamp_millis())),
-        at: input.at.unwrap_or_else(Utc::now),
-        from_peer: require_field(input.from_peer, "from")?,
-        to: require_field(input.to, "to")?,
-        kind: input.kind.unwrap_or_else(|| "terminal".to_string()),
-        body: require_field(input.body, "body")?,
-    };
-    state.peer_store.insert(message.clone()).await?;
-    Ok((StatusCode::CREATED, Json(message)))
 }
 
 fn require_field(value: Option<String>, field: &str) -> Result<String, ApiError> {
@@ -4210,408 +3356,6 @@ fn require_field(value: Option<String>, field: &str) -> Result<String, ApiError>
         return Err(ApiError::bad_request(format!("{field} is required")));
     }
     Ok(value)
-}
-
-async fn get_work_ledger(State(state): State<AppState>) -> Json<WorkLedger> {
-    Json(state.work_ledger.ledger.read().await.clone())
-}
-
-async fn upsert_work_task(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<UpsertWorkTask>,
-) -> Result<Json<WorkTask>, ApiError> {
-    state.work_ledger.upsert_task(&id, input).await.map(Json)
-}
-
-async fn add_work_task_event(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<AddWorkTaskEvent>,
-) -> Result<(StatusCode, Json<WorkTaskEvent>), ApiError> {
-    let kind = normalize_work_event_kind(input.kind)?;
-    let event = WorkTaskEvent {
-        id: input
-            .id
-            .unwrap_or_else(|| format!("work-event-{}", Utc::now().timestamp_millis())),
-        task_id: id.clone(),
-        at: input.at.unwrap_or_else(Utc::now),
-        kind,
-        body: require_field(input.body, "body")?,
-    };
-    state.work_ledger.add_event(&id, event.clone()).await?;
-    Ok((StatusCode::CREATED, Json(event)))
-}
-
-async fn list_memory(
-    State(state): State<AppState>,
-    Query(query): Query<MemoryQuery>,
-) -> Json<Value> {
-    let entries = state.memory_store.search(&query).await;
-    Json(json!({
-        "ok": true,
-        "path": state.memory_store.path.display().to_string(),
-        "count": entries.len(),
-        "memories": entries
-    }))
-}
-
-async fn add_memory(
-    State(state): State<AppState>,
-    Json(input): Json<CreateMemoryEntry>,
-) -> Result<(StatusCode, Json<MemoryEntry>), ApiError> {
-    let entry = MemoryEntry {
-        id: input
-            .id
-            .unwrap_or_else(|| format!("mem-{}", Utc::now().timestamp_millis())),
-        at: input.at.unwrap_or_else(Utc::now),
-        agent_id: require_field(input.agent_id, "agent_id")?,
-        layer: normalize_memory_layer(input.layer)?,
-        scope: normalize_memory_scope(input.scope)?,
-        kind: input
-            .kind
-            .unwrap_or_else(|| "note".to_string())
-            .trim()
-            .to_ascii_lowercase(),
-        topic: input.topic.filter(|value| !value.trim().is_empty()),
-        content: require_field(input.content, "content")?,
-        importance: input.importance.unwrap_or(3).clamp(0, 10),
-        source: input.source.unwrap_or_else(|| "manual".to_string()),
-        source_id: input.source_id.filter(|value| !value.trim().is_empty()),
-        ledger_item: input.ledger_item.filter(|value| !value.trim().is_empty()),
-        evidence_path: input.evidence_path.filter(|value| !value.trim().is_empty()),
-        tags: input.tags.unwrap_or_default(),
-        archived_at: None,
-    };
-    state.memory_store.insert(entry.clone()).await?;
-    Ok((StatusCode::CREATED, Json(entry)))
-}
-
-async fn recover_agent_context(
-    State(state): State<AppState>,
-    Path(agent_id): Path<String>,
-    Query(query): Query<RecoveryQuery>,
-) -> Result<Json<Value>, ApiError> {
-    let limit = query.limit.unwrap_or(8).clamp(1, 50);
-    let memory_query = MemoryQuery {
-        agent_id: Some(agent_id.clone()),
-        scope: None,
-        layer: None,
-        kind: None,
-        topic: None,
-        search: query.search.clone(),
-        include_archived: Some(false),
-        limit: Some(limit),
-    };
-    let personal = state.memory_store.search(&memory_query).await;
-    let shared_query = MemoryQuery {
-        agent_id: None,
-        scope: Some("team,global".to_string()),
-        layer: None,
-        kind: None,
-        topic: None,
-        search: query.search,
-        include_archived: Some(false),
-        limit: Some(limit),
-    };
-    let shared = state.memory_store.search(&shared_query).await;
-    let ledger = state.work_ledger.ledger.read().await.clone();
-    let active_tasks: Vec<WorkTask> = ledger
-        .tasks
-        .iter()
-        .filter(|task| {
-            matches!(
-                task.status,
-                WorkTaskStatus::Todo | WorkTaskStatus::Doing | WorkTaskStatus::Blocked
-            )
-        })
-        .cloned()
-        .collect();
-    let mut recent_events = ledger.events.clone();
-    recent_events.sort_by(|a, b| b.at.cmp(&a.at));
-    recent_events.truncate(limit);
-    let daily_memory_date = current_kst_date();
-    let daily_memory = state
-        .daily_memory_store
-        .read_daily_memory(&daily_memory_date)
-        .await?;
-
-    Ok(Json(json!({
-        "ok": true,
-        "agent_id": agent_id,
-        "recovered_context": {
-            "daily_memory": daily_memory,
-            "personal_memories": personal,
-            "shared_memories": shared,
-            "active_tasks": active_tasks,
-            "recent_work_events": recent_events,
-        },
-        "report_contract": "recovered_context / latest_ledger_item / latest_evidence / next_action / blocker"
-    })))
-}
-
-async fn get_today_daily_memory(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
-    let date = current_kst_date();
-    daily_memory_response(&state.daily_memory_store, &date).await
-}
-
-async fn get_daily_memory(
-    State(state): State<AppState>,
-    Path(date): Path<String>,
-) -> Result<Json<Value>, ApiError> {
-    daily_memory_response(&state.daily_memory_store, &date).await
-}
-
-async fn daily_memory_response(
-    store: &DailyMemoryStore,
-    date: &str,
-) -> Result<Json<Value>, ApiError> {
-    let path = store.path_for_date(date)?;
-    match fs::read_to_string(&path).await {
-        Ok(content) => Ok(Json(json!({
-            "ok": true,
-            "date": date,
-            "path": path.display().to_string(),
-            "exists": true,
-            "content": content,
-        }))),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(Json(json!({
-            "ok": true,
-            "date": date,
-            "path": path.display().to_string(),
-            "exists": false,
-            "content": "",
-        }))),
-        Err(err) => Err(ApiError::internal(err)),
-    }
-}
-
-async fn append_daily_memory_checkpoint(
-    State(state): State<AppState>,
-    Path(date): Path<String>,
-    Json(input): Json<AppendDailyMemoryCheckpoint>,
-) -> Result<(StatusCode, Json<Value>), ApiError> {
-    let content = require_field(input.content, "content")?;
-    let entry = state
-        .daily_memory_store
-        .append_checkpoint(&date, input.heading, content, input.source, input.tags)
-        .await?;
-    Ok((StatusCode::CREATED, Json(entry)))
-}
-
-fn current_kst_date() -> String {
-    (Utc::now() + ChronoDuration::hours(9))
-        .format("%Y-%m-%d")
-        .to_string()
-}
-
-fn validate_daily_memory_date(date: &str) -> Result<(), ApiError> {
-    let valid = date.len() == 10
-        && date.as_bytes().get(4) == Some(&b'-')
-        && date.as_bytes().get(7) == Some(&b'-')
-        && date
-            .chars()
-            .enumerate()
-            .all(|(idx, ch)| (idx == 4 || idx == 7) && ch == '-' || ch.is_ascii_digit());
-    if valid {
-        Ok(())
-    } else {
-        Err(ApiError::bad_request("date must use YYYY-MM-DD"))
-    }
-}
-
-fn normalize_memory_layer(layer: Option<String>) -> Result<String, ApiError> {
-    let value = layer
-        .unwrap_or_else(|| "working".to_string())
-        .trim()
-        .to_ascii_lowercase();
-    if ["working", "short_term", "long_term"].contains(&value.as_str()) {
-        Ok(value)
-    } else {
-        Err(ApiError::bad_request(
-            "layer must be working, short_term, or long_term",
-        ))
-    }
-}
-
-fn normalize_memory_scope(scope: Option<String>) -> Result<String, ApiError> {
-    let value = scope
-        .unwrap_or_else(|| "personal".to_string())
-        .trim()
-        .to_ascii_lowercase();
-    if ["personal", "team", "global"].contains(&value.as_str()) {
-        Ok(value)
-    } else {
-        Err(ApiError::bad_request(
-            "scope must be personal, team, or global",
-        ))
-    }
-}
-
-fn normalize_work_event_kind(kind: Option<String>) -> Result<String, ApiError> {
-    let kind = kind
-        .unwrap_or_else(|| "note".to_string())
-        .trim()
-        .to_ascii_lowercase();
-    if allowed_work_event_kinds().contains(&kind.as_str()) {
-        return Ok(kind);
-    }
-    Err(ApiError::bad_request(format!(
-        "unsupported work event kind '{kind}'; allowed: {}",
-        allowed_work_event_kinds().join(", ")
-    )))
-}
-
-fn allowed_work_event_kinds() -> &'static [&'static str] {
-    &[
-        "assigned",
-        "acknowledged",
-        "doing",
-        "heartbeat",
-        "reported",
-        "blocked",
-        "stopped",
-        "completed",
-        "qa",
-        "qa-pass",
-        "qa-fail",
-        "evidence",
-        "handoff",
-        "decision",
-        "risk",
-        "note",
-        "ledger-update",
-        "execution-board-update",
-        "communication-policy",
-        "enterprise-p0-order",
-        "organization",
-        "dev-request",
-        "risk-check",
-    ]
-}
-
-async fn list_canvases(State(state): State<AppState>) -> Json<Vec<Canvas>> {
-    Json(state.canvas_store.canvases.read().await.clone())
-}
-
-async fn create_canvas(
-    State(state): State<AppState>,
-    Json(input): Json<CreateCanvas>,
-) -> Result<(StatusCode, Json<Canvas>), ApiError> {
-    let now = Utc::now();
-    let canvas = Canvas {
-        id: input
-            .id
-            .unwrap_or_else(|| format!("canvas-{}", now.timestamp_millis())),
-        title: input.title.unwrap_or_else(|| "Untitled Canvas".to_string()),
-        owner: input.owner.unwrap_or_else(|| "Lucas".to_string()),
-        status: "active".to_string(),
-        canvas_type: input.canvas_type.unwrap_or_else(|| "issue".to_string()),
-        members: input.members.unwrap_or_default(),
-        linked_issues: input.linked_issues.unwrap_or_default(),
-        linked_meetings: input.linked_meetings.unwrap_or_default(),
-        content: input.content.unwrap_or_else(default_sections),
-        messages: Vec::new(),
-        created_at: now,
-        updated_at: now,
-    };
-    state.canvas_store.insert(canvas.clone()).await?;
-    Ok((StatusCode::CREATED, Json(canvas)))
-}
-
-async fn get_canvas(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<Canvas>, ApiError> {
-    state.canvas_store.get(&id).await.map(Json)
-}
-
-async fn update_canvas(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(patch): Json<Value>,
-) -> Result<Json<Canvas>, ApiError> {
-    let canvas = state
-        .canvas_store
-        .update(&id, |canvas| {
-            if let Some(title) = patch.get("title").and_then(Value::as_str) {
-                canvas.title = title.to_string();
-            }
-            if let Some(owner) = patch.get("owner").and_then(Value::as_str) {
-                canvas.owner = owner.to_string();
-            }
-            canvas.updated_at = Utc::now();
-        })
-        .await?;
-    Ok(Json(canvas))
-}
-
-async fn get_content(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<Vec<CanvasSection>>, ApiError> {
-    Ok(Json(state.canvas_store.get(&id).await?.content))
-}
-
-async fn put_content(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(content): Json<Vec<CanvasSection>>,
-) -> Result<Json<Vec<CanvasSection>>, ApiError> {
-    let canvas = state
-        .canvas_store
-        .update(&id, |canvas| {
-            canvas.content = content;
-            canvas.updated_at = Utc::now();
-        })
-        .await?;
-    Ok(Json(canvas.content))
-}
-
-async fn get_messages(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<Vec<CanvasMessage>>, ApiError> {
-    Ok(Json(state.canvas_store.get(&id).await?.messages))
-}
-
-async fn add_message(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<AddMessage>,
-) -> Result<(StatusCode, Json<CanvasMessage>), ApiError> {
-    let message = CanvasMessage {
-        id: format!("msg-{}", Utc::now().timestamp_millis()),
-        author: input.author.unwrap_or_else(|| "Lucas".to_string()),
-        body: input.body.or(input.message).unwrap_or_default(),
-        created_at: Utc::now(),
-    };
-    state
-        .canvas_store
-        .update(&id, |canvas| {
-            canvas.messages.push(message.clone());
-            canvas.updated_at = Utc::now();
-        })
-        .await?;
-    Ok((StatusCode::CREATED, Json(message)))
-}
-
-async fn invite_member(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<InviteMember>,
-) -> Result<Json<Canvas>, ApiError> {
-    let member = input.member.or(input.agent).unwrap_or_default();
-    let canvas = state
-        .canvas_store
-        .update(&id, |canvas| {
-            if !member.is_empty() && !canvas.members.contains(&member) {
-                canvas.members.push(member.clone());
-            }
-            canvas.updated_at = Utc::now();
-        })
-        .await?;
-    Ok(Json(canvas))
 }
 
 impl CanvasStore {
@@ -4634,22 +3378,6 @@ impl CanvasStore {
         fs::write(&*self.path, raw)
             .await
             .map_err(ApiError::internal)
-    }
-
-    async fn insert(&self, canvas: Canvas) -> Result<(), ApiError> {
-        let mut canvases = self.canvases.write().await;
-        canvases.insert(0, canvas);
-        self.persist(&canvases).await
-    }
-
-    async fn get(&self, id: &str) -> Result<Canvas, ApiError> {
-        self.canvases
-            .read()
-            .await
-            .iter()
-            .find(|canvas| canvas.id == id)
-            .cloned()
-            .ok_or_else(|| ApiError::not_found("canvas not found"))
     }
 
     async fn update(&self, id: &str, f: impl FnOnce(&mut Canvas)) -> Result<Canvas, ApiError> {
@@ -4708,91 +3436,6 @@ impl PeerStore {
     }
 }
 
-impl WorkLedgerStore {
-    async fn new(path: PathBuf) -> anyhow::Result<Self> {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
-        let ledger = match fs::read_to_string(&path).await {
-            Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|_| default_work_ledger()),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                let ledger = default_work_ledger();
-                let raw = serde_json::to_string_pretty(&ledger)?;
-                fs::write(&path, raw).await?;
-                ledger
-            }
-            Err(err) => return Err(err.into()),
-        };
-        Ok(Self {
-            path: Arc::new(path),
-            ledger: Arc::new(RwLock::new(ledger)),
-        })
-    }
-
-    async fn persist(&self, ledger: &WorkLedger) -> Result<(), ApiError> {
-        let raw = serde_json::to_string_pretty(ledger).map_err(ApiError::internal)?;
-        fs::write(&*self.path, raw)
-            .await
-            .map_err(ApiError::internal)
-    }
-
-    async fn upsert_task(&self, id: &str, input: UpsertWorkTask) -> Result<WorkTask, ApiError> {
-        let mut ledger = self.ledger.write().await;
-        let now = Utc::now();
-        let result = if let Some(task) = ledger.tasks.iter_mut().find(|task| task.id == id) {
-            if let Some(title) = input.title {
-                task.title = title;
-            }
-            if let Some(status) = input.status {
-                task.status = status;
-            }
-            if let Some(priority) = input.priority {
-                task.priority = priority;
-            }
-            if input.due_at.is_some() {
-                task.due_at = input.due_at;
-            }
-            if input.reminder_minutes.is_some() {
-                task.reminder_minutes = input.reminder_minutes;
-            }
-            if input.last_reminded_at.is_some() {
-                task.last_reminded_at = input.last_reminded_at;
-            }
-            if input.notes.is_some() {
-                task.notes = input.notes;
-            }
-            task.updated_at = now;
-            task.clone()
-        } else {
-            let task = WorkTask {
-                id: id.to_string(),
-                title: input.title.unwrap_or_else(|| id.to_string()),
-                status: input.status.unwrap_or(WorkTaskStatus::Todo),
-                priority: input.priority.unwrap_or(100),
-                due_at: input.due_at,
-                reminder_minutes: input.reminder_minutes,
-                last_reminded_at: input.last_reminded_at,
-                notes: input.notes,
-                updated_at: now,
-            };
-            ledger.tasks.push(task.clone());
-            task
-        };
-        self.persist(&ledger).await?;
-        Ok(result)
-    }
-
-    async fn add_event(&self, task_id: &str, event: WorkTaskEvent) -> Result<(), ApiError> {
-        let mut ledger = self.ledger.write().await;
-        let Some(task) = ledger.tasks.iter_mut().find(|task| task.id == task_id) else {
-            return Err(ApiError::not_found("work task not found"));
-        };
-        task.updated_at = Utc::now();
-        ledger.events.push(event);
-        self.persist(&ledger).await
-    }
-}
-
 impl MemoryStore {
     async fn new(path: PathBuf) -> anyhow::Result<Self> {
         if let Some(parent) = path.parent() {
@@ -4821,109 +3464,6 @@ impl MemoryStore {
             entries: Arc::new(RwLock::new(entries)),
         })
     }
-
-    async fn insert(&self, entry: MemoryEntry) -> Result<(), ApiError> {
-        let raw = serde_json::to_string(&entry).map_err(ApiError::internal)?;
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&*self.path)
-            .await
-            .map_err(ApiError::internal)?;
-        file.write_all(raw.as_bytes())
-            .await
-            .map_err(ApiError::internal)?;
-        file.write_all(b"\n").await.map_err(ApiError::internal)?;
-        file.flush().await.map_err(ApiError::internal)?;
-        self.entries.write().await.push(entry);
-        Ok(())
-    }
-
-    async fn search(&self, query: &MemoryQuery) -> Vec<MemoryEntry> {
-        let include_archived = query.include_archived.unwrap_or(false);
-        let search = query
-            .search
-            .as_ref()
-            .map(|value| value.to_ascii_lowercase());
-        let scope_set: Option<HashSet<String>> = query.scope.as_ref().map(|value| {
-            value
-                .split(',')
-                .map(|item| item.trim().to_ascii_lowercase())
-                .filter(|item| !item.is_empty())
-                .collect()
-        });
-        let mut entries: Vec<MemoryEntry> = self
-            .entries
-            .read()
-            .await
-            .iter()
-            .filter(|entry| include_archived || entry.archived_at.is_none())
-            .filter(|entry| {
-                query
-                    .agent_id
-                    .as_ref()
-                    .map(|agent_id| entry.agent_id == *agent_id)
-                    .unwrap_or(true)
-            })
-            .filter(|entry| {
-                scope_set
-                    .as_ref()
-                    .map(|scopes| scopes.contains(&entry.scope))
-                    .unwrap_or(true)
-            })
-            .filter(|entry| {
-                query
-                    .layer
-                    .as_ref()
-                    .map(|layer| entry.layer == layer.trim().to_ascii_lowercase())
-                    .unwrap_or(true)
-            })
-            .filter(|entry| {
-                query
-                    .kind
-                    .as_ref()
-                    .map(|kind| entry.kind == kind.trim().to_ascii_lowercase())
-                    .unwrap_or(true)
-            })
-            .filter(|entry| {
-                query
-                    .topic
-                    .as_ref()
-                    .map(|topic| entry.topic.as_deref() == Some(topic.as_str()))
-                    .unwrap_or(true)
-            })
-            .filter(|entry| {
-                search
-                    .as_ref()
-                    .map(|needle| {
-                        entry.content.to_ascii_lowercase().contains(needle)
-                            || entry
-                                .topic
-                                .as_ref()
-                                .map(|topic| topic.to_ascii_lowercase().contains(needle))
-                                .unwrap_or(false)
-                            || entry
-                                .tags
-                                .iter()
-                                .any(|tag| tag.to_ascii_lowercase().contains(needle))
-                            || entry
-                                .ledger_item
-                                .as_ref()
-                                .map(|item| item.to_ascii_lowercase().contains(needle))
-                                .unwrap_or(false)
-                    })
-                    .unwrap_or(true)
-            })
-            .cloned()
-            .collect();
-        entries.sort_by(|a, b| {
-            b.importance
-                .cmp(&a.importance)
-                .then_with(|| b.at.cmp(&a.at))
-        });
-        entries.truncate(query.limit.unwrap_or(50).clamp(1, 500));
-        entries
-    }
 }
 
 impl DailyMemoryStore {
@@ -4931,165 +3471,15 @@ impl DailyMemoryStore {
         fs::create_dir_all(&dir).await?;
         Ok(Self { dir: Arc::new(dir) })
     }
-
-    fn path_for_date(&self, date: &str) -> Result<PathBuf, ApiError> {
-        validate_daily_memory_date(date)?;
-        Ok(self.dir.join(format!("{date}.md")))
-    }
-
-    async fn read_daily_memory(&self, date: &str) -> Result<Value, ApiError> {
-        let path = self.path_for_date(date)?;
-        match fs::read_to_string(&path).await {
-            Ok(content) => Ok(json!({
-                "date": date,
-                "path": path.display().to_string(),
-                "exists": true,
-                "content": content,
-            })),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(json!({
-                "date": date,
-                "path": path.display().to_string(),
-                "exists": false,
-                "content": "",
-            })),
-            Err(err) => Err(ApiError::internal(err)),
-        }
-    }
-
-    async fn append_checkpoint(
-        &self,
-        date: &str,
-        heading: Option<String>,
-        content: String,
-        source: Option<String>,
-        tags: Option<Vec<String>>,
-    ) -> Result<Value, ApiError> {
-        let path = self.path_for_date(date)?;
-        let existed = fs::try_exists(&path).await.map_err(ApiError::internal)?;
-        let at = Utc::now();
-        let title = heading
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or("Checkpoint");
-        let source = source
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or("manual");
-        let tags = tags.unwrap_or_default();
-        let tags_line = if tags.is_empty() {
-            String::new()
-        } else {
-            format!("- tags: {}\n", tags.join(", "))
-        };
-        let mut body = String::new();
-        if !existed {
-            body.push_str(&format!("# Daily Memory - {date}\n"));
-        }
-        body.push_str(&format!(
-            "\n\n## {title} - {}\n\n- source: {source}\n{tags_line}\n{}\n",
-            at.to_rfc3339(),
-            content.trim()
-        ));
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)
-            .await
-            .map_err(ApiError::internal)?;
-        file.write_all(body.as_bytes())
-            .await
-            .map_err(ApiError::internal)?;
-        file.flush().await.map_err(ApiError::internal)?;
-        Ok(json!({
-            "ok": true,
-            "date": date,
-            "path": path.display().to_string(),
-            "appended": true,
-            "created": !existed,
-            "at": at,
-            "heading": title,
-            "source": source,
-            "tags": tags,
-        }))
-    }
-}
-
-fn default_sections() -> Vec<CanvasSection> {
-    [
-        "Problem",
-        "Decision",
-        "Tasks",
-        "Evidence",
-        "Terminal Agents",
-    ]
-    .into_iter()
-    .map(|title| CanvasSection {
-        id: title.to_lowercase().replace(' ', "-"),
-        title: title.to_string(),
-        body: String::new(),
-    })
-    .collect()
-}
-
-fn default_work_ledger() -> WorkLedger {
-    let now = Utc::now();
-    WorkLedger {
-        tasks: vec![
-            WorkTask {
-                id: "year-end-tax-hourly-reminder".to_string(),
-                title: "Year-end tax hourly reminder".to_string(),
-                status: WorkTaskStatus::Todo,
-                priority: 1,
-                due_at: None,
-                reminder_minutes: Some(60),
-                last_reminded_at: None,
-                notes: Some("Daily objective seed.".to_string()),
-                updated_at: now,
-            },
-            WorkTask {
-                id: "spring-msa-study-2000".to_string(),
-                title: "Spring MSA study 20:00".to_string(),
-                status: WorkTaskStatus::Todo,
-                priority: 2,
-                due_at: Some(today_at_utc(11, 0)),
-                reminder_minutes: None,
-                last_reminded_at: None,
-                notes: Some("20:00 KST stored as 11:00 UTC.".to_string()),
-                updated_at: now,
-            },
-            WorkTask {
-                id: "heungkuk-android-final-package".to_string(),
-                title: "Heungkuk Android final package".to_string(),
-                status: WorkTaskStatus::Todo,
-                priority: 3,
-                due_at: None,
-                reminder_minutes: None,
-                last_reminded_at: None,
-                notes: Some("Daily objective seed.".to_string()),
-                updated_at: now,
-            },
-        ],
-        events: Vec::new(),
-    }
-}
-
-fn today_at_utc(hour: u32, minute: u32) -> DateTime<Utc> {
-    let date = Utc::now().date_naive();
-    let naive = date
-        .and_hms_opt(hour, minute, 0)
-        .expect("seed time must be valid");
-    DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc)
 }
 
 #[cfg(windows)]
-fn default_shell() -> String {
+pub(crate) fn default_shell() -> String {
     "powershell.exe".to_string()
 }
 
 #[cfg(not(windows))]
-fn default_shell() -> String {
+pub(crate) fn default_shell() -> String {
     "bash".to_string()
 }
 
