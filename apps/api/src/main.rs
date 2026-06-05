@@ -1656,11 +1656,14 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn health(State(state): State<AppState>) -> Json<Value> {
+    ensure_minimum_sessions(&state).await;
+    let session_count = state.sessions.read().await.len();
     Json(json!({
         "ok": true,
         "service": "lcc-core-api",
         "time": Utc::now(),
-        "sessions": state.sessions.read().await.len()
+        "sessions": session_count,
+        "degraded": session_count < P1C_LOW_WATERMARK,
     }))
 }
 
@@ -1677,7 +1680,9 @@ async fn branch_status(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     require_branch_token(&headers)?;
+    ensure_minimum_sessions(&state).await;
     let census = collect_branch_agent_census(&state).await;
+    let session_count = state.sessions.read().await.len();
     Ok(Json(json!({
         "ok": true,
         "service": "lcc-core-branch-inbound",
@@ -1688,7 +1693,8 @@ async fn branch_status(
         "agent_active": census.active_agents,
         "agent_session_source": census.session_source,
         "agent_session_api_ok": census.session_api.ok,
-        "agent_session_api_note": census.session_api.note
+        "agent_session_api_note": census.session_api.note,
+        "degraded": session_count < P1C_LOW_WATERMARK,
     })))
 }
 
@@ -1697,6 +1703,7 @@ async fn branch_agents(
     headers: HeaderMap,
 ) -> Result<Json<BranchAgentCensus>, ApiError> {
     require_branch_token(&headers)?;
+    ensure_minimum_sessions(&state).await;
     Ok(Json(collect_branch_agent_census(&state).await))
 }
 
@@ -2348,6 +2355,7 @@ async fn read_branch_agent_snapshot_file() -> Result<BranchAgentSnapshot, String
 }
 
 async fn list_sessions(State(state): State<AppState>) -> Json<Vec<SessionView>> {
+    ensure_minimum_sessions(&state).await;
     let sessions = state.sessions.read().await;
     let mut internal_meta = Vec::with_capacity(sessions.len());
     for session in sessions.values() {
@@ -4083,6 +4091,70 @@ async fn active_session_count(state: &AppState) -> usize {
         }
     }
     active
+}
+
+// P1-C auto-guard: standard sessions to respawn when pool is empty.
+const P1C_GUARD_SESSIONS: &[(&str, &str, &str)] = &[
+    ("branch-ceo", "codex.cmd", "workspaces/ceo/repo"),
+    ("dev-lead",   "codex.cmd", "workspaces/dev-lead/repo"),
+    ("lux",        "codex.cmd", "workspaces/lux/repo"),
+    ("arum",       "codex.cmd", "workspaces/arum/repo"),
+];
+const P1C_LOW_WATERMARK: usize = 4;
+
+async fn spawn_standard_session(state: &AppState, id: &str, cmd: &str, cwd: &str) -> Result<(), String> {
+    if state.sessions.read().await.contains_key(id) {
+        return Ok(());
+    }
+    fs::create_dir_all(cwd).await.map_err(|e| format!("workspace create failed: {e}"))?;
+    let pty_system = native_pty_system();
+    let pair = pty_system
+        .openpty(PtySize { rows: 36, cols: 140, pixel_width: 0, pixel_height: 0 })
+        .map_err(|e| format!("pty open failed: {e}"))?;
+    let mut command = CommandBuilder::new(cmd);
+    command.cwd(cwd);
+    let mut child = pair.slave.spawn_command(command).map_err(|e| format!("spawn failed: {e}"))?;
+    let reader = pair.master.try_clone_reader().map_err(|e| format!("pty reader failed: {e}"))?;
+    let writer = pair.master.take_writer().map_err(|e| format!("pty writer failed: {e}"))?;
+    let meta = SessionMeta {
+        id: id.to_string(),
+        name: id.to_string(),
+        team: "lcc".to_string(),
+        cwd: cwd.to_string(),
+        cmd: cmd.to_string(),
+        args: vec![],
+        model: None,
+        status: SessionStatus::Active,
+        pid: None,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+        exit_code: None,
+    };
+    let session = Arc::new(Mutex::new(TerminalSession { meta, _master: pair.master, writer }));
+    state.sessions.write().await.insert(id.to_string(), session);
+    spawn_pty_reader(state.clone(), id.to_string(), reader);
+    spawn_pty_waiter(state.clone(), id.to_string(), move || {
+        child.wait().ok().map(|status| status.exit_code() as i32)
+    });
+    Ok(())
+}
+
+// Respawns standard sessions when the pool is empty (P1-C guard — SOP §9 BE internalization).
+async fn ensure_minimum_sessions(state: &AppState) {
+    let session_count = state.sessions.read().await.len();
+    if session_count > 0 {
+        return;
+    }
+    tracing::warn!(
+        "P1-C auto-guard triggered: sessions=0, respawning {} standard sessions",
+        P1C_GUARD_SESSIONS.len()
+    );
+    for (id, cmd, cwd) in P1C_GUARD_SESSIONS {
+        match spawn_standard_session(state, id, cmd, cwd).await {
+            Ok(_) => tracing::info!("P1-C auto-guard: spawned {id}"),
+            Err(e) => tracing::error!("P1-C auto-guard: spawn failed for {id}: {e}"),
+        }
+    }
 }
 
 fn active_session_limit() -> Option<usize> {
