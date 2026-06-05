@@ -7,5 +7,6 @@ pub mod health;
 pub mod memory;
 pub mod peer;
 pub mod router;
+pub mod session;
 pub mod terminal;
 pub mod work_ledger;

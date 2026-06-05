@@ -1049,7 +1049,7 @@ impl TerminalLogWriter {
     }
 }
 
-fn build_session_view(
+pub(crate) fn build_session_view(
     meta: SessionMeta,
     preview: String,
     source: SessionSource,
@@ -1109,30 +1109,30 @@ fn build_session_view_with_preview_text(
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum SessionSource {
+pub(crate) enum SessionSource {
     Internal,
     Os,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SessionMeta {
-    id: String,
-    name: String,
-    team: String,
-    cwd: String,
-    cmd: String,
-    args: Vec<String>,
-    model: Option<String>,
-    status: SessionStatus,
-    pid: Option<u32>,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    exit_code: Option<i32>,
+pub(crate) struct SessionMeta {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) team: String,
+    pub(crate) cwd: String,
+    pub(crate) cmd: String,
+    pub(crate) args: Vec<String>,
+    pub(crate) model: Option<String>,
+    pub(crate) status: SessionStatus,
+    pub(crate) pid: Option<u32>,
+    pub(crate) created_at: DateTime<Utc>,
+    pub(crate) updated_at: DateTime<Utc>,
+    pub(crate) exit_code: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum SessionStatus {
+pub(crate) enum SessionStatus {
     Active,
     Exited,
     Error,
@@ -1140,28 +1140,28 @@ enum SessionStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SessionView {
+pub(crate) struct SessionView {
     #[serde(flatten)]
-    meta: SessionMeta,
-    preview: String,
-    preview_text: String,
-    preview_ansi: Option<String>,
-    preview_has_ansi: bool,
-    display_snapshot_volatile: bool,
-    source: SessionSource,
-    attached: bool,
-    interactive: bool,
-    input_disabled_reason: Option<String>,
-    log: SessionLogInfo,
+    pub(crate) meta: SessionMeta,
+    pub(crate) preview: String,
+    pub(crate) preview_text: String,
+    pub(crate) preview_ansi: Option<String>,
+    pub(crate) preview_has_ansi: bool,
+    pub(crate) display_snapshot_volatile: bool,
+    pub(crate) source: SessionSource,
+    pub(crate) attached: bool,
+    pub(crate) interactive: bool,
+    pub(crate) input_disabled_reason: Option<String>,
+    pub(crate) log: SessionLogInfo,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct SessionLogInfo {
-    path: String,
-    available: bool,
-    bytes: u64,
-    tail_bytes: u64,
-    updated_at: Option<DateTime<Utc>>,
+pub(crate) struct SessionLogInfo {
+    pub(crate) path: String,
+    pub(crate) available: bool,
+    pub(crate) bytes: u64,
+    pub(crate) tail_bytes: u64,
+    pub(crate) updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -1423,9 +1423,12 @@ async fn main() -> anyhow::Result<()> {
     } else {
         let api_route = Router::new()
             .route("/api/health", get(api::health::health))
-            .route("/api/sessions", get(list_sessions).post(create_session))
-            .route("/api/sessions/active", get(list_sessions))
-            .route("/api/sessions/pty-stats", get(pty_stats))
+            .route(
+                "/api/sessions",
+                get(api::session::list_sessions).post(create_session),
+            )
+            .route("/api/sessions/active", get(api::session::list_sessions))
+            .route("/api/sessions/pty-stats", get(api::session::pty_stats))
             .route("/api/sessions/:id", get(get_session).delete(delete_session))
             .route("/api/sessions/:id/log", get(get_session_log))
             .route("/api/sessions/:id/write", post(write_session))
@@ -1641,7 +1644,7 @@ pub(crate) async fn collect_branch_agent_census(state: &AppState) -> BranchAgent
         .unwrap_or(false);
 
     if !inbound_only {
-        let sessions = list_sessions(State(state.clone())).await.0;
+        let sessions = api::session::list_sessions(State(state.clone())).await.0;
         return branch_agent_census_from_sessions(
             "local-state".to_string(),
             BranchSessionApiState {
@@ -1906,48 +1909,6 @@ async fn read_branch_agent_snapshot_file() -> Result<BranchAgentSnapshot, String
         .map_err(|err| format!("snapshot read failed: {err}"))?;
     serde_json::from_str::<BranchAgentSnapshot>(&raw)
         .map_err(|err| format!("snapshot decode failed: {err}"))
-}
-
-async fn list_sessions(State(state): State<AppState>) -> Json<Vec<SessionView>> {
-    ensure_minimum_sessions(&state).await;
-    let sessions = state.sessions.read().await;
-    let mut internal_meta = Vec::with_capacity(sessions.len());
-    for session in sessions.values() {
-        internal_meta.push(session.lock().await.meta.clone());
-    }
-    drop(sessions);
-    let mut views = Vec::new();
-    let mut internal_ids = HashSet::new();
-    for meta in internal_meta {
-        internal_ids.insert(meta.id.clone());
-        let log_path = terminal_log_path(&meta.id);
-        let view = match build_internal_session_view(&state, meta.clone()).await {
-            Ok(view) => view,
-            Err(_) => build_session_view(
-                meta,
-                String::new(),
-                SessionSource::Internal,
-                true,
-                true,
-                None,
-                log_path,
-            ),
-        };
-        views.push(view);
-    }
-    views.extend(read_os_agent_views(&internal_ids).await);
-    Json(views)
-}
-
-async fn pty_stats(State(state): State<AppState>) -> Json<Value> {
-    let sessions = list_sessions(State(state)).await.0;
-    let active = sessions
-        .iter()
-        .filter(|session| matches!(session.meta.status, SessionStatus::Active))
-        .count();
-    Json(
-        json!({ "total": sessions.len(), "active": active, "max_active": active_session_limit(), "sessions": sessions }),
-    )
 }
 
 async fn create_session(
@@ -3141,7 +3102,7 @@ async fn resolve_terminal_replay(
         .map_err(ApiError::internal)
 }
 
-async fn build_internal_session_view(
+pub(crate) async fn build_internal_session_view(
     state: &AppState,
     meta: SessionMeta,
 ) -> Result<SessionView, ApiError> {
@@ -3306,7 +3267,7 @@ fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send
     });
 }
 
-fn terminal_log_path(id: &str) -> PathBuf {
+pub(crate) fn terminal_log_path(id: &str) -> PathBuf {
     let safe_id: String = id
         .chars()
         .map(|ch| {
@@ -3385,7 +3346,7 @@ impl TerminalSession {
     }
 }
 
-async fn read_os_agent_views(internal_ids: &HashSet<String>) -> Vec<SessionView> {
+pub(crate) async fn read_os_agent_views(internal_ids: &HashSet<String>) -> Vec<SessionView> {
     let attachment_states = read_os_agent_attachment_states().await;
     let mut views = Vec::new();
     for record in read_os_agent_records().await {
@@ -3742,7 +3703,7 @@ pub(crate) async fn ensure_minimum_sessions(state: &AppState) {
     }
 }
 
-fn active_session_limit() -> Option<usize> {
+pub(crate) fn active_session_limit() -> Option<usize> {
     match env::var("LCC_MAX_ACTIVE_SESSIONS") {
         Ok(value) => value.parse::<usize>().ok().filter(|value| *value > 0),
         Err(_) => Some(20),
