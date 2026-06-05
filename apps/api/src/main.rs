@@ -8,6 +8,7 @@ mod shared;
 use crate::app::canvas::{
     AddCanvasMessageCommand, CreateCanvasCommand, InviteCanvasMemberCommand, UpdateCanvasCommand,
 };
+use crate::app::daily_memory::AppendDailyMemoryCheckpointCommand;
 use crate::app::memory::{CreateMemoryCommand, MemoryQueryInput};
 use crate::domain::canvas::canvas::{
     Canvas as DomainCanvas, CanvasMessage as DomainCanvasMessage,
@@ -4237,10 +4238,10 @@ async fn recover_agent_context(
     recent_events.sort_by(|a, b| b.at.cmp(&a.at));
     recent_events.truncate(limit);
     let daily_memory_date = current_kst_date();
-    let daily_memory = state
-        .daily_memory_store
-        .read_daily_memory(&daily_memory_date)
-        .await?;
+    let daily_memory =
+        app::daily_memory::read_document_usecase(&state.daily_memory_store, &daily_memory_date)
+            .await
+            .map_err(ApiError::internal)?;
 
     Ok(Json(json!({
         "ok": true,
@@ -4272,24 +4273,10 @@ async fn daily_memory_response(
     store: &DailyMemoryStore,
     date: &str,
 ) -> Result<Json<Value>, ApiError> {
-    let path = store.path_for_date(date)?;
-    match fs::read_to_string(&path).await {
-        Ok(content) => Ok(Json(json!({
-            "ok": true,
-            "date": date,
-            "path": path.display().to_string(),
-            "exists": true,
-            "content": content,
-        }))),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(Json(json!({
-            "ok": true,
-            "date": date,
-            "path": path.display().to_string(),
-            "exists": false,
-            "content": "",
-        }))),
-        Err(err) => Err(ApiError::internal(err)),
-    }
+    app::daily_memory::response_usecase(store, date)
+        .await
+        .map(Json)
+        .map_err(daily_memory_error)
 }
 
 async fn append_daily_memory_checkpoint(
@@ -4297,33 +4284,33 @@ async fn append_daily_memory_checkpoint(
     Path(date): Path<String>,
     Json(input): Json<AppendDailyMemoryCheckpoint>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
-    let content = require_field(input.content, "content")?;
-    let entry = state
-        .daily_memory_store
-        .append_checkpoint(&date, input.heading, content, input.source, input.tags)
-        .await?;
+    let entry = app::daily_memory::append_checkpoint_usecase(
+        &state.daily_memory_store,
+        &date,
+        AppendDailyMemoryCheckpointCommand {
+            heading: input.heading,
+            content: input.content,
+            source: input.source,
+            tags: input.tags,
+        },
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
     Ok((StatusCode::CREATED, Json(entry)))
+}
+
+fn daily_memory_error(err: String) -> ApiError {
+    if err == "date must use YYYY-MM-DD" {
+        ApiError::bad_request(err)
+    } else {
+        ApiError::internal(err)
+    }
 }
 
 fn current_kst_date() -> String {
     (Utc::now() + ChronoDuration::hours(9))
         .format("%Y-%m-%d")
         .to_string()
-}
-
-fn validate_daily_memory_date(date: &str) -> Result<(), ApiError> {
-    let valid = date.len() == 10
-        && date.as_bytes().get(4) == Some(&b'-')
-        && date.as_bytes().get(7) == Some(&b'-')
-        && date
-            .chars()
-            .enumerate()
-            .all(|(idx, ch)| (idx == 4 || idx == 7) && ch == '-' || ch.is_ascii_digit());
-    if valid {
-        Ok(())
-    } else {
-        Err(ApiError::bad_request("date must use YYYY-MM-DD"))
-    }
 }
 
 async fn list_canvases(State(state): State<AppState>) -> Json<Vec<Canvas>> {
@@ -4566,89 +4553,6 @@ impl DailyMemoryStore {
     async fn new(dir: PathBuf) -> anyhow::Result<Self> {
         fs::create_dir_all(&dir).await?;
         Ok(Self { dir: Arc::new(dir) })
-    }
-
-    fn path_for_date(&self, date: &str) -> Result<PathBuf, ApiError> {
-        validate_daily_memory_date(date)?;
-        Ok(self.dir.join(format!("{date}.md")))
-    }
-
-    async fn read_daily_memory(&self, date: &str) -> Result<Value, ApiError> {
-        let path = self.path_for_date(date)?;
-        match fs::read_to_string(&path).await {
-            Ok(content) => Ok(json!({
-                "date": date,
-                "path": path.display().to_string(),
-                "exists": true,
-                "content": content,
-            })),
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(json!({
-                "date": date,
-                "path": path.display().to_string(),
-                "exists": false,
-                "content": "",
-            })),
-            Err(err) => Err(ApiError::internal(err)),
-        }
-    }
-
-    async fn append_checkpoint(
-        &self,
-        date: &str,
-        heading: Option<String>,
-        content: String,
-        source: Option<String>,
-        tags: Option<Vec<String>>,
-    ) -> Result<Value, ApiError> {
-        let path = self.path_for_date(date)?;
-        let existed = fs::try_exists(&path).await.map_err(ApiError::internal)?;
-        let at = Utc::now();
-        let title = heading
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or("Checkpoint");
-        let source = source
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or("manual");
-        let tags = tags.unwrap_or_default();
-        let tags_line = if tags.is_empty() {
-            String::new()
-        } else {
-            format!("- tags: {}\n", tags.join(", "))
-        };
-        let mut body = String::new();
-        if !existed {
-            body.push_str(&format!("# Daily Memory - {date}\n"));
-        }
-        body.push_str(&format!(
-            "\n\n## {title} - {}\n\n- source: {source}\n{tags_line}\n{}\n",
-            at.to_rfc3339(),
-            content.trim()
-        ));
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)
-            .await
-            .map_err(ApiError::internal)?;
-        file.write_all(body.as_bytes())
-            .await
-            .map_err(ApiError::internal)?;
-        file.flush().await.map_err(ApiError::internal)?;
-        Ok(json!({
-            "ok": true,
-            "date": date,
-            "path": path.display().to_string(),
-            "appended": true,
-            "created": !existed,
-            "at": at,
-            "heading": title,
-            "source": source,
-            "tags": tags,
-        }))
     }
 }
 
