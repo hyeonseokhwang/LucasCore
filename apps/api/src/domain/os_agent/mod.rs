@@ -1,2 +1,3 @@
-// CA Phase 1 scaffold — domain/os_agent
-// entities: entity.rs (Phase 2)
+// CA Phase 2 — domain/os_agent
+pub mod os_agent;
+pub mod port;
