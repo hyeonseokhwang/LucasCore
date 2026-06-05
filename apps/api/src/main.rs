@@ -5,14 +5,12 @@ mod domain;
 mod infra;
 mod shared;
 
-use crate::app::memory::{CreateMemoryCommand, MemoryQueryInput};
 use crate::domain::canvas::canvas::{
     Canvas as DomainCanvas, CanvasMessage as DomainCanvasMessage,
     CanvasSection as DomainCanvasSection,
 };
 use crate::domain::memory::memory::MemoryEntry as DomainMemoryEntry;
 use crate::domain::peer::peer::PeerMessage as DomainPeerMessage;
-use crate::domain::work_ledger::work_ledger::{WorkTask, WorkTaskStatus};
 use crate::infra::persistence::work_ledger::WorkLedgerStore;
 use axum::{
     extract::{
@@ -1330,42 +1328,6 @@ struct CreatePeerMessage {
     body: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct CreateMemoryEntry {
-    id: Option<String>,
-    at: Option<DateTime<Utc>>,
-    agent_id: Option<String>,
-    layer: Option<String>,
-    scope: Option<String>,
-    kind: Option<String>,
-    topic: Option<String>,
-    content: Option<String>,
-    importance: Option<i32>,
-    source: Option<String>,
-    source_id: Option<String>,
-    ledger_item: Option<String>,
-    evidence_path: Option<String>,
-    tags: Option<Vec<String>>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct MemoryQuery {
-    agent_id: Option<String>,
-    scope: Option<String>,
-    layer: Option<String>,
-    kind: Option<String>,
-    topic: Option<String>,
-    search: Option<String>,
-    include_archived: Option<bool>,
-    limit: Option<usize>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-struct RecoveryQuery {
-    search: Option<String>,
-    limit: Option<usize>,
-}
-
 #[derive(Clone)]
 struct CanvasStore {
     path: Arc<PathBuf>,
@@ -1488,10 +1450,10 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/os-agents/:id/attach", post(attach_os_agent))
             .route("/api/os-agents/:id/detach", post(detach_os_agent))
             .route("/ws/terminal", get(terminal_ws))
-            .route("/api/peer/status", get(peer_status))
+            .route("/api/peer/status", get(api::peer::peer_status))
             .route(
                 "/api/peer/messages",
-                get(list_peer_messages).post(add_peer_message),
+                get(api::peer::list_peer_messages).post(api::peer::add_peer_message),
             )
             .route("/api/work-ledger", get(api::work_ledger::get_work_ledger))
             .route(
@@ -1502,8 +1464,14 @@ async fn main() -> anyhow::Result<()> {
                 "/api/work-ledger/tasks/:id/events",
                 post(api::work_ledger::add_work_task_event),
             )
-            .route("/api/memory", get(list_memory).post(add_memory))
-            .route("/api/memory/recover/:agent_id", get(recover_agent_context))
+            .route(
+                "/api/memory",
+                get(api::memory::list_memory).post(api::memory::add_memory),
+            )
+            .route(
+                "/api/memory/recover/:agent_id",
+                get(api::memory::recover_agent_context),
+            )
             .route(
                 "/api/daily-memory/today",
                 get(api::daily_memory::get_today_daily_memory),
@@ -3879,40 +3847,6 @@ fn active_session_limit() -> Option<usize> {
     }
 }
 
-async fn peer_status(State(state): State<AppState>) -> Json<Value> {
-    Json(
-        app::peer::status_usecase(
-            &state.peer_store,
-            state.peer_store.path.display().to_string(),
-        )
-        .await,
-    )
-}
-
-async fn list_peer_messages(State(state): State<AppState>) -> Json<Vec<PeerMessage>> {
-    Json(app::peer::list_usecase(&state.peer_store).await)
-}
-
-async fn add_peer_message(
-    State(state): State<AppState>,
-    Json(input): Json<CreatePeerMessage>,
-) -> Result<(StatusCode, Json<PeerMessage>), ApiError> {
-    let message = app::peer::add_usecase(
-        &state.peer_store,
-        app::peer::CreatePeerMessageCommand {
-            id: input.id,
-            at: input.at,
-            from_peer: require_field(input.from_peer, "from")?,
-            to: require_field(input.to, "to")?,
-            kind: input.kind,
-            body: require_field(input.body, "body")?,
-        },
-    )
-    .await
-    .map_err(ApiError::internal)?;
-    Ok((StatusCode::CREATED, Json(message)))
-}
-
 fn require_field(value: Option<String>, field: &str) -> Result<String, ApiError> {
     let Some(value) = value else {
         return Err(ApiError::bad_request(format!("{field} is required")));
@@ -3921,105 +3855,6 @@ fn require_field(value: Option<String>, field: &str) -> Result<String, ApiError>
         return Err(ApiError::bad_request(format!("{field} is required")));
     }
     Ok(value)
-}
-
-async fn list_memory(
-    State(state): State<AppState>,
-    Query(query): Query<MemoryQuery>,
-) -> Json<Value> {
-    Json(
-        app::memory::list_usecase(
-            &state.memory_store,
-            state.memory_store.path.display().to_string(),
-            MemoryQueryInput {
-                agent_id: query.agent_id,
-                scope: query.scope,
-                layer: query.layer,
-                kind: query.kind,
-                topic: query.topic,
-                search: query.search,
-                include_archived: query.include_archived,
-                limit: query.limit,
-            },
-        )
-        .await,
-    )
-}
-
-async fn add_memory(
-    State(state): State<AppState>,
-    Json(input): Json<CreateMemoryEntry>,
-) -> Result<(StatusCode, Json<MemoryEntry>), ApiError> {
-    let entry = app::memory::add_usecase(
-        &state.memory_store,
-        CreateMemoryCommand {
-            id: input.id,
-            at: input.at,
-            agent_id: input.agent_id,
-            layer: input.layer,
-            scope: input.scope,
-            kind: input.kind,
-            topic: input.topic,
-            content: input.content,
-            importance: input.importance,
-            source: input.source,
-            source_id: input.source_id,
-            ledger_item: input.ledger_item,
-            evidence_path: input.evidence_path,
-            tags: input.tags,
-        },
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
-    Ok((StatusCode::CREATED, Json(entry)))
-}
-
-async fn recover_agent_context(
-    State(state): State<AppState>,
-    Path(agent_id): Path<String>,
-    Query(query): Query<RecoveryQuery>,
-) -> Result<Json<Value>, ApiError> {
-    let limit = query.limit.unwrap_or(8).clamp(1, 50);
-    let (personal, shared) = app::memory::recover_memories_usecase(
-        &state.memory_store,
-        agent_id.clone(),
-        query.search,
-        limit,
-    )
-    .await;
-    let ledger = app::work_ledger::get_usecase(&state.work_ledger).await;
-    let active_tasks: Vec<WorkTask> = ledger
-        .tasks
-        .iter()
-        .filter(|task| {
-            matches!(
-                task.status,
-                WorkTaskStatus::Todo | WorkTaskStatus::Doing | WorkTaskStatus::Blocked
-            )
-        })
-        .cloned()
-        .collect();
-    let mut recent_events = ledger.events.clone();
-    recent_events.sort_by(|a, b| b.at.cmp(&a.at));
-    recent_events.truncate(limit);
-    let daily_memory_date = api::daily_memory::current_kst_date();
-    let daily_memory =
-        app::daily_memory::read_document_usecase(&state.daily_memory_store, &daily_memory_date)
-            .await
-            .map_err(ApiError::internal)?;
-
-    Ok(Json(json!({
-        "ok": true,
-        "agent_id": agent_id,
-        "recovered_context": {
-            "daily_memory": daily_memory,
-            "personal_memories": personal,
-            "shared_memories": shared,
-            "active_tasks": active_tasks,
-            "recent_work_events": recent_events,
-        },
-        "report_contract": "recovered_context / latest_ledger_item / latest_evidence / next_action / blocker"
-    })))
 }
 
 impl CanvasStore {
