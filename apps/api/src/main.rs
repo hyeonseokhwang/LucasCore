@@ -1317,17 +1317,6 @@ struct InviteMember {
     agent: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct CreatePeerMessage {
-    id: Option<String>,
-    at: Option<DateTime<Utc>>,
-    #[serde(rename = "from")]
-    from_peer: Option<String>,
-    to: Option<String>,
-    kind: Option<String>,
-    body: Option<String>,
-}
-
 #[derive(Clone)]
 struct CanvasStore {
     path: Arc<PathBuf>,
@@ -1404,13 +1393,16 @@ async fn main() -> anyhow::Result<()> {
 
     let route = if inbound_only {
         Router::new()
-            .route("/api/branch/health", get(branch_health))
+            .route("/api/branch/health", get(api::branch::branch_health))
             .route("/api/branch/status", get(branch_status))
             .route("/api/branch/agents", get(branch_agents))
-            .route("/api/branch/work-ledger", get(branch_work_ledger))
+            .route(
+                "/api/branch/work-ledger",
+                get(api::branch::branch_work_ledger),
+            )
             .route(
                 "/api/branch/messages",
-                get(branch_list_messages).post(branch_add_message),
+                get(api::branch::branch_list_messages).post(api::branch::branch_add_message),
             )
             .route(
                 "/api/branch/files/read",
@@ -1503,13 +1495,16 @@ async fn main() -> anyhow::Result<()> {
                 get(api::canvas::get_messages).post(api::canvas::add_message),
             )
             .route("/api/canvases/:id/invite", post(api::canvas::invite_member))
-            .route("/api/branch/health", get(branch_health))
+            .route("/api/branch/health", get(api::branch::branch_health))
             .route("/api/branch/status", get(branch_status))
             .route("/api/branch/agents", get(branch_agents))
-            .route("/api/branch/work-ledger", get(branch_work_ledger))
+            .route(
+                "/api/branch/work-ledger",
+                get(api::branch::branch_work_ledger),
+            )
             .route(
                 "/api/branch/messages",
-                get(branch_list_messages).post(branch_add_message),
+                get(api::branch::branch_list_messages).post(api::branch::branch_add_message),
             )
             .route(
                 "/api/branch/files/read",
@@ -1573,14 +1568,6 @@ async fn health(State(state): State<AppState>) -> Json<Value> {
     }))
 }
 
-async fn branch_health() -> Json<Value> {
-    Json(json!({
-        "ok": true,
-        "service": "lcc-core-branch-inbound",
-        "time": Utc::now()
-    }))
-}
-
 async fn branch_status(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1612,46 +1599,6 @@ async fn branch_agents(
     require_branch_token(&headers)?;
     ensure_minimum_sessions(&state).await;
     Ok(Json(collect_branch_agent_census(&state).await))
-}
-
-async fn branch_work_ledger(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<crate::domain::work_ledger::work_ledger::WorkLedger>, ApiError> {
-    require_branch_token(&headers)?;
-    Ok(Json(
-        app::work_ledger::get_usecase(&state.work_ledger).await,
-    ))
-}
-
-async fn branch_list_messages(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<Vec<PeerMessage>>, ApiError> {
-    require_branch_token(&headers)?;
-    Ok(Json(app::peer::list_usecase(&state.peer_store).await))
-}
-
-async fn branch_add_message(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(input): Json<CreatePeerMessage>,
-) -> Result<(StatusCode, Json<PeerMessage>), ApiError> {
-    require_branch_token(&headers)?;
-    let message = app::peer::add_usecase(
-        &state.peer_store,
-        app::peer::CreatePeerMessageCommand {
-            id: input.id,
-            at: input.at,
-            from_peer: require_field(input.from_peer, "from")?,
-            to: input.to.unwrap_or_else(|| "branch".to_string()),
-            kind: Some(input.kind.unwrap_or_else(|| "hq-inbound".to_string())),
-            body: require_field(input.body, "body")?,
-        },
-    )
-    .await
-    .map_err(ApiError::internal)?;
-    Ok((StatusCode::CREATED, Json(message)))
 }
 
 #[derive(Debug, Clone, Serialize)]
