@@ -8,10 +8,12 @@ mod shared;
 use crate::app::canvas::{
     AddCanvasMessageCommand, CreateCanvasCommand, InviteCanvasMemberCommand, UpdateCanvasCommand,
 };
+use crate::app::memory::{CreateMemoryCommand, MemoryQueryInput};
 use crate::domain::canvas::canvas::{
     Canvas as DomainCanvas, CanvasMessage as DomainCanvasMessage,
     CanvasSection as DomainCanvasSection,
 };
+use crate::domain::memory::memory::MemoryEntry as DomainMemoryEntry;
 use crate::domain::peer::peer::PeerMessage as DomainPeerMessage;
 use crate::domain::work_ledger::work_ledger::{WorkTask, WorkTaskStatus};
 use crate::infra::persistence::work_ledger::WorkLedgerStore;
@@ -4129,8 +4131,11 @@ fn active_session_limit() -> Option<usize> {
 
 async fn peer_status(State(state): State<AppState>) -> Json<Value> {
     Json(
-        app::peer::status_usecase(&state.peer_store, state.peer_store.path.display().to_string())
-            .await,
+        app::peer::status_usecase(
+            &state.peer_store,
+            state.peer_store.path.display().to_string(),
+        )
+        .await,
     )
 }
 
