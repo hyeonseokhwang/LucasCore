@@ -1450,10 +1450,22 @@ async fn main() -> anyhow::Result<()> {
                 "/api/branch/messages",
                 get(branch_list_messages).post(branch_add_message),
             )
-            .route("/api/branch/files/read", get(branch_file_read))
-            .route("/api/branch/files/list", get(branch_file_list))
-            .route("/api/branch/files/diff", get(branch_file_diff))
-            .route("/api/branch/git/log", get(branch_git_log))
+            .route(
+                "/api/branch/files/read",
+                get(api::branch_files::branch_file_read),
+            )
+            .route(
+                "/api/branch/files/list",
+                get(api::branch_files::branch_file_list),
+            )
+            .route(
+                "/api/branch/files/diff",
+                get(api::branch_files::branch_file_diff),
+            )
+            .route(
+                "/api/branch/git/log",
+                get(api::branch_files::branch_git_log),
+            )
     } else {
         let api_route = Router::new()
             .route("/api/health", get(health))
@@ -1531,10 +1543,22 @@ async fn main() -> anyhow::Result<()> {
                 "/api/branch/messages",
                 get(branch_list_messages).post(branch_add_message),
             )
-            .route("/api/branch/files/read", get(branch_file_read))
-            .route("/api/branch/files/list", get(branch_file_list))
-            .route("/api/branch/files/diff", get(branch_file_diff))
-            .route("/api/branch/git/log", get(branch_git_log));
+            .route(
+                "/api/branch/files/read",
+                get(api::branch_files::branch_file_read),
+            )
+            .route(
+                "/api/branch/files/list",
+                get(api::branch_files::branch_file_list),
+            )
+            .route(
+                "/api/branch/files/diff",
+                get(api::branch_files::branch_file_diff),
+            )
+            .route(
+                "/api/branch/git/log",
+                get(api::branch_files::branch_git_log),
+            );
 
         if serve_web {
             api_route.nest_service(
@@ -1662,12 +1686,6 @@ async fn branch_add_message(
     Ok((StatusCode::CREATED, Json(message)))
 }
 
-#[derive(Debug, Deserialize)]
-struct BranchFileReadQuery {
-    path: Option<String>,
-    max_lines: Option<usize>,
-}
-
 #[derive(Debug, Clone, Serialize)]
 struct BranchAgentView {
     id: String,
@@ -1704,95 +1722,6 @@ struct BranchAgentCensus {
     session_source: String,
     session_api: BranchSessionApiState,
     agents: Vec<BranchAgentView>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BranchFileListQuery {
-    path: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BranchFileDiffQuery {
-    commit1: String,
-    commit2: String,
-    path: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BranchGitLogQuery {
-    limit: Option<usize>,
-    path: Option<String>,
-}
-
-async fn branch_file_read(
-    headers: HeaderMap,
-    Query(query): Query<BranchFileReadQuery>,
-) -> Result<Json<Value>, ApiError> {
-    require_branch_token(&headers)?;
-    let repo = infra::persistence::branch_files::BranchFilesStore;
-    let result = app::branch_files::read_usecase(&repo, query.path.as_deref(), query.max_lines)
-        .await
-        .map_err(branch_files_error)?;
-    serde_json::to_value(result)
-        .map(Json)
-        .map_err(ApiError::internal)
-}
-
-async fn branch_file_list(
-    headers: HeaderMap,
-    Query(query): Query<BranchFileListQuery>,
-) -> Result<Json<Value>, ApiError> {
-    require_branch_token(&headers)?;
-    let repo = infra::persistence::branch_files::BranchFilesStore;
-    let result = app::branch_files::list_usecase(&repo, query.path.as_deref())
-        .await
-        .map_err(branch_files_error)?;
-    serde_json::to_value(result)
-        .map(Json)
-        .map_err(ApiError::internal)
-}
-
-async fn branch_file_diff(
-    headers: HeaderMap,
-    Query(query): Query<BranchFileDiffQuery>,
-) -> Result<Json<Value>, ApiError> {
-    require_branch_token(&headers)?;
-    let repo = infra::persistence::branch_files::BranchFilesStore;
-    let result = app::branch_files::diff_usecase(
-        &repo,
-        query.commit1.as_str(),
-        query.commit2.as_str(),
-        query.path.as_deref(),
-    )
-    .await
-    .map_err(branch_files_error)?;
-    serde_json::to_value(result)
-        .map(Json)
-        .map_err(ApiError::internal)
-}
-
-async fn branch_git_log(
-    headers: HeaderMap,
-    Query(query): Query<BranchGitLogQuery>,
-) -> Result<Json<Value>, ApiError> {
-    require_branch_token(&headers)?;
-    let repo = infra::persistence::branch_files::BranchFilesStore;
-    let result = app::branch_files::git_log_usecase(&repo, query.path.as_deref(), query.limit)
-        .await
-        .map_err(branch_files_error)?;
-    serde_json::to_value(result)
-        .map(Json)
-        .map_err(ApiError::internal)
-}
-
-fn branch_files_error(err: String) -> ApiError {
-    if let Some(message) = err.strip_prefix("bad_request:") {
-        ApiError::bad_request(message)
-    } else if let Some(message) = err.strip_prefix("internal:") {
-        ApiError::internal(message)
-    } else {
-        ApiError::internal(err)
-    }
 }
 
 fn require_branch_token(headers: &HeaderMap) -> Result<(), ApiError> {
