@@ -1,3 +1,3 @@
-// CA Phase 1 scaffold — domain/peer
-// entities: entity.rs (Phase 2)
-// ports: port.rs (Phase 2)
+// CA Phase 2 — domain/peer
+pub mod peer;
+pub mod port;

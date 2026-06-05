@@ -1,3 +1,3 @@
-// CA Phase 1 scaffold — domain/work_ledger
-// entities: entity.rs (Phase 2)
-// ports: port.rs (Phase 2)
+// CA Phase 2 — domain/work_ledger
+pub mod work_ledger;
+pub mod port;
