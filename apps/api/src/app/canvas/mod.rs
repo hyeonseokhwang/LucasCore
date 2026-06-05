@@ -46,6 +46,10 @@ pub async fn create_usecase(
     Ok(canvas)
 }
 
+pub async fn get_usecase(repo: &impl CanvasRepository, id: &str) -> Option<Canvas> {
+    repo.find_by_id(id).await
+}
+
 fn default_sections() -> Vec<CanvasSection> {
     [
         "Problem",

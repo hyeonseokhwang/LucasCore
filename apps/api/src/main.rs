@@ -4407,7 +4407,10 @@ async fn get_canvas(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<Canvas>, ApiError> {
-    state.canvas_store.get(&id).await.map(Json)
+    app::canvas::get_usecase(&state.canvas_store, &id)
+        .await
+        .map(Json)
+        .ok_or_else(|| ApiError::not_found("canvas not found"))
 }
 
 async fn update_canvas(
