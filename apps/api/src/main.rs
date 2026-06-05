@@ -15,9 +15,9 @@ use crate::infra::persistence::work_ledger::WorkLedgerStore;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Path, Query, State,
+        State,
     },
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post, put},
     Json, Router,
@@ -787,7 +787,7 @@ fn strip_leading_partial_csi(value: &str) -> &str {
     value
 }
 
-fn strip_ansi_for_ui(value: &str) -> String {
+pub(crate) fn strip_ansi_for_ui(value: &str) -> String {
     let mut output = String::with_capacity(value.len());
     let mut chars = strip_leading_partial_csi(value).chars();
     while let Some(ch) = chars.next() {
@@ -823,13 +823,13 @@ fn terminal_preview_text_for_ui(preview: &str, max_bytes: usize) -> String {
     tail_string_by_bytes(&strip_ansi_for_ui(preview), max_bytes)
 }
 
-fn clamp_log_tail_limit(limit: Option<u64>) -> u64 {
+pub(crate) fn clamp_log_tail_limit(limit: Option<u64>) -> u64 {
     limit
         .unwrap_or(SESSION_LOG_VIEW_LIMIT_BYTES)
         .clamp(1, SESSION_LOG_MAX_TAIL_BYTES)
 }
 
-fn session_log_info_for_path(path: &PathBuf, tail_bytes: u64) -> SessionLogInfo {
+pub(crate) fn session_log_info_for_path(path: &PathBuf, tail_bytes: u64) -> SessionLogInfo {
     match std::fs::metadata(path) {
         Ok(metadata) => SessionLogInfo {
             path: path.display().to_string(),
@@ -856,7 +856,7 @@ fn terminal_context_ledger_path() -> PathBuf {
     PathBuf::from("data").join("terminal-context-ledger.jsonl")
 }
 
-fn terminal_persistent_logs_enabled() -> bool {
+pub(crate) fn terminal_persistent_logs_enabled() -> bool {
     matches!(
         env::var(TERMINAL_PERSIST_LOGS_ENV)
             .ok()
@@ -1165,37 +1165,37 @@ pub(crate) struct SessionLogInfo {
 }
 
 #[derive(Debug, Deserialize, Default)]
-struct SessionLogQuery {
-    format: Option<String>,
-    limit: Option<u64>,
+pub(crate) struct SessionLogQuery {
+    pub(crate) format: Option<String>,
+    pub(crate) limit: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct SessionLogTailResponse {
-    session_id: String,
-    source: SessionSource,
-    log: SessionLogInfo,
-    tail: SessionLogTail,
+pub(crate) struct SessionLogTailResponse {
+    pub(crate) session_id: String,
+    pub(crate) source: SessionSource,
+    pub(crate) log: SessionLogInfo,
+    pub(crate) tail: SessionLogTail,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct SessionLogTail {
-    ansi: String,
-    text: String,
-    has_ansi: bool,
-    truncated: bool,
-    bytes: usize,
-    text_bytes: usize,
-    start_offset: u64,
-    end_offset: u64,
+pub(crate) struct SessionLogTail {
+    pub(crate) ansi: String,
+    pub(crate) text: String,
+    pub(crate) has_ansi: bool,
+    pub(crate) truncated: bool,
+    pub(crate) bytes: usize,
+    pub(crate) text_bytes: usize,
+    pub(crate) start_offset: u64,
+    pub(crate) end_offset: u64,
 }
 
 #[derive(Debug, Clone)]
-struct TailChunk {
-    text: String,
-    start: u64,
-    end: u64,
-    file_len: u64,
+pub(crate) struct TailChunk {
+    pub(crate) text: String,
+    pub(crate) start: u64,
+    pub(crate) end: u64,
+    pub(crate) file_len: u64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1433,7 +1433,7 @@ async fn main() -> anyhow::Result<()> {
                 "/api/sessions/:id",
                 get(api::session::get_session).delete(api::session::delete_session),
             )
-            .route("/api/sessions/:id/log", get(get_session_log))
+            .route("/api/sessions/:id/log", get(api::session::get_session_log))
             .route("/api/sessions/:id/write", post(api::session::write_session))
             .route(
                 "/api/sessions/:id/prompt-text",
@@ -1923,88 +1923,6 @@ async fn read_branch_agent_snapshot_file() -> Result<BranchAgentSnapshot, String
         .map_err(|err| format!("snapshot decode failed: {err}"))
 }
 
-async fn get_session_log(
-    Path(id): Path<String>,
-    Query(query): Query<SessionLogQuery>,
-) -> Result<axum::response::Response, ApiError> {
-    let (source, path) = resolve_session_log_path(&id).await?;
-    let limit = clamp_log_tail_limit(query.limit);
-    if matches!(source, SessionSource::Internal) && !terminal_persistent_logs_enabled() {
-        let text = String::new();
-        let log = SessionLogInfo {
-            path: path.display().to_string(),
-            available: false,
-            bytes: 0,
-            tail_bytes: 0,
-            updated_at: None,
-        };
-        return match query.format.as_deref().unwrap_or("ansi") {
-            "ansi" | "text" => {
-                Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text).into_response())
-            }
-            "json" => Ok(Json(SessionLogTailResponse {
-                session_id: id,
-                source,
-                log,
-                tail: SessionLogTail {
-                    ansi: String::new(),
-                    text: String::new(),
-                    has_ansi: false,
-                    truncated: false,
-                    bytes: 0,
-                    text_bytes: 0,
-                    start_offset: 0,
-                    end_offset: 0,
-                },
-            })
-            .into_response()),
-            other => Err(ApiError::bad_request(format!(
-                "unsupported log format '{other}'; expected ansi, text, or json"
-            ))),
-        };
-    }
-    let chunk = match read_tail_chunk(path.clone(), limit).await {
-        Ok(chunk) => chunk,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => TailChunk {
-            text: String::new(),
-            start: 0,
-            end: 0,
-            file_len: 0,
-        },
-        Err(err) => return Err(ApiError::internal(err)),
-    };
-    let text = strip_ansi_for_ui(&chunk.text);
-    let has_ansi = text != chunk.text;
-    let log = session_log_info_for_path(&path, limit);
-    match query.format.as_deref().unwrap_or("ansi") {
-        "ansi" => Ok((
-            [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-            chunk.text,
-        )
-            .into_response()),
-        "text" => Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text).into_response()),
-        "json" => Ok(Json(SessionLogTailResponse {
-            session_id: id,
-            source,
-            log,
-            tail: SessionLogTail {
-                ansi: chunk.text.clone(),
-                text,
-                has_ansi,
-                truncated: chunk.start > 0,
-                bytes: chunk.text.len(),
-                text_bytes: strip_ansi_for_ui(&chunk.text).len(),
-                start_offset: chunk.start,
-                end_offset: chunk.end.max(chunk.file_len),
-            },
-        })
-        .into_response()),
-        other => Err(ApiError::bad_request(format!(
-            "unsupported log format '{other}'; expected ansi, text, or json"
-        ))),
-    }
-}
-
 async fn read_tail_lossy(path: PathBuf, max_bytes: u64) -> std::io::Result<String> {
     Ok(read_tail_chunk(path, max_bytes).await?.text)
 }
@@ -2017,7 +1935,7 @@ async fn read_tail_lossy_or_empty(path: PathBuf, max_bytes: u64) -> std::io::Res
     }
 }
 
-async fn read_tail_chunk(path: PathBuf, max_bytes: u64) -> std::io::Result<TailChunk> {
+pub(crate) async fn read_tail_chunk(path: PathBuf, max_bytes: u64) -> std::io::Result<TailChunk> {
     let mut file = fs::File::open(path).await?;
     let len = file.metadata().await?.len();
     let start = len.saturating_sub(max_bytes);
@@ -3107,7 +3025,9 @@ pub(crate) async fn resolve_session_view(
     Ok(os_agent_view(record, preview, attached))
 }
 
-async fn resolve_session_log_path(id: &str) -> Result<(SessionSource, PathBuf), ApiError> {
+pub(crate) async fn resolve_session_log_path(
+    id: &str,
+) -> Result<(SessionSource, PathBuf), ApiError> {
     if let Some(record) = read_os_agent_record(id).await {
         if !os_agent_is_attached(&record).await {
             return Err(ApiError::not_found("OS agent is detached from this API"));

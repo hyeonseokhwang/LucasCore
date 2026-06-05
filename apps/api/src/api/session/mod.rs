@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
+    extract::{Path, Query, State},
+    http::{header, StatusCode},
+    response::IntoResponse,
     Json,
 };
 use chrono::Utc;
@@ -13,12 +14,15 @@ use tokio::{fs, sync::Mutex};
 
 use crate::{
     active_session_count, active_session_limit, build_internal_session_view, build_session_view,
-    default_shell, ensure_minimum_sessions, prompt_body_from_write_session, prompt_line_count,
-    read_os_agent_record, read_os_agent_views, resize_to_session, resolve_session_view,
-    set_os_agent_attached, spawn_pty_reader, spawn_pty_waiter, terminal_log_path,
-    write_prompt_submit_to_session, write_prompt_text_to_session, write_to_session, ApiError,
-    AppState, CreateSession, ResizeSession, ServerEvent, SessionMeta, SessionSource, SessionStatus,
-    SessionView, TerminalSession, WriteSession,
+    clamp_log_tail_limit, default_shell, ensure_minimum_sessions, prompt_body_from_write_session,
+    prompt_line_count, read_os_agent_record, read_os_agent_views, read_tail_chunk,
+    resize_to_session, resolve_session_log_path, resolve_session_view, session_log_info_for_path,
+    set_os_agent_attached, spawn_pty_reader, spawn_pty_waiter, strip_ansi_for_ui,
+    terminal_log_path, terminal_persistent_logs_enabled, write_prompt_submit_to_session,
+    write_prompt_text_to_session, write_to_session, ApiError, AppState, CreateSession,
+    ResizeSession, ServerEvent, SessionLogInfo, SessionLogQuery, SessionLogTail,
+    SessionLogTailResponse, SessionMeta, SessionSource, SessionStatus, SessionView, TailChunk,
+    TerminalSession, WriteSession,
 };
 
 pub(crate) async fn list_sessions(State(state): State<AppState>) -> Json<Vec<SessionView>> {
@@ -176,6 +180,88 @@ pub(crate) async fn get_session(
     Path(id): Path<String>,
 ) -> Result<Json<SessionView>, ApiError> {
     Ok(Json(resolve_session_view(&state, &id).await?))
+}
+
+pub(crate) async fn get_session_log(
+    Path(id): Path<String>,
+    Query(query): Query<SessionLogQuery>,
+) -> Result<axum::response::Response, ApiError> {
+    let (source, path) = resolve_session_log_path(&id).await?;
+    let limit = clamp_log_tail_limit(query.limit);
+    if matches!(source, SessionSource::Internal) && !terminal_persistent_logs_enabled() {
+        let text = String::new();
+        let log = SessionLogInfo {
+            path: path.display().to_string(),
+            available: false,
+            bytes: 0,
+            tail_bytes: 0,
+            updated_at: None,
+        };
+        return match query.format.as_deref().unwrap_or("ansi") {
+            "ansi" | "text" => {
+                Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text).into_response())
+            }
+            "json" => Ok(Json(SessionLogTailResponse {
+                session_id: id,
+                source,
+                log,
+                tail: SessionLogTail {
+                    ansi: String::new(),
+                    text: String::new(),
+                    has_ansi: false,
+                    truncated: false,
+                    bytes: 0,
+                    text_bytes: 0,
+                    start_offset: 0,
+                    end_offset: 0,
+                },
+            })
+            .into_response()),
+            other => Err(ApiError::bad_request(format!(
+                "unsupported log format '{other}'; expected ansi, text, or json"
+            ))),
+        };
+    }
+    let chunk = match read_tail_chunk(path.clone(), limit).await {
+        Ok(chunk) => chunk,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => TailChunk {
+            text: String::new(),
+            start: 0,
+            end: 0,
+            file_len: 0,
+        },
+        Err(err) => return Err(ApiError::internal(err)),
+    };
+    let text = strip_ansi_for_ui(&chunk.text);
+    let has_ansi = text != chunk.text;
+    let log = session_log_info_for_path(&path, limit);
+    match query.format.as_deref().unwrap_or("ansi") {
+        "ansi" => Ok((
+            [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+            chunk.text,
+        )
+            .into_response()),
+        "text" => Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], text).into_response()),
+        "json" => Ok(Json(SessionLogTailResponse {
+            session_id: id,
+            source,
+            log,
+            tail: SessionLogTail {
+                ansi: chunk.text.clone(),
+                text,
+                has_ansi,
+                truncated: chunk.start > 0,
+                bytes: chunk.text.len(),
+                text_bytes: strip_ansi_for_ui(&chunk.text).len(),
+                start_offset: chunk.start,
+                end_offset: chunk.end.max(chunk.file_len),
+            },
+        })
+        .into_response()),
+        other => Err(ApiError::bad_request(format!(
+            "unsupported log format '{other}'; expected ansi, text, or json"
+        ))),
+    }
 }
 
 pub(crate) async fn write_session(
