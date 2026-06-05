@@ -1422,7 +1422,7 @@ async fn main() -> anyhow::Result<()> {
             )
     } else {
         let api_route = Router::new()
-            .route("/api/health", get(health))
+            .route("/api/health", get(api::health::health))
             .route("/api/sessions", get(list_sessions).post(create_session))
             .route("/api/sessions/active", get(list_sessions))
             .route("/api/sessions/pty-stats", get(pty_stats))
@@ -1554,18 +1554,6 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
     Ok(())
-}
-
-async fn health(State(state): State<AppState>) -> Json<Value> {
-    ensure_minimum_sessions(&state).await;
-    let session_count = state.sessions.read().await.len();
-    Json(json!({
-        "ok": true,
-        "service": "lcc-core-api",
-        "time": Utc::now(),
-        "sessions": session_count,
-        "degraded": session_count < P1C_LOW_WATERMARK,
-    }))
 }
 
 async fn branch_status(

@@ -3,6 +3,7 @@ pub mod branch;
 pub mod branch_files;
 pub mod canvas;
 pub mod daily_memory;
+pub mod health;
 pub mod memory;
 pub mod peer;
 pub mod router;
