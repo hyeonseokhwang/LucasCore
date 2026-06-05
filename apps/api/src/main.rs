@@ -60,10 +60,10 @@ struct AppState {
     daily_memory_store: DailyMemoryStore,
 }
 
-struct TerminalSession {
-    meta: SessionMeta,
-    _master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
+pub(crate) struct TerminalSession {
+    pub(crate) meta: SessionMeta,
+    pub(crate) _master: Box<dyn MasterPty + Send>,
+    pub(crate) writer: Box<dyn Write + Send>,
 }
 
 const TERMINAL_SCREEN_BUFFER_BYTES: usize = 256 * 1024;
@@ -1227,14 +1227,14 @@ pub(crate) struct OsAgentAttachmentRecord {
 }
 
 #[derive(Debug, Deserialize)]
-struct CreateSession {
-    id: Option<String>,
-    name: Option<String>,
-    team: Option<String>,
-    cwd: Option<String>,
-    cmd: Option<String>,
-    args: Option<Vec<String>>,
-    model: Option<String>,
+pub(crate) struct CreateSession {
+    pub(crate) id: Option<String>,
+    pub(crate) name: Option<String>,
+    pub(crate) team: Option<String>,
+    pub(crate) cwd: Option<String>,
+    pub(crate) cmd: Option<String>,
+    pub(crate) args: Option<Vec<String>>,
+    pub(crate) model: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1425,7 +1425,7 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/health", get(api::health::health))
             .route(
                 "/api/sessions",
-                get(api::session::list_sessions).post(create_session),
+                get(api::session::list_sessions).post(api::session::create_session),
             )
             .route("/api/sessions/active", get(api::session::list_sessions))
             .route("/api/sessions/pty-stats", get(api::session::pty_stats))
@@ -1448,8 +1448,14 @@ async fn main() -> anyhow::Result<()> {
                 post(api::session::resize_session),
             )
             .route("/api/os-agents", get(api::os_agent::list_os_agents))
-            .route("/api/os-agents/:id/attach", post(attach_os_agent))
-            .route("/api/os-agents/:id/detach", post(detach_os_agent))
+            .route(
+                "/api/os-agents/:id/attach",
+                post(api::os_agent::attach_os_agent),
+            )
+            .route(
+                "/api/os-agents/:id/detach",
+                post(api::os_agent::detach_os_agent),
+            )
             .route("/ws/terminal", get(terminal_ws))
             .route("/api/peer/status", get(api::peer::peer_status))
             .route(
@@ -1915,111 +1921,6 @@ async fn read_branch_agent_snapshot_file() -> Result<BranchAgentSnapshot, String
         .map_err(|err| format!("snapshot read failed: {err}"))?;
     serde_json::from_str::<BranchAgentSnapshot>(&raw)
         .map_err(|err| format!("snapshot decode failed: {err}"))
-}
-
-async fn create_session(
-    State(state): State<AppState>,
-    Json(input): Json<CreateSession>,
-) -> Result<(StatusCode, Json<SessionView>), ApiError> {
-    let id = input
-        .id
-        .unwrap_or_else(|| format!("lcc-agent-{}", Utc::now().timestamp_millis()));
-    if state.sessions.read().await.contains_key(&id) {
-        return Err(ApiError::conflict("session already exists"));
-    }
-    if let Some(max_active) = active_session_limit() {
-        let active = active_session_count(&state).await;
-        if active >= max_active {
-            return Err(ApiError::service_unavailable(format!(
-                "active session limit reached ({active}/{max_active}); stop a session before creating another"
-            )));
-        }
-    }
-
-    let cmd = input.cmd.unwrap_or_else(default_shell);
-    let args = input.args.unwrap_or_default();
-    let cwd = input.cwd.unwrap_or_else(|| ".".to_string());
-    fs::create_dir_all(&cwd)
-        .await
-        .map_err(|err| ApiError::bad_request(format!("workspace create failed: {err}")))?;
-    let pty_system = native_pty_system();
-    let pair = pty_system
-        .openpty(PtySize {
-            rows: 36,
-            cols: 140,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|err| ApiError::bad_request(format!("pty open failed: {err}")))?;
-    let mut command = CommandBuilder::new(&cmd);
-    command.args(args.iter().map(String::as_str));
-    command.cwd(&cwd);
-    let mut child = pair
-        .slave
-        .spawn_command(command)
-        .map_err(|err| ApiError::bad_request(format!("spawn failed: {err}")))?;
-    let reader = pair
-        .master
-        .try_clone_reader()
-        .map_err(|err| ApiError::bad_request(format!("pty reader failed: {err}")))?;
-    let writer = pair
-        .master
-        .take_writer()
-        .map_err(|err| ApiError::bad_request(format!("pty writer failed: {err}")))?;
-    let meta = SessionMeta {
-        id: id.clone(),
-        name: input.name.unwrap_or_else(|| id.clone()),
-        team: input.team.unwrap_or_else(|| "lcc".to_string()),
-        cwd,
-        cmd,
-        args,
-        model: input.model,
-        status: SessionStatus::Active,
-        pid: None,
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
-        exit_code: None,
-    };
-    let session = Arc::new(Mutex::new(TerminalSession {
-        meta,
-        _master: pair.master,
-        writer,
-    }));
-
-    state
-        .sessions
-        .write()
-        .await
-        .insert(id.clone(), session.clone());
-    spawn_pty_reader(state.clone(), id.clone(), reader);
-    spawn_pty_waiter(state.clone(), id.clone(), move || {
-        child.wait().ok().map(|status| status.exit_code() as i32)
-    });
-    let meta = session.lock().await.meta.clone();
-    let view = build_internal_session_view(&state, meta).await?;
-    let _ = state.tx.send(ServerEvent::SessionCreated {
-        session: view.clone(),
-    });
-    Ok((StatusCode::CREATED, Json(view)))
-}
-
-async fn attach_os_agent(Path(id): Path<String>) -> Result<Json<SessionView>, ApiError> {
-    let Some(record) = read_os_agent_record(&id).await else {
-        return Err(ApiError::not_found("OS agent not found"));
-    };
-    set_os_agent_attached(&id, true).await?;
-    let preview = read_os_agent_preview(&record).await.unwrap_or_default();
-    Ok(Json(os_agent_view(record, preview, true)))
-}
-
-async fn detach_os_agent(Path(id): Path<String>) -> Result<Json<Value>, ApiError> {
-    if read_os_agent_record(&id).await.is_none() {
-        return Err(ApiError::not_found("OS agent not found"));
-    }
-    set_os_agent_attached(&id, false).await?;
-    Ok(Json(
-        json!({ "ok": true, "detached": true, "session_id": id }),
-    ))
 }
 
 async fn get_session_log(
@@ -3139,7 +3040,7 @@ async fn write_session_bytes(
     build_internal_session_view(state, meta).await
 }
 
-fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send>) {
+pub(crate) fn spawn_pty_reader(state: AppState, id: String, mut reader: Box<dyn Read + Send>) {
     let log_path = terminal_log_path(&id);
     thread::spawn(move || {
         if let Ok(mut buffers) = state.terminal_buffers.lock() {
@@ -3220,7 +3121,7 @@ async fn resolve_session_log_path(id: &str) -> Result<(SessionSource, PathBuf), 
     Ok((SessionSource::Internal, terminal_log_path(id)))
 }
 
-fn spawn_pty_waiter<F>(state: AppState, id: String, wait: F)
+pub(crate) fn spawn_pty_waiter<F>(state: AppState, id: String, wait: F)
 where
     F: FnOnce() -> Option<i32> + Send + 'static,
 {
@@ -3513,7 +3414,7 @@ pub(crate) fn os_agent_view(record: OsAgentRecord, preview: String, attached: bo
     )
 }
 
-async fn active_session_count(state: &AppState) -> usize {
+pub(crate) async fn active_session_count(state: &AppState) -> usize {
     let sessions = state.sessions.read().await;
     let mut active = 0;
     for session in sessions.values() {
@@ -3746,12 +3647,12 @@ impl DailyMemoryStore {
 }
 
 #[cfg(windows)]
-fn default_shell() -> String {
+pub(crate) fn default_shell() -> String {
     "powershell.exe".to_string()
 }
 
 #[cfg(not(windows))]
-fn default_shell() -> String {
+pub(crate) fn default_shell() -> String {
     "bash".to_string()
 }
 
