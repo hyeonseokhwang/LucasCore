@@ -1297,6 +1297,7 @@ type Canvas = DomainCanvas;
 type CanvasSection = DomainCanvasSection;
 type CanvasMessage = DomainCanvasMessage;
 type PeerMessage = DomainPeerMessage;
+type MemoryEntry = DomainMemoryEntry;
 
 #[derive(Debug, Deserialize)]
 struct CreateCanvas {
@@ -1332,25 +1333,6 @@ struct CreatePeerMessage {
     to: Option<String>,
     kind: Option<String>,
     body: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct MemoryEntry {
-    id: String,
-    at: DateTime<Utc>,
-    agent_id: String,
-    layer: String,
-    scope: String,
-    kind: String,
-    topic: Option<String>,
-    content: String,
-    importance: i32,
-    source: String,
-    source_id: Option<String>,
-    ledger_item: Option<String>,
-    evidence_path: Option<String>,
-    tags: Vec<String>,
-    archived_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -4177,43 +4159,50 @@ async fn list_memory(
     State(state): State<AppState>,
     Query(query): Query<MemoryQuery>,
 ) -> Json<Value> {
-    let entries = state.memory_store.search(&query).await;
-    Json(json!({
-        "ok": true,
-        "path": state.memory_store.path.display().to_string(),
-        "count": entries.len(),
-        "memories": entries
-    }))
+    Json(
+        app::memory::list_usecase(
+            &state.memory_store,
+            state.memory_store.path.display().to_string(),
+            MemoryQueryInput {
+                agent_id: query.agent_id,
+                scope: query.scope,
+                layer: query.layer,
+                kind: query.kind,
+                topic: query.topic,
+                search: query.search,
+                include_archived: query.include_archived,
+                limit: query.limit,
+            },
+        )
+        .await,
+    )
 }
 
 async fn add_memory(
     State(state): State<AppState>,
     Json(input): Json<CreateMemoryEntry>,
 ) -> Result<(StatusCode, Json<MemoryEntry>), ApiError> {
-    let entry = MemoryEntry {
-        id: input
-            .id
-            .unwrap_or_else(|| format!("mem-{}", Utc::now().timestamp_millis())),
-        at: input.at.unwrap_or_else(Utc::now),
-        agent_id: require_field(input.agent_id, "agent_id")?,
-        layer: normalize_memory_layer(input.layer)?,
-        scope: normalize_memory_scope(input.scope)?,
-        kind: input
-            .kind
-            .unwrap_or_else(|| "note".to_string())
-            .trim()
-            .to_ascii_lowercase(),
-        topic: input.topic.filter(|value| !value.trim().is_empty()),
-        content: require_field(input.content, "content")?,
-        importance: input.importance.unwrap_or(3).clamp(0, 10),
-        source: input.source.unwrap_or_else(|| "manual".to_string()),
-        source_id: input.source_id.filter(|value| !value.trim().is_empty()),
-        ledger_item: input.ledger_item.filter(|value| !value.trim().is_empty()),
-        evidence_path: input.evidence_path.filter(|value| !value.trim().is_empty()),
-        tags: input.tags.unwrap_or_default(),
-        archived_at: None,
-    };
-    state.memory_store.insert(entry.clone()).await?;
+    let entry = app::memory::add_usecase(
+        &state.memory_store,
+        CreateMemoryCommand {
+            id: input.id,
+            at: input.at,
+            agent_id: input.agent_id,
+            layer: input.layer,
+            scope: input.scope,
+            kind: input.kind,
+            topic: input.topic,
+            content: input.content,
+            importance: input.importance,
+            source: input.source,
+            source_id: input.source_id,
+            ledger_item: input.ledger_item,
+            evidence_path: input.evidence_path,
+            tags: input.tags,
+        },
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
     Ok((StatusCode::CREATED, Json(entry)))
 }
 
@@ -4223,28 +4212,13 @@ async fn recover_agent_context(
     Query(query): Query<RecoveryQuery>,
 ) -> Result<Json<Value>, ApiError> {
     let limit = query.limit.unwrap_or(8).clamp(1, 50);
-    let memory_query = MemoryQuery {
-        agent_id: Some(agent_id.clone()),
-        scope: None,
-        layer: None,
-        kind: None,
-        topic: None,
-        search: query.search.clone(),
-        include_archived: Some(false),
-        limit: Some(limit),
-    };
-    let personal = state.memory_store.search(&memory_query).await;
-    let shared_query = MemoryQuery {
-        agent_id: None,
-        scope: Some("team,global".to_string()),
-        layer: None,
-        kind: None,
-        topic: None,
-        search: query.search,
-        include_archived: Some(false),
-        limit: Some(limit),
-    };
-    let shared = state.memory_store.search(&shared_query).await;
+    let (personal, shared) = app::memory::recover_memories_usecase(
+        &state.memory_store,
+        agent_id.clone(),
+        query.search,
+        limit,
+    )
+    .await;
     let ledger = state.work_ledger.get().await;
     let active_tasks: Vec<WorkTask> = ledger
         .tasks
@@ -4347,34 +4321,6 @@ fn validate_daily_memory_date(date: &str) -> Result<(), ApiError> {
         Ok(())
     } else {
         Err(ApiError::bad_request("date must use YYYY-MM-DD"))
-    }
-}
-
-fn normalize_memory_layer(layer: Option<String>) -> Result<String, ApiError> {
-    let value = layer
-        .unwrap_or_else(|| "working".to_string())
-        .trim()
-        .to_ascii_lowercase();
-    if ["working", "short_term", "long_term"].contains(&value.as_str()) {
-        Ok(value)
-    } else {
-        Err(ApiError::bad_request(
-            "layer must be working, short_term, or long_term",
-        ))
-    }
-}
-
-fn normalize_memory_scope(scope: Option<String>) -> Result<String, ApiError> {
-    let value = scope
-        .unwrap_or_else(|| "personal".to_string())
-        .trim()
-        .to_ascii_lowercase();
-    if ["personal", "team", "global"].contains(&value.as_str()) {
-        Ok(value)
-    } else {
-        Err(ApiError::bad_request(
-            "scope must be personal, team, or global",
-        ))
     }
 }
 
@@ -4611,109 +4557,6 @@ impl MemoryStore {
             path: Arc::new(path),
             entries: Arc::new(RwLock::new(entries)),
         })
-    }
-
-    async fn insert(&self, entry: MemoryEntry) -> Result<(), ApiError> {
-        let raw = serde_json::to_string(&entry).map_err(ApiError::internal)?;
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&*self.path)
-            .await
-            .map_err(ApiError::internal)?;
-        file.write_all(raw.as_bytes())
-            .await
-            .map_err(ApiError::internal)?;
-        file.write_all(b"\n").await.map_err(ApiError::internal)?;
-        file.flush().await.map_err(ApiError::internal)?;
-        self.entries.write().await.push(entry);
-        Ok(())
-    }
-
-    async fn search(&self, query: &MemoryQuery) -> Vec<MemoryEntry> {
-        let include_archived = query.include_archived.unwrap_or(false);
-        let search = query
-            .search
-            .as_ref()
-            .map(|value| value.to_ascii_lowercase());
-        let scope_set: Option<HashSet<String>> = query.scope.as_ref().map(|value| {
-            value
-                .split(',')
-                .map(|item| item.trim().to_ascii_lowercase())
-                .filter(|item| !item.is_empty())
-                .collect()
-        });
-        let mut entries: Vec<MemoryEntry> = self
-            .entries
-            .read()
-            .await
-            .iter()
-            .filter(|entry| include_archived || entry.archived_at.is_none())
-            .filter(|entry| {
-                query
-                    .agent_id
-                    .as_ref()
-                    .map(|agent_id| entry.agent_id == *agent_id)
-                    .unwrap_or(true)
-            })
-            .filter(|entry| {
-                scope_set
-                    .as_ref()
-                    .map(|scopes| scopes.contains(&entry.scope))
-                    .unwrap_or(true)
-            })
-            .filter(|entry| {
-                query
-                    .layer
-                    .as_ref()
-                    .map(|layer| entry.layer == layer.trim().to_ascii_lowercase())
-                    .unwrap_or(true)
-            })
-            .filter(|entry| {
-                query
-                    .kind
-                    .as_ref()
-                    .map(|kind| entry.kind == kind.trim().to_ascii_lowercase())
-                    .unwrap_or(true)
-            })
-            .filter(|entry| {
-                query
-                    .topic
-                    .as_ref()
-                    .map(|topic| entry.topic.as_deref() == Some(topic.as_str()))
-                    .unwrap_or(true)
-            })
-            .filter(|entry| {
-                search
-                    .as_ref()
-                    .map(|needle| {
-                        entry.content.to_ascii_lowercase().contains(needle)
-                            || entry
-                                .topic
-                                .as_ref()
-                                .map(|topic| topic.to_ascii_lowercase().contains(needle))
-                                .unwrap_or(false)
-                            || entry
-                                .tags
-                                .iter()
-                                .any(|tag| tag.to_ascii_lowercase().contains(needle))
-                            || entry
-                                .ledger_item
-                                .as_ref()
-                                .map(|item| item.to_ascii_lowercase().contains(needle))
-                                .unwrap_or(false)
-                    })
-                    .unwrap_or(true)
-            })
-            .cloned()
-            .collect();
-        entries.sort_by(|a, b| {
-            b.importance
-                .cmp(&a.importance)
-                .then_with(|| b.at.cmp(&a.at))
-        });
-        entries.truncate(query.limit.unwrap_or(50).clamp(1, 500));
-        entries
     }
 }
 
