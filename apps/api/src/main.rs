@@ -1,3 +1,6 @@
+// CA Phase 1: module scaffold (no logic changes)
+mod shared;
+
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
