@@ -12,6 +12,7 @@ use crate::domain::canvas::canvas::{
     Canvas as DomainCanvas, CanvasMessage as DomainCanvasMessage,
     CanvasSection as DomainCanvasSection,
 };
+use crate::domain::peer::peer::PeerMessage as DomainPeerMessage;
 use crate::domain::work_ledger::work_ledger::{WorkTask, WorkTaskStatus};
 use crate::infra::persistence::work_ledger::WorkLedgerStore;
 use axum::{
@@ -1293,17 +1294,7 @@ enum ServerEvent {
 type Canvas = DomainCanvas;
 type CanvasSection = DomainCanvasSection;
 type CanvasMessage = DomainCanvasMessage;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct PeerMessage {
-    id: String,
-    at: DateTime<Utc>,
-    #[serde(rename = "from")]
-    from_peer: String,
-    to: String,
-    kind: String,
-    body: String,
-}
+type PeerMessage = DomainPeerMessage;
 
 #[derive(Debug, Deserialize)]
 struct CreateCanvas {
@@ -1613,12 +1604,13 @@ async fn branch_status(
     ensure_minimum_sessions(&state).await;
     let census = collect_branch_agent_census(&state).await;
     let session_count = state.sessions.read().await.len();
+    let peer_message_count = app::peer::list_usecase(&state.peer_store).await.len();
     Ok(Json(json!({
         "ok": true,
         "service": "lcc-core-branch-inbound",
         "time": Utc::now(),
         "work_ledger_tasks": state.work_ledger.get().await.tasks.len(),
-        "peer_messages": state.peer_store.messages.read().await.len(),
+        "peer_messages": peer_message_count,
         "agent_total": census.total_agents,
         "agent_active": census.active_agents,
         "agent_session_source": census.session_source,
@@ -1650,7 +1642,7 @@ async fn branch_list_messages(
     headers: HeaderMap,
 ) -> Result<Json<Vec<PeerMessage>>, ApiError> {
     require_branch_token(&headers)?;
-    Ok(Json(state.peer_store.messages.read().await.clone()))
+    Ok(Json(app::peer::list_usecase(&state.peer_store).await))
 }
 
 async fn branch_add_message(
@@ -1659,17 +1651,19 @@ async fn branch_add_message(
     Json(input): Json<CreatePeerMessage>,
 ) -> Result<(StatusCode, Json<PeerMessage>), ApiError> {
     require_branch_token(&headers)?;
-    let message = PeerMessage {
-        id: input
-            .id
-            .unwrap_or_else(|| format!("peer-msg-{}", Utc::now().timestamp_millis())),
-        at: input.at.unwrap_or_else(Utc::now),
-        from_peer: require_field(input.from_peer, "from")?,
-        to: input.to.unwrap_or_else(|| "branch".to_string()),
-        kind: input.kind.unwrap_or_else(|| "hq-inbound".to_string()),
-        body: require_field(input.body, "body")?,
-    };
-    state.peer_store.insert(message.clone()).await?;
+    let message = app::peer::add_usecase(
+        &state.peer_store,
+        app::peer::CreatePeerMessageCommand {
+            id: input.id,
+            at: input.at,
+            from_peer: require_field(input.from_peer, "from")?,
+            to: input.to.unwrap_or_else(|| "branch".to_string()),
+            kind: Some(input.kind.unwrap_or_else(|| "hq-inbound".to_string())),
+            body: require_field(input.body, "body")?,
+        },
+    )
+    .await
+    .map_err(ApiError::internal)?;
     Ok((StatusCode::CREATED, Json(message)))
 }
 
@@ -4134,33 +4128,33 @@ fn active_session_limit() -> Option<usize> {
 }
 
 async fn peer_status(State(state): State<AppState>) -> Json<Value> {
-    Json(json!({
-        "ok": true,
-        "service": "lcc-peer-bridge",
-        "messages": state.peer_store.messages.read().await.len(),
-        "path": state.peer_store.path.display().to_string()
-    }))
+    Json(
+        app::peer::status_usecase(&state.peer_store, state.peer_store.path.display().to_string())
+            .await,
+    )
 }
 
 async fn list_peer_messages(State(state): State<AppState>) -> Json<Vec<PeerMessage>> {
-    Json(state.peer_store.messages.read().await.clone())
+    Json(app::peer::list_usecase(&state.peer_store).await)
 }
 
 async fn add_peer_message(
     State(state): State<AppState>,
     Json(input): Json<CreatePeerMessage>,
 ) -> Result<(StatusCode, Json<PeerMessage>), ApiError> {
-    let message = PeerMessage {
-        id: input
-            .id
-            .unwrap_or_else(|| format!("peer-msg-{}", Utc::now().timestamp_millis())),
-        at: input.at.unwrap_or_else(Utc::now),
-        from_peer: require_field(input.from_peer, "from")?,
-        to: require_field(input.to, "to")?,
-        kind: input.kind.unwrap_or_else(|| "terminal".to_string()),
-        body: require_field(input.body, "body")?,
-    };
-    state.peer_store.insert(message.clone()).await?;
+    let message = app::peer::add_usecase(
+        &state.peer_store,
+        app::peer::CreatePeerMessageCommand {
+            id: input.id,
+            at: input.at,
+            from_peer: require_field(input.from_peer, "from")?,
+            to: require_field(input.to, "to")?,
+            kind: input.kind,
+            body: require_field(input.body, "body")?,
+        },
+    )
+    .await
+    .map_err(ApiError::internal)?;
     Ok((StatusCode::CREATED, Json(message)))
 }
 

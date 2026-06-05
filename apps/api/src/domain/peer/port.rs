@@ -2,6 +2,6 @@
 use super::peer::PeerMessage;
 
 pub trait PeerRepository: Send + Sync {
-    fn list(&self) -> Vec<PeerMessage>;
-    fn append(&self, message: PeerMessage) -> Result<(), String>;
+    async fn list(&self) -> Vec<PeerMessage>;
+    async fn append(&self, message: PeerMessage) -> Result<(), String>;
 }
