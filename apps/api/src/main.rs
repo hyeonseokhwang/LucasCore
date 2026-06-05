@@ -5,10 +5,6 @@ mod domain;
 mod infra;
 mod shared;
 
-use crate::app::canvas::{
-    AddCanvasMessageCommand, CreateCanvasCommand, InviteCanvasMemberCommand, UpdateCanvasCommand,
-};
-use crate::app::daily_memory::AppendDailyMemoryCheckpointCommand;
 use crate::app::memory::{CreateMemoryCommand, MemoryQueryInput};
 use crate::domain::canvas::canvas::{
     Canvas as DomainCanvas, CanvasMessage as DomainCanvasMessage,
@@ -28,7 +24,7 @@ use axum::{
     routing::{get, post, put},
     Json, Router,
 };
-use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use chrono::{DateTime, Utc};
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -1498,23 +1494,37 @@ async fn main() -> anyhow::Result<()> {
             )
             .route("/api/memory", get(list_memory).post(add_memory))
             .route("/api/memory/recover/:agent_id", get(recover_agent_context))
-            .route("/api/daily-memory/today", get(get_today_daily_memory))
-            .route("/api/daily-memory/:date", get(get_daily_memory))
+            .route(
+                "/api/daily-memory/today",
+                get(api::daily_memory::get_today_daily_memory),
+            )
+            .route(
+                "/api/daily-memory/:date",
+                get(api::daily_memory::get_daily_memory),
+            )
             .route(
                 "/api/daily-memory/:date/checkpoints",
-                post(append_daily_memory_checkpoint),
+                post(api::daily_memory::append_daily_memory_checkpoint),
             )
-            .route("/api/canvases", get(list_canvases).post(create_canvas))
-            .route("/api/canvases/:id", get(get_canvas).patch(update_canvas))
+            .route(
+                "/api/canvases",
+                get(api::canvas::list_canvases).post(api::canvas::create_canvas),
+            )
+            .route(
+                "/api/canvases/:id",
+                get(api::canvas::get_canvas).patch(api::canvas::update_canvas),
+            )
             .route(
                 "/api/canvases/:id/content",
-                get(get_content).put(put_content).patch(put_content),
+                get(api::canvas::get_content)
+                    .put(api::canvas::put_content)
+                    .patch(api::canvas::put_content),
             )
             .route(
                 "/api/canvases/:id/messages",
-                get(get_messages).post(add_message),
+                get(api::canvas::get_messages).post(api::canvas::add_message),
             )
-            .route("/api/canvases/:id/invite", post(invite_member))
+            .route("/api/canvases/:id/invite", post(api::canvas::invite_member))
             .route("/api/branch/health", get(branch_health))
             .route("/api/branch/status", get(branch_status))
             .route("/api/branch/agents", get(branch_agents))
@@ -4237,7 +4247,7 @@ async fn recover_agent_context(
     let mut recent_events = ledger.events.clone();
     recent_events.sort_by(|a, b| b.at.cmp(&a.at));
     recent_events.truncate(limit);
-    let daily_memory_date = current_kst_date();
+    let daily_memory_date = api::daily_memory::current_kst_date();
     let daily_memory =
         app::daily_memory::read_document_usecase(&state.daily_memory_store, &daily_memory_date)
             .await
@@ -4255,190 +4265,6 @@ async fn recover_agent_context(
         },
         "report_contract": "recovered_context / latest_ledger_item / latest_evidence / next_action / blocker"
     })))
-}
-
-async fn get_today_daily_memory(State(state): State<AppState>) -> Result<Json<Value>, ApiError> {
-    let date = current_kst_date();
-    daily_memory_response(&state.daily_memory_store, &date).await
-}
-
-async fn get_daily_memory(
-    State(state): State<AppState>,
-    Path(date): Path<String>,
-) -> Result<Json<Value>, ApiError> {
-    daily_memory_response(&state.daily_memory_store, &date).await
-}
-
-async fn daily_memory_response(
-    store: &DailyMemoryStore,
-    date: &str,
-) -> Result<Json<Value>, ApiError> {
-    app::daily_memory::response_usecase(store, date)
-        .await
-        .map(Json)
-        .map_err(daily_memory_error)
-}
-
-async fn append_daily_memory_checkpoint(
-    State(state): State<AppState>,
-    Path(date): Path<String>,
-    Json(input): Json<AppendDailyMemoryCheckpoint>,
-) -> Result<(StatusCode, Json<Value>), ApiError> {
-    let entry = app::daily_memory::append_checkpoint_usecase(
-        &state.daily_memory_store,
-        &date,
-        AppendDailyMemoryCheckpointCommand {
-            heading: input.heading,
-            content: input.content,
-            source: input.source,
-            tags: input.tags,
-        },
-    )
-    .await
-    .map_err(ApiError::bad_request)?;
-    Ok((StatusCode::CREATED, Json(entry)))
-}
-
-fn daily_memory_error(err: String) -> ApiError {
-    if err == "date must use YYYY-MM-DD" {
-        ApiError::bad_request(err)
-    } else {
-        ApiError::internal(err)
-    }
-}
-
-fn current_kst_date() -> String {
-    (Utc::now() + ChronoDuration::hours(9))
-        .format("%Y-%m-%d")
-        .to_string()
-}
-
-async fn list_canvases(State(state): State<AppState>) -> Json<Vec<Canvas>> {
-    Json(app::canvas::list_usecase(&state.canvas_store).await)
-}
-
-async fn create_canvas(
-    State(state): State<AppState>,
-    Json(input): Json<CreateCanvas>,
-) -> Result<(StatusCode, Json<Canvas>), ApiError> {
-    let canvas = app::canvas::create_usecase(
-        &state.canvas_store,
-        CreateCanvasCommand {
-            id: input.id,
-            title: input.title,
-            owner: input.owner,
-            canvas_type: input.canvas_type,
-            members: input.members,
-            linked_issues: input.linked_issues,
-            linked_meetings: input.linked_meetings,
-            content: input.content,
-        },
-    )
-    .await
-    .map_err(ApiError::internal)?;
-    Ok((StatusCode::CREATED, Json(canvas)))
-}
-
-async fn get_canvas(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<Canvas>, ApiError> {
-    app::canvas::get_usecase(&state.canvas_store, &id)
-        .await
-        .map(Json)
-        .ok_or_else(|| ApiError::not_found("canvas not found"))
-}
-
-async fn update_canvas(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(patch): Json<Value>,
-) -> Result<Json<Canvas>, ApiError> {
-    let canvas = app::canvas::update_usecase(
-        &state.canvas_store,
-        &id,
-        UpdateCanvasCommand {
-            title: patch
-                .get("title")
-                .and_then(Value::as_str)
-                .map(str::to_string),
-            owner: patch
-                .get("owner")
-                .and_then(Value::as_str)
-                .map(str::to_string),
-        },
-    )
-    .await
-    .map_err(ApiError::internal)?;
-    Ok(Json(canvas))
-}
-
-async fn get_content(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<Vec<CanvasSection>>, ApiError> {
-    app::canvas::get_content_usecase(&state.canvas_store, &id)
-        .await
-        .map(Json)
-        .map_err(ApiError::internal)
-}
-
-async fn put_content(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(content): Json<Vec<CanvasSection>>,
-) -> Result<Json<Vec<CanvasSection>>, ApiError> {
-    app::canvas::put_content_usecase(&state.canvas_store, &id, content)
-        .await
-        .map(Json)
-        .map_err(ApiError::internal)
-}
-
-async fn get_messages(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-) -> Result<Json<Vec<CanvasMessage>>, ApiError> {
-    app::canvas::get_messages_usecase(&state.canvas_store, &id)
-        .await
-        .map(Json)
-        .map_err(ApiError::internal)
-}
-
-async fn add_message(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<AddMessage>,
-) -> Result<(StatusCode, Json<CanvasMessage>), ApiError> {
-    let message = app::canvas::add_message_usecase(
-        &state.canvas_store,
-        &id,
-        AddCanvasMessageCommand {
-            author: input.author,
-            body: input.body,
-            message: input.message,
-        },
-    )
-    .await
-    .map_err(ApiError::internal)?;
-    Ok((StatusCode::CREATED, Json(message)))
-}
-
-async fn invite_member(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    Json(input): Json<InviteMember>,
-) -> Result<Json<Canvas>, ApiError> {
-    app::canvas::invite_member_usecase(
-        &state.canvas_store,
-        &id,
-        InviteCanvasMemberCommand {
-            member: input.member,
-            agent: input.agent,
-        },
-    )
-    .await
-    .map(Json)
-    .map_err(ApiError::internal)
 }
 
 impl CanvasStore {
