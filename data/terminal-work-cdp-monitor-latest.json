@@ -1,0 +1,19 @@
+{
+  "at": "2026-06-04T18:45:15.880Z",
+  "ok": true,
+  "cycle": 4,
+  "reportPath": "G:\\Lucas-Initiative\\LucasCore\\data\\system-logs\\terminal-work-cdp-monitor\\work-20085-0004-2026-06-04T18-45-15-880Z.json",
+  "screenshotPath": "G:\\Lucas-Initiative\\LucasCore\\data\\system-logs\\terminal-work-cdp-monitor\\work-20085-0004-2026-06-04T18-45-15-878Z.png",
+  "url": "http://127.0.0.1:20085/?view=terminals&layout=columns&filter=all",
+  "api": "http://127.0.0.1:20086",
+  "cardCount": 11,
+  "layout": "columns",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "problems": [],
+  "collapseCount": 0,
+  "collapses": [],
+  "consoleErrorEvents": 0
+}

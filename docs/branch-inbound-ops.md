@@ -72,9 +72,32 @@ X-LCC-Token: <긴_랜덤_토큰>
   "service": "lcc-core-branch-inbound",
   "time": "2026-05-31T00:00:00Z",
   "work_ledger_tasks": 3,
-  "peer_messages": 1
+  "peer_messages": 1,
+  "agent_total": 4,
+  "agent_active": 3,
+  "agent_session_source": "live-9001-api",
+  "agent_session_api_ok": true,
+  "agent_session_api_note": "http://127.0.0.1:9001/api/sessions"
 }
 ```
+
+### 지사 에이전트 가시화
+
+`GET /api/branch/agents`
+
+필수 헤더:
+
+```text
+X-LCC-Token: <긴_랜덤_토큰>
+```
+
+반환값은 branch-safe summary만 포함한다.
+
+- `total_agents`, `active_agents`
+- `session_source`, `session_api`
+- `agents[]` with `id`, `name`, `team`, `status`, `pid`, `preview`, `last_activity_at`
+
+이 endpoint는 HQ가 "지금 지사 에이전트가 몇 명이고 누구인지"를 직접 확인하기 위한 용도다. 터미널 제어, `/api/sessions`, `/ws/terminal`은 여전히 열지 않는다.
 
 ### 업무 원장 조회
 
@@ -120,6 +143,7 @@ $Headers = @{ "X-LCC-Token" = "<긴_랜덤_토큰>" }
 
 Invoke-RestMethod -Method Get -Uri "$Base/api/branch/health"
 Invoke-RestMethod -Method Get -Uri "$Base/api/branch/status" -Headers $Headers
+Invoke-RestMethod -Method Get -Uri "$Base/api/branch/agents" -Headers $Headers
 Invoke-RestMethod -Method Get -Uri "$Base/api/branch/work-ledger" -Headers $Headers
 
 $Body = @{
@@ -207,6 +231,7 @@ Invoke-WebRequest -Uri "$Base/ws/terminal" -Headers $Headers
 
 - `GET /api/branch/health`
 - `GET /api/branch/status`
+- `GET /api/branch/agents`
 - `GET /api/branch/work-ledger`
 - `GET /api/branch/messages`
 - `POST /api/branch/messages`

@@ -84,7 +84,9 @@ struct LogQuery {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .init();
 
     let config = Arc::new(RunnerConfig::from_env_and_args()?);
@@ -163,23 +165,29 @@ async fn main() -> anyhow::Result<()> {
 impl RunnerConfig {
     fn from_env_and_args() -> anyhow::Result<Self> {
         let mut id = env::var("LCC_OS_RUNNER_ID").unwrap_or_else(|_| "test-agent-1".to_string());
-        let mut name = env::var("LCC_OS_RUNNER_NAME").unwrap_or_else(|_| "Test Agent 1".to_string());
+        let mut name =
+            env::var("LCC_OS_RUNNER_NAME").unwrap_or_else(|_| "Test Agent 1".to_string());
         let mut team = env::var("LCC_OS_RUNNER_TEAM").unwrap_or_else(|_| "development".to_string());
         let mut cwd = PathBuf::from(
-            env::var("LCC_OS_RUNNER_CWD").unwrap_or_else(|_| "workspaces/test-agent-1/repo".to_string()),
+            env::var("LCC_OS_RUNNER_CWD")
+                .unwrap_or_else(|_| "workspaces/test-agent-1/repo".to_string()),
         );
         let mut cmd = env::var("LCC_OS_RUNNER_CMD").unwrap_or_else(|_| default_codex_cmd());
-        let mut model = env::var("LCC_OS_RUNNER_MODEL").ok().filter(|value| !value.trim().is_empty());
+        let mut model = env::var("LCC_OS_RUNNER_MODEL")
+            .ok()
+            .filter(|value| !value.trim().is_empty());
         let mut host = env::var("LCC_OS_RUNNER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
         let mut port = env::var("LCC_OS_RUNNER_PORT")
             .ok()
             .and_then(|value| value.parse::<u16>().ok())
             .unwrap_or(DEFAULT_PORT);
         let mut registry_path = PathBuf::from(
-            env::var("LCC_OS_AGENT_REGISTRY").unwrap_or_else(|_| "data/os-agents-9003/registry.json".to_string()),
+            env::var("LCC_OS_AGENT_REGISTRY")
+                .unwrap_or_else(|_| "data/os-agents-9003/registry.json".to_string()),
         );
         let mut log_dir = PathBuf::from(
-            env::var("LCC_OS_RUNNER_LOG_DIR").unwrap_or_else(|_| "data/os-agents-9003/logs".to_string()),
+            env::var("LCC_OS_RUNNER_LOG_DIR")
+                .unwrap_or_else(|_| "data/os-agents-9003/logs".to_string()),
         );
         let mut child_args = env::var("LCC_OS_RUNNER_ARGS")
             .ok()
@@ -196,7 +204,11 @@ impl RunnerConfig {
                 "--cmd" => cmd = take_arg(&mut args, "--cmd")?,
                 "--model" => model = Some(take_arg(&mut args, "--model")?),
                 "--host" => host = take_arg(&mut args, "--host")?,
-                "--port" => port = take_arg(&mut args, "--port")?.parse().context("--port must be a u16")?,
+                "--port" => {
+                    port = take_arg(&mut args, "--port")?
+                        .parse()
+                        .context("--port must be a u16")?
+                }
                 "--registry" => registry_path = PathBuf::from(take_arg(&mut args, "--registry")?),
                 "--log-dir" => log_dir = PathBuf::from(take_arg(&mut args, "--log-dir")?),
                 "--arg" => child_args.push(take_arg(&mut args, "--arg")?),
@@ -258,19 +270,38 @@ async fn post_write(
     body: Bytes,
 ) -> Result<Json<Value>, RunnerError> {
     let body_preview = preview_bytes(&body);
-    log_runner_debug(&state.config, &format!("request path={} body={}", uri.path(), body_preview));
+    log_runner_debug(
+        &state.config,
+        &format!("request path={} body={}", uri.path(), body_preview),
+    );
 
     let input: WriteRequest = serde_json::from_slice(&body).map_err(|err| {
         let response = json!({ "error": format!("invalid write body: {err}") });
-        log_runner_debug(&state.config, &format!("response path={} status=400 body={}", uri.path(), preview_value(&response)));
+        log_runner_debug(
+            &state.config,
+            &format!(
+                "response path={} status=400 body={}",
+                uri.path(),
+                preview_value(&response)
+            ),
+        );
         RunnerError::bad_request(format!("invalid write body: {err}"))
     })?;
 
     let status = state.status.read().await.status.clone();
     if status != "active" {
         let response = json!({ "error": format!("agent is not active: {status}") });
-        log_runner_debug(&state.config, &format!("response path={} status=400 body={}", uri.path(), preview_value(&response)));
-        return Err(RunnerError::bad_request(format!("agent is not active: {status}")));
+        log_runner_debug(
+            &state.config,
+            &format!(
+                "response path={} status=400 body={}",
+                uri.path(),
+                preview_value(&response)
+            ),
+        );
+        return Err(RunnerError::bad_request(format!(
+            "agent is not active: {status}"
+        )));
     }
 
     let mut data = input
@@ -283,9 +314,19 @@ async fn post_write(
         data.push_str("\r\n");
     }
     if data.is_empty() {
-        let response = json!({ "error": "write body must include input, data, prompt, or enter=true" });
-        log_runner_debug(&state.config, &format!("response path={} status=400 body={}", uri.path(), preview_value(&response)));
-        return Err(RunnerError::bad_request("write body must include input, data, prompt, or enter=true"));
+        let response =
+            json!({ "error": "write body must include input, data, prompt, or enter=true" });
+        log_runner_debug(
+            &state.config,
+            &format!(
+                "response path={} status=400 body={}",
+                uri.path(),
+                preview_value(&response)
+            ),
+        );
+        return Err(RunnerError::bad_request(
+            "write body must include input, data, prompt, or enter=true",
+        ));
     }
 
     let mut writer = state.writer.lock().await;
@@ -293,7 +334,14 @@ async fn post_write(
     writer.flush()?;
 
     let response = json!({ "ok": true, "bytes": data.len() });
-    log_runner_debug(&state.config, &format!("response path={} status=200 body={}", uri.path(), preview_value(&response)));
+    log_runner_debug(
+        &state.config,
+        &format!(
+            "response path={} status=200 body={}",
+            uri.path(),
+            preview_value(&response)
+        ),
+    );
     Ok(Json(response))
 }
 
@@ -332,7 +380,14 @@ fn truncate_for_log(value: &str, max_chars: usize) -> String {
 
 fn spawn_reader(config: Arc<RunnerConfig>, mut reader: Box<dyn Read + Send>) {
     thread::spawn(move || {
-        let _ = append_line(&config.log_path, &format!("===== OS agent {} started at {} =====", config.id, Utc::now().to_rfc3339()));
+        let _ = append_line(
+            &config.log_path,
+            &format!(
+                "===== OS agent {} started at {} =====",
+                config.id,
+                Utc::now().to_rfc3339()
+            ),
+        );
         let mut buf = [0_u8; 8192];
         loop {
             match reader.read(&mut buf) {
@@ -366,7 +421,12 @@ where
             }
             let _ = append_line(
                 &config.log_path,
-                &format!("===== OS agent {} exited at {} code {:?} =====", config.id, Utc::now().to_rfc3339(), exit_code),
+                &format!(
+                    "===== OS agent {} exited at {} code {:?} =====",
+                    config.id,
+                    Utc::now().to_rfc3339(),
+                    exit_code
+                ),
             );
         });
     });
@@ -374,7 +434,9 @@ where
 
 async fn upsert_registry(config: &RunnerConfig, status: &RunnerStatus) -> anyhow::Result<()> {
     let _lock = RegistryLock::acquire(&config.registry_path).await?;
-    let mut records = read_registry(&config.registry_path).await.unwrap_or_default();
+    let mut records = read_registry(&config.registry_path)
+        .await
+        .unwrap_or_default();
     let record = json!({
         "id": config.id,
         "name": config.name,
@@ -397,7 +459,8 @@ async fn upsert_registry(config: &RunnerConfig, status: &RunnerStatus) -> anyhow
         "created_at": config.created_at,
         "updated_at": status.updated_at
     });
-    records.retain(|existing| existing.get("id").and_then(Value::as_str) != Some(config.id.as_str()));
+    records
+        .retain(|existing| existing.get("id").and_then(Value::as_str) != Some(config.id.as_str()));
     records.push(record);
     records.sort_by(|left, right| {
         let left = left.get("id").and_then(Value::as_str).unwrap_or_default();
@@ -424,7 +487,8 @@ impl RegistryLock {
                 .await
             {
                 Ok(mut file) => {
-                    file.write_all(std::process::id().to_string().as_bytes()).await?;
+                    file.write_all(std::process::id().to_string().as_bytes())
+                        .await?;
                     return Ok(Self { path: lock_path });
                 }
                 Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -437,7 +501,10 @@ impl RegistryLock {
                 Err(err) => return Err(err.into()),
             }
         }
-        bail!("timed out waiting for registry lock {}", lock_path.display())
+        bail!(
+            "timed out waiting for registry lock {}",
+            lock_path.display()
+        )
     }
 }
 
@@ -527,7 +594,10 @@ fn append_bytes(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let mut file = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
     file.write_all(bytes)?;
     file.flush()
 }
@@ -561,13 +631,20 @@ fn take_arg<I>(args: &mut std::iter::Peekable<I>, name: &str) -> anyhow::Result<
 where
     I: Iterator<Item = String>,
 {
-    args.next().with_context(|| format!("{name} requires a value"))
+    args.next()
+        .with_context(|| format!("{name} requires a value"))
 }
 
 fn safe_file_stem(value: &str) -> String {
     value
         .chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') { ch } else { '_' })
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
+                ch
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 

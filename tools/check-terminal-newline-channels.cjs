@@ -3,7 +3,13 @@ const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..");
-const apiBase = process.env.LCC_API_BASE || "http://127.0.0.1:9001";
+const requestedApiBase = process.env.LCC_API_BASE || "";
+const apiBaseCandidates = Array.from(
+  new Set(
+    [requestedApiBase, "http://127.0.0.1:9000", "http://127.0.0.1:20086", "http://127.0.0.1:9001"].filter(Boolean)
+  )
+);
+let apiBase = requestedApiBase || apiBaseCandidates[0];
 let sessionId = process.env.LCC_NEWLINE_SMOKE_SESSION || "terminal-normalization-verify";
 const createSession = process.env.LCC_NEWLINE_SMOKE_CREATE === "1";
 const evidenceDir = path.join(root, "data", "system-logs", "terminal-normalization-20260604");
@@ -11,6 +17,21 @@ const evidencePath = path.join(evidenceDir, "newline-channel-smoke.json");
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function resolveApiBase() {
+  for (const candidate of apiBaseCandidates) {
+    try {
+      const response = await fetch(`${candidate}/api/health`, { signal: AbortSignal.timeout(3000) });
+      if (response.ok) {
+        apiBase = candidate;
+        return candidate;
+      }
+    } catch {
+      // Try the next known runtime candidate.
+    }
+  }
+  throw new Error(`Unable to reach any API base: ${apiBaseCandidates.join(", ")}`);
 }
 
 async function api(pathname, options = {}) {
@@ -160,6 +181,7 @@ async function runCase(channel, send) {
 
 async function main() {
   fs.mkdirSync(evidenceDir, { recursive: true });
+  await resolveApiBase();
   const health = await api("/api/health");
   const createdSession = createSession ? await createSmokeSession() : null;
   const cases = [
@@ -176,7 +198,9 @@ async function main() {
   }
   const report = {
     at: new Date().toISOString(),
-    apiBase,
+    apiBaseRequested: requestedApiBase || null,
+    apiBaseResolved: apiBase,
+    apiBaseCandidates,
     sessionId,
     health,
     createdSession: createdSession
@@ -198,7 +222,9 @@ async function main() {
 main().catch((error) => {
   const report = {
     at: new Date().toISOString(),
-    apiBase,
+    apiBaseRequested: requestedApiBase || null,
+    apiBaseResolved: apiBase,
+    apiBaseCandidates,
     sessionId,
     ok: false,
     error: error.message,

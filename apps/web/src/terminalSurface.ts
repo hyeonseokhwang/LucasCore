@@ -18,3 +18,7 @@ export function pickActiveTerminalSessionId(sessions: SessionLike[], currentId?:
 export function shouldAttachLiveTerminal(sessionId: string, activeSessionId: string) {
   return sessionId.length > 0 && sessionId === activeSessionId;
 }
+
+export function isTerminalContainerReady(width: number, height: number) {
+  return width > 0 && height > 0;
+}

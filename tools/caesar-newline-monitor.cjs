@@ -3,7 +3,13 @@ const fs = require("fs");
 const path = require("path");
 
 const root = path.resolve(__dirname, "..");
-const apiBase = process.env.LCC_API_BASE || "http://127.0.0.1:9001";
+const requestedApiBase = process.env.LCC_API_BASE || "";
+const apiBaseCandidates = Array.from(
+  new Set(
+    [requestedApiBase, "http://127.0.0.1:9000", "http://127.0.0.1:20086", "http://127.0.0.1:9001"].filter(Boolean)
+  )
+);
+let apiBase = requestedApiBase || apiBaseCandidates[0];
 const intervalMs = Math.max(1000, Number(process.env.CAESAR_NEWLINE_MONITOR_INTERVAL_MS || 5000));
 const detectThresholdMs = Math.max(1000, Number(process.env.CAESAR_NEWLINE_DETECT_THRESHOLD_MS || 8000));
 const repeatAlertMs = Math.max(10000, Number(process.env.CAESAR_NEWLINE_REPEAT_ALERT_MS || 120000));
@@ -59,6 +65,21 @@ function getSessionsArray(data) {
   if (Array.isArray(data?.value)) return data.value;
   if (Array.isArray(data?.sessions)) return data.sessions;
   return [];
+}
+
+async function resolveApiBase() {
+  for (const candidate of apiBaseCandidates) {
+    try {
+      const response = await fetch(`${candidate}/api/health`, { signal: AbortSignal.timeout(3000) });
+      if (response.ok) {
+        apiBase = candidate;
+        return candidate;
+      }
+    } catch {
+      // Try the next known runtime candidate.
+    }
+  }
+  throw new Error(`Unable to reach any API base: ${apiBaseCandidates.join(", ")}`);
 }
 
 async function getSessions() {
@@ -302,6 +323,9 @@ async function tick() {
   const runtime = {
     at: new Date().toISOString(),
     ok: true,
+    apiBaseRequested: requestedApiBase || null,
+    apiBaseResolved: apiBase,
+    apiBaseCandidates,
     intervalMs,
     detectThresholdMs,
     repeatAlertMs,
@@ -318,6 +342,7 @@ async function tick() {
 }
 
 async function main() {
+  await resolveApiBase();
   while (true) {
     if (endAtMs > 0 && Date.now() >= endAtMs) {
       appendEvent({ type: "monitor_stop", reason: "end_at_reached", endAtMs });
