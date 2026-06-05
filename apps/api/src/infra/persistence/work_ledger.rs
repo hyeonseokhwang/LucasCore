@@ -4,8 +4,10 @@ use chrono::Utc;
 use tokio::{fs, sync::RwLock};
 
 use crate::{
-    app::work_ledger::UpsertWorkTask,
-    domain::work_ledger::work_ledger::{WorkLedger, WorkTask, WorkTaskEvent, WorkTaskStatus},
+    domain::work_ledger::{
+        port::WorkLedgerRepository,
+        work_ledger::{WorkLedger, WorkTask, WorkTaskStatus},
+    },
     ApiError,
 };
 
@@ -36,79 +38,23 @@ impl WorkLedgerStore {
         })
     }
 
-    pub(crate) async fn get(&self) -> WorkLedger {
-        self.ledger.read().await.clone()
-    }
-
     async fn persist(&self, ledger: &WorkLedger) -> Result<(), ApiError> {
         let raw = serde_json::to_string_pretty(ledger).map_err(ApiError::internal)?;
         fs::write(&*self.path, raw)
             .await
             .map_err(ApiError::internal)
     }
+}
 
-    pub(crate) async fn upsert_task(
-        &self,
-        id: &str,
-        input: UpsertWorkTask,
-    ) -> Result<WorkTask, ApiError> {
-        let mut ledger = self.ledger.write().await;
-        let now = Utc::now();
-        let result = if let Some(task) = ledger.tasks.iter_mut().find(|task| task.id == id) {
-            if let Some(title) = input.title {
-                task.title = title;
-            }
-            if let Some(status) = input.status {
-                task.status = status;
-            }
-            if let Some(priority) = input.priority {
-                task.priority = priority;
-            }
-            if input.due_at.is_some() {
-                task.due_at = input.due_at;
-            }
-            if input.reminder_minutes.is_some() {
-                task.reminder_minutes = input.reminder_minutes;
-            }
-            if input.last_reminded_at.is_some() {
-                task.last_reminded_at = input.last_reminded_at;
-            }
-            if input.notes.is_some() {
-                task.notes = input.notes;
-            }
-            task.updated_at = now;
-            task.clone()
-        } else {
-            let task = WorkTask {
-                id: id.to_string(),
-                title: input.title.unwrap_or_else(|| id.to_string()),
-                status: input.status.unwrap_or(WorkTaskStatus::Todo),
-                priority: input.priority.unwrap_or(100),
-                due_at: input.due_at,
-                reminder_minutes: input.reminder_minutes,
-                last_reminded_at: input.last_reminded_at,
-                notes: input.notes,
-                updated_at: now,
-            };
-            ledger.tasks.push(task.clone());
-            task
-        };
-        self.persist(&ledger).await?;
-        Ok(result)
+impl WorkLedgerRepository for WorkLedgerStore {
+    async fn get(&self) -> WorkLedger {
+        self.ledger.read().await.clone()
     }
 
-    pub(crate) async fn add_event(
-        &self,
-        task_id: &str,
-        event: WorkTaskEvent,
-    ) -> Result<(), ApiError> {
-        let mut ledger = self.ledger.write().await;
-        let Some(task) = ledger.tasks.iter_mut().find(|task| task.id == task_id) else {
-            return Err(ApiError::not_found("work task not found"));
-        };
-        task.updated_at = Utc::now();
-        ledger.events.push(event);
-        self.persist(&ledger).await
+    async fn save(&self, ledger: &WorkLedger) -> Result<(), String> {
+        self.persist(ledger).await.map_err(|err| err.message)?;
+        *self.ledger.write().await = ledger.clone();
+        Ok(())
     }
 }
 

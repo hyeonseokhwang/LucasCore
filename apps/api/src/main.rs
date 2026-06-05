@@ -1593,7 +1593,7 @@ async fn branch_status(
         "ok": true,
         "service": "lcc-core-branch-inbound",
         "time": Utc::now(),
-        "work_ledger_tasks": state.work_ledger.get().await.tasks.len(),
+        "work_ledger_tasks": app::work_ledger::get_usecase(&state.work_ledger).await.tasks.len(),
         "peer_messages": peer_message_count,
         "agent_total": census.total_agents,
         "agent_active": census.active_agents,
@@ -1618,7 +1618,9 @@ async fn branch_work_ledger(
     headers: HeaderMap,
 ) -> Result<Json<crate::domain::work_ledger::work_ledger::WorkLedger>, ApiError> {
     require_branch_token(&headers)?;
-    Ok(Json(state.work_ledger.get().await))
+    Ok(Json(
+        app::work_ledger::get_usecase(&state.work_ledger).await,
+    ))
 }
 
 async fn branch_list_messages(
@@ -4219,7 +4221,7 @@ async fn recover_agent_context(
         limit,
     )
     .await;
-    let ledger = state.work_ledger.get().await;
+    let ledger = app::work_ledger::get_usecase(&state.work_ledger).await;
     let active_tasks: Vec<WorkTask> = ledger
         .tasks
         .iter()
